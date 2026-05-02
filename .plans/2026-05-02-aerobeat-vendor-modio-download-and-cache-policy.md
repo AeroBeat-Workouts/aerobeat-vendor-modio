@@ -243,24 +243,24 @@ Execution-ready recommendation: Task 2 should implement a vendor-local **artifac
 - implementation/tests/docs as needed
 - `.plans/2026-05-02-aerobeat-vendor-modio-download-and-cache-policy.md`
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** Independent audit passed against the current local official `modio-docs` mirror, then cross-checked with the pinned `modio-sdk` and `modio-unity` references for workflow/SDK parity. Confirmed `GET /games/{game-id}/mods/{mod-id}/dependencies` still serializes `recursive=true|false` explicitly, matches the documented immediate-vs-recursive semantics, and carries `dependency_depth` plus the current documented maximum recursive depth of 5 in repo-local resolution metadata. Confirmed canonical artifact/cache identity is derived from `provider + game_id + mod_id + modfile.id`, not from transient `download.binary_url`, and that expiry/cache metadata stays tied to current response fields like `download.date_expires`, `api_access_options`, and `dependency_option`. Re-checked the QA-fixed fixtures against the current Game Object and platform schemas (`theme.dark` string, `mods_count_total`, `mods_subscribers_total`, doc-valid platform enums including `SOURCE`/`WINDOWS`) and found no remaining drift. Repo-local validation passed again via `godot --headless --path .testbed --script res://tests/validate_scaffold.gd` and `godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit` (20/20 tests passed, 323 asserts). No downloader, install orchestration, AeroBeat trust/policy logic, or cross-repo vendor leakage was introduced.
 
 ---
 
 ## Final Results
 
-**Status:** ⚠️ Partial
+**Status:** ✅ Complete
 
-**What We Built:** Research, coder implementation, and QA verification are complete for the metadata-only slice. `ModioVendorAdapter` now covers dependency request building/normalization, game download-policy interpretation, canonical artifact/cache identity, dependency-aware artifact resolution, expiry/cacheability metadata, and fixture-backed dedupe/partiality tests. Independent auditor verification is still pending.
+**What We Built:** Research, coder implementation, QA verification, and independent audit are complete for the metadata-only slice. `ModioVendorAdapter` now covers dependency request building/normalization, game download-policy interpretation, canonical artifact/cache identity, dependency-aware artifact resolution, expiry/cacheability metadata, and fixture-backed dedupe/partiality tests while keeping download execution and install orchestration out of scope.
 
-**Reference Check:** Task 1, Task 2, and Task 3 re-validated behavior against the local official `modio-docs` mirror first, with the pinned `modio-sdk` and `modio-unity` repos used only as supporting workflow references. QA also corrected one remaining fixture drift against the current documented `Game Object` stats/theme shape while preserving the earlier platform-enum and explicit dependency-recursion coverage.
+**Reference Check:** All four tasks validated behavior against the local official `modio-docs` mirror first, with the pinned `modio-sdk` and `modio-unity` repos used only as supporting SDK/workflow references. Final audit re-confirmed explicit `recursive=true|false` dependency handling, documented depth-5 recursive semantics, current `Game Object` stats/theme fields, current platform enums, and repo-local isolation of vendor concerns.
 
 **Commits:**
-- Pending
+- Pending final plan-update commit
 
-**Lessons Learned:** The main remaining risk is no longer basic request construction; it is making sure higher layers do not accidentally promote transient delivery metadata into durable product identity or skip explicit dependency/download-policy checks that the vendor seam now exposes.
+**Lessons Learned:** The seam is in a good place when it treats mod.io delivery URLs as transient transport metadata and keeps durable identity anchored to provider/game/mod/modfile identifiers instead of CDN hashes or higher-level product policy assumptions.
 
 ---
 
