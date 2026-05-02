@@ -69,7 +69,7 @@ This first slice should stay modest. We are not trying to fully implement mod.io
 
 **Status:** ✅ Complete
 
-**Results:** Bootstrapped the repo as a reusable Godot package with a new `plugin.cfg`, a rewritten README that positions this repo as the provider-specific mod.io adapter behind `aerobeat-tool-api`, a minimal but real `.testbed/` workbench (`addons.jsonc`, `project.godot`, `src` symlink bridge, scaffold validation script, and a first GUT test), and an implementation-ready `src/` seam built around `ModioVendorAdapter`, provider-local request/config DTOs, and a transport helper. Added `docs/modio-seam-plan.md` to document the next auth/listing/download slices without prematurely implementing live network behavior. Validation run: `godot --headless --path .testbed --script res://tests/validate_scaffold.gd` and `godot --headless --path .testbed --import`. Commit/push details pending final handoff. Validated against `REF-03` through `REF-06` while keeping provider-specific concerns local to this repo.
+**Results:** Bootstrapped the repo as a reusable Godot package with a new `plugin.cfg`, a rewritten README that positions this repo as the provider-specific mod.io adapter behind `aerobeat-tool-api`, a minimal but real `.testbed/` workbench (`addons.jsonc`, `project.godot`, `src` symlink bridge, scaffold validation script, and a first GUT test), and an implementation-ready `src/` seam built around `ModioVendorAdapter`, provider-local request/config DTOs, and a transport helper. Added `docs/modio-seam-plan.md` to document the next auth/listing/download slices without prematurely implementing live network behavior. Validation run: `godot --headless --path .testbed --script res://tests/validate_scaffold.gd` and `godot --headless --path .testbed --import`. Commit/push: `e34ca37` (`Bootstrap mod.io vendor adapter scaffold`). Validated against `REF-03` through `REF-06` while keeping provider-specific concerns local to this repo.
 
 ---
 
@@ -123,14 +123,14 @@ This first slice should stay modest. We are not trying to fully implement mod.io
 
 **Status:** ⏳ In Progress
 
-**What We Built:** Pending.
+**What We Built:** Coder bootstrap complete: reusable package metadata, vendor-adapter README, GodotEnv-compatible `.testbed/` workbench, initial adapter-oriented `src/` seam, and a first mod.io seam plan doc. QA and audit are still pending.
 
-**Reference Check:** Pending.
+**Reference Check:** `REF-03` informed the package/testbed shape; `REF-04` and `REF-05` informed the repo-role boundary and adapter seam; `REF-06` informed the GodotEnv/testbed workflow and versioning posture.
 
 **Commits:**
-- Pending
+- `e34ca37` - Bootstrap mod.io vendor adapter scaffold
 
-**Lessons Learned:** Pending.
+**Lessons Learned:** The smallest useful scaffold here is request-shape and seam documentation, not live HTTP behavior. A tiny headless validation script gives immediate repo-local confidence even before GodotEnv dependencies are restored.
 
 ---
 
