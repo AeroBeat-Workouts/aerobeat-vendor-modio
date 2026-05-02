@@ -97,6 +97,7 @@ func test_builds_authenticated_subscription_requests() -> void:
 	assert_eq(subscribed_request.path, "/me/subscribed")
 	assert_eq(subscribed_request.headers.Authorization, "Bearer user-token")
 	assert_eq(subscribed_request.query.tags, "approved")
+	assert_eq(subscribed_request.query.game_id, "777")
 
 	var subscribe_request = adapter.build_subscribe_request("1001", true)
 	assert_eq(subscribe_request.method, "POST")

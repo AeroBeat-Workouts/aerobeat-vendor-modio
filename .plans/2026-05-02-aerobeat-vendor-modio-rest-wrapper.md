@@ -126,24 +126,24 @@ This means the work should start with a source-of-truth research pass: identify 
 - implementation/tests/docs as needed
 - `.plans/2026-05-02-aerobeat-vendor-modio-rest-wrapper.md`
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** Performed an independent source-of-truth audit against the local official `modio-docs` REST reference plus the local official `modio-sdk` and `modio-unity` repos. Confirmed the QA agreement-endpoint fixes were correct: the wrapper now uses documented integer agreement type ids for `GET /agreements/types/{agreement-type-id}/current`, and the agreement fixture/normalizer matches the current Agreement Version object shape (`is_active`, `is_latest`, `type`, `user`, `date_*`, `name`, `changelog`, `description`, `adjacent_versions`). Found one remaining drift issue outside the QA fixes: when the adapter sends `X-Modio-Platform` for `GET /me/subscribed`, the current official docs require a `game_id` filter for platform-targeted subscription results, but the request builder omitted it. Applied the minimum fix by automatically including repo-local `game_id` on subscription reads whenever a platform header is configured, and extended the fixture-driven test to lock that requirement in. Re-ran repo-local validation successfully with `godot --headless --path .testbed --script res://tests/validate_scaffold.gd` and `godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit` (8/8 tests passed). Vendor-specific handling remains local to this repo, the intended current wrapper slice is covered, and no other unintended drift was found in the audited surface.
 
 ---
 
 ## Final Results
 
-**Status:** ⏳ In Progress
+**Status:** ✅ Complete
 
-**What We Built:** Research phase complete only so far. The repo now has a committed execution-ready mod.io REST API research note and a durable local reference strategy pinned to official `modio` repos under `~/workspace/projects/modio/`.
+**What We Built:** The repo now contains an audited mod.io REST wrapper for the current AeroBeat slice: auth/session helpers, terms/current-agreement helpers, browse/detail/subscriptions request builders, subscribe/unsubscribe request builders, download metadata extraction, and transport error normalization backed by fixture-driven tests tied to current official mod.io API shapes.
 
-**Reference Check:** Task 1 validated against official mod.io docs first, then against official cloned references (`modio-docs`, `modio-sdk`, `modio-unity`). Implementation tasks remain pending.
+**Reference Check:** Task 1, QA, and audit all validated against the local official `modio-docs` REST reference first, then cross-checked against the local official `modio-sdk` and `modio-unity` repos. The final audit confirmed the agreement-endpoint fixes were correct and added the remaining `/me/subscribed` + `X-Modio-Platform` / `game_id` compliance fix required by the current docs.
 
 **Commits:**
-- Pending
+- Pending auditor commit/push for the final audit fix and plan update.
 
-**Lessons Learned:** Pending.
+**Lessons Learned:** The mod.io surface is close to stable, but small contract details still matter—especially platform-targeted reads (`/me/subscribed` requiring `game_id`) and agreement payload modeling. Keeping local official reference repos alongside fixture-driven tests makes those drifts easy to catch before the seam is consumed elsewhere.
 
 ---
 

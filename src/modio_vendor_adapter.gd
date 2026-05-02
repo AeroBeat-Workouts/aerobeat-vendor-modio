@@ -161,6 +161,8 @@ func build_modfiles_request(mod_id: String, query: ModioListingQuery = ModioList
 func build_user_subscriptions_request(query: ModioListingQuery = ModioListingQuery.new()) -> Dictionary:
 	var full_query := _build_authenticated_query()
 	full_query.merge(query.to_query_dict(), true)
+	if not _config.platform.is_empty() and not _config.game_id.is_empty():
+		full_query["game_id"] = _config.game_id
 	return _transport.build_request(
 		"GET",
 		"/me/subscribed",
