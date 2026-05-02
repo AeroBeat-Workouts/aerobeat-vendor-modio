@@ -1,0 +1,91 @@
+{
+  "data": [
+    {
+      "id": 1001,
+      "game_id": 777,
+      "status": 1,
+      "visible": 1,
+      "submitted_by": {
+        "id": 55,
+        "name_id": "beatmaker",
+        "username": "BeatMaker",
+        "display_name_portal": null,
+        "date_online": 1777700000,
+        "date_joined": 1777000000,
+        "avatar": {
+          "filename": "avatar.png",
+          "original": "https://assets.modcdn.io/images/placeholder/avatar.png",
+          "thumb_50x50": "https://assets.modcdn.io/images/placeholder/avatar_50x50.png",
+          "thumb_100x100": "https://assets.modcdn.io/images/placeholder/avatar_100x100.png"
+        },
+        "profile_url": "https://mod.io/u/beatmaker"
+      },
+      "date_added": 1777600000,
+      "date_updated": 1777700000,
+      "date_live": 1777750000,
+      "name": "Cardio Blaster",
+      "name_id": "cardio-blaster",
+      "summary": "A fast interval workout map.",
+      "description": "<p>A fast interval workout map.</p>",
+      "description_plaintext": "A fast interval workout map.",
+      "metadata_blob": "{\"intensity\":\"high\"}",
+      "profile_url": "https://mod.io/g/aerobeat/m/cardio-blaster",
+      "media": {
+        "youtube": [],
+        "sketchfab": [],
+        "images": []
+      },
+      "modfile": {
+        "id": 5001,
+        "mod_id": 1001,
+        "date_added": 1777600000,
+        "date_updated": 1777700000,
+        "date_scanned": 1777700100,
+        "virus_status": 1,
+        "virus_positive": 0,
+        "filesize": 245760,
+        "filesize_uncompressed": 524288,
+        "filehash": {"md5": "abc123md5"},
+        "filename": "cardio-blaster-v1.zip",
+        "version": "1.0.0",
+        "changelog": "Initial release.",
+        "metadata_blob": "{\"songCount\":12}",
+        "download": {
+          "binary_url": "https://api.mod.io/v1/games/777/mods/1001/files/5001/download/hash123",
+          "date_expires": 1777800000
+        },
+        "platforms": [
+          {"platform": "WINDOWS", "status": 1}
+        ]
+      },
+      "dependencies": false,
+      "platforms": [
+        {"platform": "WINDOWS", "modfile_live": 5001}
+      ],
+      "metadata_kvp": [
+        {"metakey": "workout_type", "metavalue": "cardio"}
+      ],
+      "tags": [
+        {"name": "Approved", "name_localized": "Approved", "date_added": 1777600000},
+        {"name": "Expert", "name_localized": "Expert", "date_added": 1777600000}
+      ],
+      "stats": {
+        "mod_id": 1001,
+        "downloads_today": 87,
+        "downloads_total": 1024,
+        "subscribers_total": 256,
+        "ratings_total": 64,
+        "ratings_positive": 60,
+        "ratings_negative": 4,
+        "ratings_percentage_positive": 93,
+        "ratings_weighted_aggregate": 88.4,
+        "ratings_display_text": "Very Positive",
+        "date_expires": 1777800000
+      }
+    }
+  ],
+  "result_count": 1,
+  "result_offset": 0,
+  "result_limit": 100,
+  "result_total": 1
+}

@@ -11,9 +11,10 @@ Keep **provider-native** concerns in this repo while allowing `aerobeat-tool-api
 ### This repo should own
 
 - mod.io request construction
-- auth/session exchange helpers
-- provider listing and search query mapping
-- provider download/file resolution mapping
+- auth/session request-shape support for email and OpenID flows
+- provider listing/search/detail query mapping
+- provider subscription/user-state mapping via `GET /me/subscribed`
+- provider download metadata resolution from `modfile.download`
 - provider DTO parsing and error normalization
 - future thin HTTP transport execution for mod.io-specific endpoints
 
@@ -23,59 +24,83 @@ Keep **provider-native** concerns in this repo while allowing `aerobeat-tool-api
 - public product-facing singleton contracts
 - gameplay/UI integration behavior
 - canonical content identity beyond provider-to-AeroBeat mapping helpers
+- install orchestration decisions above the provider seam
 
-## Initial code seam
+## Implemented code seam
 
-The bootstrap scaffold intentionally starts with request-builder stubs:
+The current slice now exposes a larger request-builder and normalization seam:
 
 - `ModioVendorAdapter`
-  - `build_auth_exchange_request(...)`
-  - `build_listing_request(...)`
-  - `build_download_request(...)`
+  - auth/session request builders
+    - `build_email_security_code_request(...)`
+    - `build_auth_exchange_request(...)`
+    - `build_openid_auth_request(...)`
+    - `build_terms_request()`
+    - `build_current_agreement_request(...)`
+    - `build_authenticated_user_request(...)`
+    - `build_logout_request()`
+  - browse/detail request builders
+    - `build_game_request(...)`
+    - `build_listing_request(...)`
+    - `build_mod_detail_request(...)`
+    - `build_modfiles_request(...)`
+  - subscription request builders
+    - `build_user_subscriptions_request(...)`
+    - `build_subscribe_request(...)`
+    - `build_unsubscribe_request(...)`
+  - normalization helpers
+    - auth/user/game/mod/modfile/subscription responses
+    - subscription write responses
+    - download metadata resolution helpers
 - `ModioHttpTransport`
   - normalized request-dictionary builder
+  - structured error/rate-limit normalization seam
 - provider-local models under `src/models/`
+  - `ModioClientConfig`
+  - `ModioListingQuery`
+  - `ModioDownloadRequest`
 
-That keeps the repo implementation-ready without forcing premature live network behavior.
+## Download seam decision
+
+For AeroBeat's current slice, this repo does **not** expose a fake stable `/download` provider abstraction.
+
+Instead it:
+
+- resolves downloads from modfile payloads returned by `GET /games/{game-id}/mods/{mod-id}` or `GET /games/{game-id}/mods/{mod-id}/files`
+- preserves `binary_url`, `date_expires`, hash, and filename
+- explicitly marks the resolved URL as non-canonical because current mod.io docs state hashed URLs can expire and should not be saved/reused as stable identifiers
+
+That keeps transient CDN delivery behavior local to the vendor seam and out of AeroBeat's higher-level identity/trust decisions.
+
+## Query/auth stance
+
+- public/read flows default to query-based `api_key` injection
+- authenticated flows prefer bearer token headers
+- read flows can also prefer bearer tokens when a caller has an authenticated session already
+- portal/platform/language headers remain provider-local config concerns
+- no automatic blind retries are performed in the low-level seam
+
+## Validation stance
+
+The current validation layer is fixture-driven and based on current official API shapes documented in:
+
+- `docs/modio-rest-api-research-2026-05-02.md`
+- `/home/derrick/.openclaw/workspace/projects/modio/modio-docs`
+- `/home/derrick/.openclaw/workspace/projects/modio/modio-sdk`
+- `/home/derrick/.openclaw/workspace/projects/modio/modio-unity`
+
+Repo-local tests intentionally use simulated payloads derived from the documented shapes instead of live network calls.
 
 ## Next implementation slices
 
-### 1. Auth
+### 1. Live transport execution
 
-Add a provider-local auth/session model that can:
+Add real HTTP execution behind `ModioHttpTransport` without changing the current adapter contract.
 
-- exchange creator or athlete auth codes for mod.io-compatible session data when needed
-- normalize expiry and token payloads into repo-local DTOs
-- avoid leaking raw provider payloads upward when `aerobeat-tool-api` only needs a narrower contract
+### 2. Richer filtering and platform targeting
 
-### 2. Listing / discovery
+Expand provider query models only as needed by AeroBeat, especially around platform targeting and advanced browse filters.
 
-Expand `ModioListingQuery` and adapter parsing to support:
+### 3. Higher-level mapping in `aerobeat-tool-api`
 
-- in-game filtered discovery joins
-- provider pagination cursors or offsets
-- tag/category mapping kept local to this adapter
-- normalized provider errors for rate limits, not-found, and auth failures
-
-### 3. Download
-
-Add download resolution helpers that can:
-
-- resolve approved provider file URLs
-- map provider file metadata into AeroBeat download/install orchestration inputs
-- keep checksum/integrity verification responsibilities clearly separate from AeroBeat trust validation
-
-## Integration stance with `aerobeat-tool-api`
-
-`aerobeat-tool-api` should eventually depend on a narrow provider-adapter seam such as:
-
-- configure active adapter
-- request provider-backed discovery data
-- request provider-backed download metadata
-- translate provider failures into AeroBeat-facing results
-
-The API manager should coordinate this adapter, not absorb its provider DTOs or raw endpoint logic.
-
-## Validation note
-
-The current scaffold validates only local seam construction and request-shape expectations. Live transport execution, provider payload fixtures, and integration tests belong in later slices.
+Let `aerobeat-tool-api` translate these vendor-local DTOs into narrower AeroBeat-facing results while keeping raw mod.io mechanics isolated here.

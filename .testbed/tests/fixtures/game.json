@@ -1,0 +1,22 @@
+{
+  "id": 777,
+  "name": "AeroBeat",
+  "name_id": "aerobeat",
+  "api_access_options": 7,
+  "submission_option": 0,
+  "tag_options": [
+    {
+      "name": "Difficulty",
+      "name_localized": "Difficulty",
+      "type": "checkboxes",
+      "tags": ["Beginner", "Expert"],
+      "tags_localized": {"Beginner": "Beginner", "Expert": "Expert"},
+      "tag_count_map": {"Beginner": 12, "Expert": 4},
+      "hidden": false,
+      "locked": false
+    }
+  ],
+  "platforms": [
+    {"platform": "WINDOWS", "label": "Windows", "moderated": true, "locked": false}
+  ]
+}

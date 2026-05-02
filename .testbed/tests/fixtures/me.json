@@ -1,0 +1,19 @@
+{
+  "id": 42,
+  "name_id": "aerobeat-player",
+  "username": "AeroBeatPlayer",
+  "display_name_portal": null,
+  "date_online": 1777700000,
+  "date_joined": 1777000000,
+  "avatar": {
+    "filename": "avatar.png",
+    "original": "https://assets.modcdn.io/images/placeholder/avatar.png",
+    "thumb_50x50": "https://assets.modcdn.io/images/placeholder/avatar_50x50.png",
+    "thumb_100x100": "https://assets.modcdn.io/images/placeholder/avatar_100x100.png"
+  },
+  "country": "US",
+  "privacy_options": 3,
+  "status": 1,
+  "monetization_status": 0,
+  "profile_url": "https://mod.io/u/aerobeat-player"
+}

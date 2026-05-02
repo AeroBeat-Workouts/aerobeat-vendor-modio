@@ -78,9 +78,9 @@ This means the work should start with a source-of-truth research pass: identify 
 - `docs/modio-seam-plan.md`
 - `.plans/2026-05-02-aerobeat-vendor-modio-rest-wrapper.md`
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** Implemented the current AeroBeat mod.io wrapper slice behind `ModioVendorAdapter` and provider-local models/transport seams. Added request builders for email auth, email exchange, OpenID auth, terms/agreement reads, authenticated user, logout, game/mod/modfile browse/detail, subscriptions, and subscribe/unsubscribe flows. Added response normalization helpers for tokens, terms, agreements, users, games, mods, modfiles, subscriptions, and subscription write variants (`200` already subscribed vs `201` created). Shifted download handling to resolved modfile metadata rather than a fake stable provider download endpoint, explicitly marking `binary_url` as expiring/non-canonical per current official docs. Added fixture-driven tests under `.testbed/tests/fixtures/` based on the documented current response shapes from the official `modio-docs` mirror, plus structured rate-limit/terms-required error normalization coverage. Updated README and seam docs to reflect the new contract, restored `.testbed` addons with `godotenv`, and fixed a broken empty `~/.config/godotenv/godotenv.json` local config so repo-local validation could run. Validation passed with `godot --headless --path .testbed --script res://tests/validate_scaffold.gd` and `godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit`.
 
 ---
 

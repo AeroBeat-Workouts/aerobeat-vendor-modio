@@ -10,10 +10,11 @@ This repo exists to keep mod.io-specific concerns local, replaceable, and out of
 
 This package owns the concrete mod.io-side seam for:
 
-- auth request construction and token/session exchange helpers
-- listing/search request construction for approved discovery flows
-- download request construction and provider file resolution
-- provider-specific DTOs, query shapes, and error normalization
+- auth request construction and token/session normalization
+- browse/list/detail request construction for game, mod, and modfile reads
+- subscription/user-state request construction for `GET /me/subscribed` and subscribe/unsubscribe flows
+- download metadata resolution from `modfile.download.binary_url` and `date_expires`
+- provider-specific DTOs, query shapes, and error/rate-limit normalization
 - future transport glue that talks to mod.io without leaking that surface into `aerobeat-tool-api`
 
 This package should **not** own:
@@ -22,25 +23,46 @@ This package should **not** own:
 - product-facing gameplay/UI contracts
 - canonical AeroBeat trust decisions
 - direct product-repo integration contracts
+- download/install orchestration policy above the provider seam
 
-## Package details
+## Current implementation scope
 
-- **Type:** Vendor adapter package
-- **License:** **MPL 2.0**
-- **Intended consumer:** `aerobeat-tool-api`
-- **Allowed shared dependency lane:** `aerobeat-tool-core`
+This slice now implements a fixture-driven REST wrapper for the current researched mod.io surface:
 
-## Current bootstrap scope
+- auth/session request shapes
+  - `POST /oauth/emailrequest`
+  - `POST /oauth/emailexchange`
+  - `POST /external/openidauth`
+  - `GET /authenticate/terms`
+  - `GET /agreements/types/{agreement-type-id}/current`
+  - `GET /me`
+  - `POST /oauth/logout`
+- browse/content reads
+  - `GET /games/{game-id}`
+  - `GET /games/{game-id}/mods`
+  - `GET /games/{game-id}/mods/{mod-id}`
+  - `GET /games/{game-id}/mods/{mod-id}/files`
+- user-state writes/reads
+  - `GET /me/subscribed`
+  - `POST /games/{game-id}/mods/{mod-id}/subscribe`
+  - `DELETE /games/{game-id}/mods/{mod-id}/subscribe`
+- response normalization seams
+  - access token, terms, agreement, user, game, mod list/detail, modfiles, subscriptions
+  - structured error/rate-limit mapping including `retry-after`, `11008`, `11009`, and `11074`
 
-This first scaffold intentionally stays small:
+The wrapper still does **not** perform live HTTP execution in this repo. It owns request construction, provider-local DTO normalization, and download metadata handling so the execution layer can land later without changing the upstream seam.
 
-- reusable `plugin.cfg` package metadata
-- hidden GodotEnv-compatible `.testbed/` workbench
-- initial `src/` layout centered on the adapter seam
-- request-builder style stubs for mod.io auth / listing / download flows
-- a first seam plan for where real provider integration should land next
+## Download URL stance
 
-It does **not** implement live network behavior yet.
+mod.io `binary_url` values are treated as **expiring delivery URLs**, not canonical file identities.
+
+The wrapper therefore:
+
+- resolves downloads from modfile metadata instead of exposing a fake stable download endpoint contract
+- preserves `date_expires`, hash, filename, and file identifiers
+- marks resolved download URLs as non-canonical so higher layers do not use them as durable cache keys
+
+This follows the current official mod.io docs note that hashed download URLs can expire and should not be saved/reused as if they were permanent.
 
 ## Source layout
 
@@ -56,8 +78,8 @@ src/
 ```
 
 - `modio_vendor_adapter.gd` is the provider-facing entry seam for future composition by `aerobeat-tool-api`.
-- `models/` holds provider-local config and request DTOs.
-- `network/` holds transport helpers that should remain mod.io-specific.
+- `models/` holds provider-local config and request/download/query DTOs.
+- `network/` holds transport helpers that remain mod.io-specific.
 
 ## GodotEnv development flow
 
@@ -99,7 +121,7 @@ From the repo root:
 godot --headless --path .testbed --import
 ```
 
-### Run the repo-local scaffold validation
+### Run the scaffold validation
 
 From the repo root:
 
@@ -107,13 +129,23 @@ From the repo root:
 godot --headless --path .testbed --script res://tests/validate_scaffold.gd
 ```
 
-## Seam plan: mod.io auth / listing / download
+### Run the fixture-driven wrapper tests
+
+From the repo root:
+
+```bash
+godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit
+```
+
+## References used for the current implementation
+
+- research note: [`docs/modio-rest-api-research-2026-05-02.md`](docs/modio-rest-api-research-2026-05-02.md)
+- seam plan: [`docs/modio-seam-plan.md`](docs/modio-seam-plan.md)
+- primary local docs mirror: `/home/derrick/.openclaw/workspace/projects/modio/modio-docs`
+- official behavior sanity references:
+  - `/home/derrick/.openclaw/workspace/projects/modio/modio-sdk`
+  - `/home/derrick/.openclaw/workspace/projects/modio/modio-unity`
+
+## Seam plan
 
 See [`docs/modio-seam-plan.md`](docs/modio-seam-plan.md).
-
-Short version:
-
-1. `aerobeat-tool-api` should compose one provider adapter instance.
-2. This repo should map mod.io request/response details into provider-local DTOs.
-3. AeroBeat-owned trust, approval, and install policy should stay outside this repo.
-4. Real HTTP execution can land later behind the current `ModioHttpTransport` seam without changing the package role.

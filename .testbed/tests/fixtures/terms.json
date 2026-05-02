@@ -1,0 +1,13 @@
+{
+  "plaintext": "By signing in you agree to the mod.io Terms of Use and Privacy Policy.",
+  "html": "<p>By signing in you agree to the <a href=\"https://mod.io/terms\">Terms of Use</a> and <a href=\"https://mod.io/privacy\">Privacy Policy</a>.</p>",
+  "buttons": {
+    "agree": {"text": "I Agree"},
+    "disagree": {"text": "No, Thanks"}
+  },
+  "links": {
+    "terms": {"text": "Terms of Use", "url": "https://mod.io/terms", "required": true},
+    "privacy": {"text": "Privacy Policy", "url": "https://mod.io/privacy", "required": true},
+    "manage": {"text": "Manage Account", "url": "https://mod.io/me/account", "required": false}
+  }
+}
