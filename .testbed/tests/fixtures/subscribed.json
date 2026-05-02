@@ -30,11 +30,7 @@
       "description_plaintext": "A fast interval workout map.",
       "metadata_blob": "{\"intensity\":\"high\"}",
       "profile_url": "https://mod.io/g/aerobeat/m/cardio-blaster",
-      "media": {
-        "youtube": [],
-        "sketchfab": [],
-        "images": []
-      },
+      "media": {"youtube": [], "sketchfab": [], "images": []},
       "modfile": {
         "id": 5001,
         "mod_id": 1001,
@@ -85,7 +81,7 @@
     }
   ],
   "result_count": 1,
-  "result_offset": 0,
-  "result_limit": 100,
-  "result_total": 1
+  "result_offset": 1,
+  "result_limit": 1,
+  "result_total": 3
 }

@@ -1,0 +1,8 @@
+{
+  "error": {
+    "code": 403,
+    "error_ref": 11017,
+    "message": "error_auth_failed_limited_key_abilities",
+    "errors": {}
+  }
+}

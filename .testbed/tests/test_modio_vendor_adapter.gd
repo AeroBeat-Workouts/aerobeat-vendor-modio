@@ -6,7 +6,7 @@ const ModioDownloadRequest = preload("res://src/models/modio_download_request.gd
 const ModioHttpTransport = preload("res://src/network/modio_http_transport.gd")
 const ModioVendorAdapter = preload("res://src/modio_vendor_adapter.gd")
 
-func test_builds_email_and_openid_auth_requests_with_current_shapes() -> void:
+func test_builds_email_and_openid_auth_requests_with_hardened_expiry_handling() -> void:
 	var adapter := _build_adapter()
 
 	var email_request = adapter.build_email_security_code_request(" player@example.com ")
@@ -17,19 +17,21 @@ func test_builds_email_and_openid_auth_requests_with_current_shapes() -> void:
 	assert_eq(email_request.auth_mode, "api_key_query")
 	assert_false(email_request.query.has("api_key"))
 
-	var exchange_request = adapter.build_auth_exchange_request(" 123456 ", 1777777777)
-	assert_eq(exchange_request.path, "/oauth/emailexchange")
-	assert_eq(exchange_request.body.security_code, "123456")
-	assert_eq(exchange_request.body.date_expires, "1777777777")
+	var past_exchange = adapter.build_auth_exchange_request(" 123456 ", 1)
+	assert_false(past_exchange.body.has("date_expires"))
 
-	var openid_request = adapter.build_openid_auth_request("jwt-token", true, "recover@example.com", 1777777777, false, "psn-code", 1)
+	var now := Time.get_unix_time_from_system()
+	var too_far_exchange = adapter.build_auth_exchange_request(" 123456 ", now + 999999999)
+	assert_true(int(too_far_exchange.body.date_expires) <= now + 31536000)
+
+	var openid_request = adapter.build_openid_auth_request("jwt-token", true, "recover@example.com", now + 999999999, false, "psn-code", 1)
 	assert_eq(openid_request.path, "/external/openidauth")
 	assert_eq(openid_request.body.id_token, "jwt-token")
 	assert_true(openid_request.body.terms_agreed)
 	assert_eq(openid_request.body.email, "recover@example.com")
-	assert_eq(openid_request.body.date_expires, "1777777777")
 	assert_eq(openid_request.body.psn_token, "psn-code")
 	assert_eq(openid_request.body.psn_env, "1")
+	assert_true(int(openid_request.body.date_expires) <= now + 604800)
 
 func test_builds_terms_and_agreement_requests_with_localization_headers() -> void:
 	var adapter := _build_adapter()
@@ -46,7 +48,7 @@ func test_builds_terms_and_agreement_requests_with_localization_headers() -> voi
 	assert_eq(agreement_request.path, "/agreements/types/2/current")
 	assert_eq(agreement_request.query.api_key, "demo-key")
 
-func test_builds_browse_and_detail_requests_with_documented_query_shapes() -> void:
+func test_builds_browse_and_detail_requests_with_endpoint_aware_query_shapes() -> void:
 	var adapter := _build_adapter()
 	var query := ModioListingQuery.new(
 		"boxing",
@@ -59,7 +61,10 @@ func test_builds_browse_and_detail_requests_with_documented_query_shapes() -> vo
 		"{\"intensity\":\"high\"}",
 		{"workout_type": "cardio", "difficulty": "expert"},
 		"1001",
-		"cardio-blaster"
+		"cardio-blaster",
+		1,
+		1,
+		"55"
 	)
 
 	var listing_request = adapter.build_listing_request(query)
@@ -70,21 +75,30 @@ func test_builds_browse_and_detail_requests_with_documented_query_shapes() -> vo
 	assert_eq(listing_request.query["tags-in"], "cardio")
 	assert_eq(listing_request.query["tags-not-in"], "hidden")
 	assert_eq(listing_request.query.metadata_blob, "{\"intensity\":\"high\"}")
-	assert_eq(listing_request.query.metadata_kvp, "workout_type:cardio,difficulty:expert")
+	assert_eq(listing_request.query.metadata_kvp, "difficulty:expert,workout_type:cardio")
 	assert_eq(listing_request.query._sort, "-downloads_total")
 	assert_eq(listing_request.query.id, "1001")
 	assert_eq(listing_request.query.name_id, "cardio-blaster")
+	assert_eq(listing_request.query.status, "1")
+	assert_eq(listing_request.query.visible, "1")
+	assert_eq(listing_request.query.submitted_by, "55")
 	assert_eq(listing_request.query._limit, "10")
 	assert_eq(listing_request.query._offset, "5")
 
 	var detail_request = adapter.build_mod_detail_request("1001")
 	assert_eq(detail_request.path, "/games/777/mods/1001")
 
-	var modfiles_request = adapter.build_modfiles_request("1001", ModioListingQuery.new("", PackedStringArray(), 100, 0, "-date_added"))
+	var modfiles_request = adapter.build_modfiles_request("1001", query)
 	assert_eq(modfiles_request.path, "/games/777/mods/1001/files")
-	assert_eq(modfiles_request.query._sort, "-date_added")
+	assert_eq(modfiles_request.query._sort, "-downloads_total")
+	assert_eq(modfiles_request.query.id, "1001")
+	assert_false(modfiles_request.query.has("_q"))
+	assert_false(modfiles_request.query.has("tags"))
+	assert_false(modfiles_request.query.has("metadata_kvp"))
+	assert_false(modfiles_request.query.has("status"))
+	assert_false(modfiles_request.query.has("submitted_by"))
 
-func test_builds_authenticated_subscription_requests() -> void:
+func test_builds_authenticated_subscription_requests_and_gates_unsupported_filters() -> void:
 	var adapter := _build_adapter_with_token()
 
 	var me_request = adapter.build_authenticated_user_request("delegate-123")
@@ -93,11 +107,31 @@ func test_builds_authenticated_subscription_requests() -> void:
 	assert_eq(me_request.headers["X-Modio-Delegation-Token"], "delegate-123")
 	assert_false(me_request.query.has("api_key"))
 
-	var subscribed_request = adapter.build_user_subscriptions_request(ModioListingQuery.new("", PackedStringArray(["approved"]), 25, 0))
+	var query := ModioListingQuery.new(
+		"boxing",
+		PackedStringArray(["approved"]),
+		25,
+		25,
+		"-downloads_total",
+		PackedStringArray(["cardio"]),
+		PackedStringArray(["hidden"]),
+		"{\"intensity\":\"high\"}",
+		{"workout_type": "cardio"},
+		"1001",
+		"cardio-blaster",
+		1,
+		1,
+		"55"
+	)
+	var subscribed_request = adapter.build_user_subscriptions_request(query)
 	assert_eq(subscribed_request.path, "/me/subscribed")
 	assert_eq(subscribed_request.headers.Authorization, "Bearer user-token")
 	assert_eq(subscribed_request.query.tags, "approved")
 	assert_eq(subscribed_request.query.game_id, "777")
+	assert_eq(subscribed_request.query._offset, "25")
+	assert_false(subscribed_request.query.has("status"))
+	assert_false(subscribed_request.query.has("visible"))
+	assert_false(subscribed_request.query.has("submitted_by"))
 
 	var subscribe_request = adapter.build_subscribe_request("1001", true)
 	assert_eq(subscribe_request.method, "POST")
@@ -113,49 +147,73 @@ func test_builds_authenticated_subscription_requests() -> void:
 	assert_eq(logout_request.path, "/oauth/logout")
 	assert_eq(logout_request.headers.Authorization, "Bearer user-token")
 
-func test_normalizes_fixture_payloads_for_current_slice() -> void:
+func test_normalizes_fixture_payloads_for_richer_slice() -> void:
 	var adapter := _build_adapter_with_token()
 
 	var token = adapter.normalize_access_token_response(_fixture("access_token.json"))
 	assert_eq(token.access_token, "ey-demo-token")
 	assert_eq(token.date_expires, 1777777777)
+	assert_eq(token.expires_at, 1777777777)
+	assert_true(token.has_expiry)
 
 	var terms = adapter.normalize_terms_response(_fixture("terms.json"))
 	assert_eq(terms.buttons.agree.text, "I Agree")
 	assert_true(terms.links.terms.required)
+	assert_eq(terms.links.manage.url, "https://mod.io/me/account")
 
 	var agreement = adapter.normalize_agreement_response(_fixture("agreement_current.json"))
 	assert_eq(agreement.name, "Privacy Policy")
 	assert_true(agreement.is_latest)
 	assert_eq(agreement.type, 2)
+	assert_eq(agreement.adjacent_versions.next.id, 31)
 	assert_string_contains(agreement.description, "Privacy Agreement")
 
 	var me = adapter.normalize_authenticated_user_response(_fixture("me.json"))
 	assert_eq(me.id, 42)
 	assert_eq(me.username, "AeroBeatPlayer")
+	assert_eq(me.country, "US")
+	assert_true(me.is_authenticated)
 
 	var game = adapter.normalize_game_response(_fixture("game.json"))
 	assert_eq(game.id, 777)
 	assert_eq(game.api_access_options, 7)
 	assert_eq(game.tag_options[0].name, "Difficulty")
+	assert_eq(game.platforms[0].platform, "WINDOWS")
+	assert_eq(game.theme.primary, "#101820")
 
 	var mods = adapter.normalize_mod_list_response(_fixture("mods.json"))
 	assert_eq(mods.result_offset, 5)
+	assert_true(mods.page.has_next)
+	assert_eq(mods.page.next_offset, 6)
+	assert_eq(mods.page.page_index, 0)
 	assert_eq(mods.data[0].name_id, "cardio-blaster")
 	assert_eq(mods.data[0].stats.downloads_total, 1024)
+	assert_eq(mods.data[0].community_options, 1025)
+	assert_eq(mods.data[0].logo.thumb_320x180, "https://assets.modcdn.io/images/rogue/card_320x180.png")
+	assert_eq(mods.data[0].submitted_by.avatar.filename, "avatar.png")
 
 	var mod_detail = adapter.normalize_mod_detail_response(_fixture("mod_detail.json"))
 	assert_eq(mod_detail.modfile.id, 5001)
 	assert_eq(mod_detail.tags[1].name, "Expert")
+	assert_eq(mod_detail.metadata_kvp[1].metakey, "difficulty")
+	assert_eq(mod_detail.platforms[1].platform, "STEAM")
+	assert_eq(mod_detail.media.images[0].filename, "cardio-shot.png")
+	assert_eq(mod_detail.skus[0].portal, "steam")
 
 	var modfiles = adapter.normalize_modfiles_response(_fixture("modfiles.json"))
 	assert_eq(modfiles.data[0].download.binary_url, "https://api.mod.io/v1/games/777/mods/1001/files/5001/download/hash123")
 	assert_true(modfiles.data[0].download.is_expiring)
 	assert_false(modfiles.data[0].download.is_canonical_url)
+	assert_eq(modfiles.page.page_count, 1)
 
 	var subscriptions = adapter.normalize_subscriptions_response(_fixture("subscribed.json"))
-	assert_eq(subscriptions.result_total, 1)
+	assert_eq(subscriptions.result_total, 3)
+	assert_true(subscriptions.page.has_next)
 	assert_eq(subscriptions.data[0].id, 1001)
+
+	var logout = adapter.normalize_logout_response(_fixture("logout_success.json"))
+	assert_true(logout.success)
+	assert_string_contains(logout.message, "logged out")
 
 func test_resolves_download_requests_from_modfile_metadata_not_download_endpoint() -> void:
 	var adapter := _build_adapter_with_token()
@@ -171,7 +229,7 @@ func test_resolves_download_requests_from_modfile_metadata_not_download_endpoint
 	assert_false(normalized.is_canonical_url)
 	assert_string_contains(normalized.warning, "expiring delivery URLs")
 
-func test_normalizes_rate_limit_and_terms_required_errors() -> void:
+func test_normalizes_auth_failure_variants_and_terms_handling() -> void:
 	var adapter := _build_adapter_with_token()
 
 	var rate_limited = adapter.normalize_transport_response(429, {"Retry-After": "0"}, _fixture("rate_limit_error.json"))
@@ -184,7 +242,23 @@ func test_normalizes_rate_limit_and_terms_required_errors() -> void:
 	var terms_required = adapter.normalize_transport_response(403, {}, _fixture("terms_required_error.json"))
 	assert_false(terms_required.ok)
 	assert_eq(terms_required.error.category, "terms_required")
+	assert_true(terms_required.error.should_retry_with_terms)
 	assert_eq(terms_required.error.error_ref, 11074)
+
+	var code_expired = adapter.normalize_transport_response(401, {}, _fixture("auth_code_expired_error.json"))
+	assert_false(code_expired.ok)
+	assert_eq(code_expired.error.category, "auth")
+	assert_eq(code_expired.error.error_ref, 11012)
+
+	var key_restricted = adapter.normalize_transport_response(403, {}, _fixture("auth_key_restricted_error.json"))
+	assert_false(key_restricted.ok)
+	assert_eq(key_restricted.error.category, "key_restricted")
+	assert_true(key_restricted.error.is_key_issue)
+
+	var account_locked = adapter.normalize_transport_response(403, {}, _fixture("auth_account_locked_error.json"))
+	assert_false(account_locked.ok)
+	assert_eq(account_locked.error.category, "account_locked")
+	assert_true(account_locked.error.is_account_locked)
 
 func test_normalizes_subscription_write_success_variants() -> void:
 	var adapter := _build_adapter_with_token()

@@ -11,6 +11,8 @@
     "thumb_50x50": "https://assets.modcdn.io/images/placeholder/avatar_50x50.png",
     "thumb_100x100": "https://assets.modcdn.io/images/placeholder/avatar_100x100.png"
   },
+  "timezone": "",
+  "language": "",
   "country": "US",
   "privacy_options": 3,
   "status": 1,

@@ -1,0 +1,8 @@
+{
+  "error": {
+    "code": 403,
+    "error_ref": 17053,
+    "message": "The user account associated with this email is locked. Please contact support for assistance.",
+    "errors": {}
+  }
+}

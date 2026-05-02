@@ -1,6 +1,10 @@
 class_name ModioListingQuery
 extends RefCounted
 
+const ENDPOINT_MODS := "mods"
+const ENDPOINT_MODFILES := "modfiles"
+const ENDPOINT_SUBSCRIPTIONS := "subscriptions"
+
 var search_term: String
 var tags_all: PackedStringArray
 var tags_any: PackedStringArray
@@ -47,41 +51,76 @@ func _init(
 	visible = p_visible
 	submitted_by = p_submitted_by.strip_edges()
 
-func to_query_dict() -> Dictionary:
+func to_query_dict(endpoint: String = ENDPOINT_MODS) -> Dictionary:
 	var query := {
 		"_limit": str(limit),
 		"_offset": str(offset)
 	}
 
-	if not search_term.is_empty():
+	var capabilities := _get_capabilities(endpoint)
+	if capabilities.has("search_term") and not search_term.is_empty():
 		query["_q"] = search_term
-	if not tags_all.is_empty():
+	if capabilities.has("tags_all") and not tags_all.is_empty():
 		query["tags"] = ",".join(tags_all)
-	if not tags_any.is_empty():
+	if capabilities.has("tags_any") and not tags_any.is_empty():
 		query["tags-in"] = ",".join(tags_any)
-	if not tags_not_in.is_empty():
+	if capabilities.has("tags_not_in") and not tags_not_in.is_empty():
 		query["tags-not-in"] = ",".join(tags_not_in)
-	if not metadata_blob.is_empty():
+	if capabilities.has("metadata_blob") and not metadata_blob.is_empty():
 		query["metadata_blob"] = metadata_blob
-	if not metadata_kvp.is_empty():
+	if capabilities.has("metadata_kvp") and not metadata_kvp.is_empty():
 		query["metadata_kvp"] = _serialize_metadata_kvp(metadata_kvp)
-	if not sort.is_empty():
+	if capabilities.has("sort") and not sort.is_empty():
 		query["_sort"] = sort
-	if not id.is_empty():
+	if capabilities.has("id") and not id.is_empty():
 		query["id"] = id
-	if not name_id.is_empty():
+	if capabilities.has("name_id") and not name_id.is_empty():
 		query["name_id"] = name_id
-	if status >= 0:
+	if capabilities.has("status") and status >= 0:
 		query["status"] = str(status)
-	if visible >= 0:
+	if capabilities.has("visible") and visible >= 0:
 		query["visible"] = str(visible)
-	if not submitted_by.is_empty():
+	if capabilities.has("submitted_by") and not submitted_by.is_empty():
 		query["submitted_by"] = submitted_by
 
 	return query
 
+func _get_capabilities(endpoint: String) -> PackedStringArray:
+	match endpoint:
+		ENDPOINT_MODFILES:
+			return PackedStringArray(["sort", "id"])
+		ENDPOINT_SUBSCRIPTIONS:
+			return PackedStringArray([
+				"search_term",
+				"tags_all",
+				"tags_any",
+				"tags_not_in",
+				"metadata_blob",
+				"metadata_kvp",
+				"sort",
+				"id",
+				"name_id"
+			])
+		_:
+			return PackedStringArray([
+				"search_term",
+				"tags_all",
+				"tags_any",
+				"tags_not_in",
+				"metadata_blob",
+				"metadata_kvp",
+				"sort",
+				"id",
+				"name_id",
+				"status",
+				"visible",
+				"submitted_by"
+			])
+
 func _serialize_metadata_kvp(values: Dictionary) -> String:
 	var pairs: PackedStringArray = []
-	for key in values.keys():
+	var keys: Array = values.keys()
+	keys.sort_custom(func(a, b): return str(a) < str(b))
+	for key in keys:
 		pairs.append("%s:%s" % [str(key), str(values[key])])
 	return ",".join(pairs)

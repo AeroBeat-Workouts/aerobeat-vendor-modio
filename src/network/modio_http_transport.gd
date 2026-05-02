@@ -53,7 +53,11 @@ func normalize_response(status_code: int, headers: Dictionary = {}, payload: Var
 		"error_ref": error_ref,
 		"message": str(error_payload.get("message", "HTTP %s" % status_code)),
 		"details": error_payload.get("errors", {}),
-		"category": category
+		"category": category,
+		"should_clear_session": error_ref in [11005],
+		"should_retry_with_terms": error_ref == 11074,
+		"is_key_issue": error_ref in [11016, 11017],
+		"is_account_locked": error_ref == 17053
 	}
 	return result
 
@@ -84,7 +88,15 @@ func _categorize_error(status_code: int, error_ref: int) -> String:
 		return "rate_limited"
 	if error_ref == 11074:
 		return "terms_required"
-	if status_code == 401 or error_ref in [11000, 11001, 11002, 11003, 11004, 11005, 11006, 11007]:
+	if error_ref in [11016, 11017]:
+		return "key_restricted"
+	if error_ref == 17053:
+		return "account_locked"
+	if error_ref == 15025:
+		return "admin_filter"
+	if error_ref in [11005, 11011, 11012, 11013, 11014, 11032, 11091]:
+		return "auth"
+	if status_code == 401 or error_ref in [11000, 11001, 11002, 11003, 11004, 11006, 11007]:
 		return "auth"
 	if status_code == 403:
 		return "forbidden"

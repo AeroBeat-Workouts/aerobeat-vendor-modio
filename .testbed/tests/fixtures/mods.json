@@ -23,6 +23,13 @@
       "date_added": 1777600000,
       "date_updated": 1777700000,
       "date_live": 1777750000,
+      "maturity_option": 4,
+      "community_options": 1025,
+      "monetization_options": 1,
+      "credit_options": 3,
+      "stock": 0,
+      "price": 0,
+      "tax": 0,
       "name": "Cardio Blaster",
       "name_id": "cardio-blaster",
       "summary": "A fast interval workout map.",
@@ -30,8 +37,16 @@
       "description_plaintext": "A fast interval workout map.",
       "metadata_blob": "{\"intensity\":\"high\"}",
       "profile_url": "https://mod.io/g/aerobeat/m/cardio-blaster",
+      "homepage_url": "https://www.aerobeat.example/mods/cardio-blaster",
+      "logo": {
+        "filename": "card.png",
+        "original": "https://assets.modcdn.io/images/rogue/card.png",
+        "thumb_320x180": "https://assets.modcdn.io/images/rogue/card_320x180.png",
+        "thumb_640x360": "https://assets.modcdn.io/images/rogue/card_640x360.png",
+        "thumb_1280x720": "https://assets.modcdn.io/images/rogue/card_1280x720.png"
+      },
       "media": {
-        "youtube": [],
+        "youtube": ["https://www.youtube.com/watch?v=dQw4w9WgXcQ"],
         "sketchfab": [],
         "images": []
       },
@@ -63,7 +78,8 @@
         {"platform": "WINDOWS", "modfile_live": 5001}
       ],
       "metadata_kvp": [
-        {"metakey": "workout_type", "metavalue": "cardio"}
+        {"metakey": "workout_type", "metavalue": "cardio"},
+        {"metakey": "difficulty", "metavalue": "expert"}
       ],
       "tags": [
         {"name": "Approved", "name_localized": "Approved", "date_added": 1777600000},
@@ -71,6 +87,8 @@
       ],
       "stats": {
         "mod_id": 1001,
+        "popularity_rank_position": 13,
+        "popularity_rank_total_mods": 204,
         "downloads_today": 87,
         "downloads_total": 1024,
         "subscribers_total": 256,
@@ -81,11 +99,14 @@
         "ratings_weighted_aggregate": 88.4,
         "ratings_display_text": "Very Positive",
         "date_expires": 1777800000
-      }
+      },
+      "skus": [
+        {"id": 7, "sku": "cardio-blaster-deluxe", "portal": "steam"}
+      ]
     }
   ],
   "result_count": 1,
   "result_offset": 5,
   "result_limit": 10,
-  "result_total": 1
+  "result_total": 13
 }

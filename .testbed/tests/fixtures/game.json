@@ -2,8 +2,14 @@
   "id": 777,
   "name": "AeroBeat",
   "name_id": "aerobeat",
+  "profile_url": "https://mod.io/g/aerobeat",
+  "summary": "Rhythm workouts with curated mods.",
+  "instructions": "Install from the in-game browser and warm up first.",
+  "instructions_url": "https://docs.aerobeat.example/mods",
   "api_access_options": 7,
   "submission_option": 0,
+  "community_options": 5,
+  "maturity_options": 0,
   "tag_options": [
     {
       "name": "Difficulty",
@@ -18,5 +24,13 @@
   ],
   "platforms": [
     {"platform": "WINDOWS", "label": "Windows", "moderated": true, "locked": false}
-  ]
+  ],
+  "theme": {
+    "primary": "#101820",
+    "dark": true
+  },
+  "stats": {
+    "mods_total": 44,
+    "subscribers_total": 2301
+  }
 }

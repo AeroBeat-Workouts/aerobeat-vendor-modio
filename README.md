@@ -47,10 +47,13 @@ This slice now implements a fixture-driven REST wrapper for the current research
   - `POST /games/{game-id}/mods/{mod-id}/subscribe`
   - `DELETE /games/{game-id}/mods/{mod-id}/subscribe`
 - response normalization seams
-  - access token, terms, agreement, user, game, mod list/detail, modfiles, subscriptions
-  - structured error/rate-limit mapping including `retry-after`, `11008`, `11009`, and `11074`
+  - access token, logout, terms, agreement, user, game, mod list/detail, modfiles, subscriptions
+  - documented page helpers derived from `result_count`, `result_offset`, `result_limit`, and `result_total`
+  - structured error/rate-limit mapping including `retry-after`, auth exchange/OpenID/key/terms variants, `11008`, `11009`, `11017`, `11074`, `15025`, and `17053`
 
-The wrapper still does **not** perform live HTTP execution in this repo. It owns request construction, provider-local DTO normalization, and download metadata handling so the execution layer can land later without changing the upstream seam.
+The wrapper still does **not** perform live HTTP execution in this repo. It owns request construction, endpoint-aware query serialization, provider-local DTO normalization, paging/session helpers, and download metadata handling so the execution layer can land later without changing the upstream seam.
+
+The current query model is intentionally endpoint-aware instead of emitting every filter everywhere. `GET /games/{game-id}/mods`, `GET /games/{game-id}/mods/{mod-id}/files`, and `GET /me/subscribed` now serialize only the documented subset each wrapped endpoint should receive, while still preserving shared paging inputs. Platform-targeted `GET /me/subscribed` requests also continue to force the required `game_id` field.
 
 ## Download URL stance
 

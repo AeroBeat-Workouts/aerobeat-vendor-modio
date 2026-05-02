@@ -13,9 +13,10 @@ Keep **provider-native** concerns in this repo while allowing `aerobeat-tool-api
 - mod.io request construction
 - auth/session request-shape support for email and OpenID flows
 - provider listing/search/detail query mapping
+- endpoint-aware filter serialization per wrapped endpoint
 - provider subscription/user-state mapping via `GET /me/subscribed`
 - provider download metadata resolution from `modfile.download`
-- provider DTO parsing and error normalization
+- provider DTO parsing, page-state helpers, and error normalization
 - future thin HTTP transport execution for mod.io-specific endpoints
 
 ### This repo should not own
@@ -49,7 +50,8 @@ The current slice now exposes a larger request-builder and normalization seam:
     - `build_subscribe_request(...)`
     - `build_unsubscribe_request(...)`
   - normalization helpers
-    - auth/user/game/mod/modfile/subscription responses
+    - auth/logout/user/game/mod/modfile/subscription responses
+    - page-state helpers derived from `result_count`, `result_offset`, `result_limit`, and `result_total`
     - subscription write responses
     - download metadata resolution helpers
 - `ModioHttpTransport`
@@ -77,6 +79,9 @@ That keeps transient CDN delivery behavior local to the vendor seam and out of A
 - public/read flows default to query-based `api_key` injection
 - authenticated flows prefer bearer token headers
 - read flows can also prefer bearer tokens when a caller has an authenticated session already
+- endpoint query serialization is intentionally capability-gated so unsupported filters do not leak onto the wrong wrapped endpoint
+- platform-targeted `GET /me/subscribed` requests must include `game_id`, so this repo injects it when platform targeting is configured
+- token request expiry values are sanitized per documented flow instead of blindly forwarding stale/oversized values
 - portal/platform/language headers remain provider-local config concerns
 - no automatic blind retries are performed in the low-level seam
 
