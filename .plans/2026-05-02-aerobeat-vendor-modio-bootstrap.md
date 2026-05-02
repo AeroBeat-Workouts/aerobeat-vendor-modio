@@ -129,7 +129,7 @@ This first slice should stay modest. We are not trying to fully implement mod.io
 
 **Commits:**
 - `e34ca37` - Bootstrap mod.io vendor adapter scaffold
-- `13c6e20` - Document audit pass for mod.io vendor bootstrap plan
+- `current HEAD` - Document audit pass for mod.io vendor bootstrap plan
 
 **Lessons Learned:** The smallest useful scaffold here is request-shape and seam documentation, not live HTTP behavior. A tiny headless validation script gives immediate repo-local confidence even before GodotEnv dependencies are restored, and a short independent audit is enough to catch repo-role drift before real provider code lands.
 
