@@ -142,7 +142,7 @@ This pass should continue to use the official mod.io docs as primary truth, with
 **Commits:**
 - `9043a00` - Expand mod.io wrapper paging and auth coverage
 - `5bfbafe` - Fix mod.io subscription query gating
-- Pending auditor commit for the final modfiles query-gating audit fix and plan update
+- `1d7c169` - Audit mod.io modfiles query gating
 
 **Lessons Learned:** The biggest immediate value was seam-drift reduction rather than raw endpoint count. The tricky parts were per-endpoint filter differences, platform-targeted subscription rules, auth expiry semantics that look similar across flows but are not actually identical in the docs, and not assuming list endpoints share the same sorting surface.
 
