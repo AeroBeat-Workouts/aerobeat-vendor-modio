@@ -1,0 +1,17 @@
+{
+  "$schema": "https://chickensoft.games/schemas/addons.schema.json",
+  "addons": {
+    // Shared tool/workflow contracts used by downstream AeroBeat API tooling.
+    "aerobeat-tool-core": {
+      "url": "git@github.com:AeroBeat-Workouts/aerobeat-tool-core.git",
+      "checkout": "main",
+      "subfolder": "/"
+    },
+    // Optional local unit-test framework for the hidden workbench.
+    "gut": {
+      "url": "git@github.com:bitwes/Gut.git",
+      "checkout": "main",
+      "subfolder": "/addons/gut"
+    }
+  }
+}
