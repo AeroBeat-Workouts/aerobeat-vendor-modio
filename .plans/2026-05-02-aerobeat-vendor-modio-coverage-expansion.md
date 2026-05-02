@@ -101,9 +101,9 @@ This pass should continue to use the official mod.io docs as primary truth, with
 - implementation/tests/docs as needed
 - `.plans/2026-05-02-aerobeat-vendor-modio-coverage-expansion.md`
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** Independently re-verified the expanded wrapper and fixture-driven tests against the local official `modio-docs` REST reference first, then cross-checked intended client behavior against the pinned `modio-sdk` and `modio-unity` repos. Found one concrete contract drift in the endpoint-aware query gating: `GET /me/subscribed` currently documents support for `status`, `visible`, and `submitted_by` filters in addition to the shared search/tag/metadata fields, but `ModioListingQuery` was suppressing those fields for the subscriptions endpoint and the QA test incorrectly locked that omission in. Applied the minimum fix by allowing those documented filters for `ENDPOINT_SUBSCRIPTIONS` and updating the test expectation to require them while preserving the existing `game_id` injection for platform-targeted reads. Re-ran repo-local validation with `godot --headless --path .testbed --import` and `godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit`; all 8/8 tests passed with 161 asserts. Vendor-specific concerns remain local to this repo, fixtures still match the audited documented payload shapes, and no additional drift was found in the verified paging/auth/normalization surface.
 
 ---
 

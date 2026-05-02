@@ -99,7 +99,10 @@ func _get_capabilities(endpoint: String) -> PackedStringArray:
 				"metadata_kvp",
 				"sort",
 				"id",
-				"name_id"
+				"name_id",
+				"status",
+				"visible",
+				"submitted_by"
 			])
 		_:
 			return PackedStringArray([

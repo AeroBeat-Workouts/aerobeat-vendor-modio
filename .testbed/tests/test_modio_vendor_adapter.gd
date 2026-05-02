@@ -129,9 +129,9 @@ func test_builds_authenticated_subscription_requests_and_gates_unsupported_filte
 	assert_eq(subscribed_request.query.tags, "approved")
 	assert_eq(subscribed_request.query.game_id, "777")
 	assert_eq(subscribed_request.query._offset, "25")
-	assert_false(subscribed_request.query.has("status"))
-	assert_false(subscribed_request.query.has("visible"))
-	assert_false(subscribed_request.query.has("submitted_by"))
+	assert_eq(subscribed_request.query.status, "1")
+	assert_eq(subscribed_request.query.visible, "1")
+	assert_eq(subscribed_request.query.submitted_by, "55")
 
 	var subscribe_request = adapter.build_subscribe_request("1001", true)
 	assert_eq(subscribe_request.method, "POST")
