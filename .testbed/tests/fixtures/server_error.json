@@ -1,0 +1,8 @@
+{
+  "error": {
+    "code": 503,
+    "error_ref": 0,
+    "message": "The service is temporarily unavailable.",
+    "errors": {}
+  }
+}

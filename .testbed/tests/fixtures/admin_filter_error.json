@@ -1,0 +1,8 @@
+{
+  "error": {
+    "code": 403,
+    "error_ref": 15025,
+    "message": "The authenticated user does not have permission to use this admin-only filter.",
+    "errors": {}
+  }
+}

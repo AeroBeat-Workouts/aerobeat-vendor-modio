@@ -17,7 +17,7 @@ Keep **provider-native** concerns in this repo while allowing `aerobeat-tool-api
 - provider subscription/user-state mapping via `GET /me/subscribed`
 - provider download metadata resolution from `modfile.download`
 - provider DTO parsing, page-state helpers, and error normalization
-- future thin HTTP transport execution for mod.io-specific endpoints
+- thin HTTP transport execution for mod.io-specific endpoints
 
 ### This repo should not own
 
@@ -56,6 +56,8 @@ The current slice now exposes a larger request-builder and normalization seam:
     - download metadata resolution helpers
 - `ModioHttpTransport`
   - normalized request-dictionary builder
+  - `prepare_request(...)` for final URL/query/header/body assembly
+  - `execute(...)` for thin GET/POST/DELETE dispatch via injected executor or the built-in HTTP client path
   - structured error/rate-limit normalization seam
 - provider-local models under `src/models/`
   - `ModioClientConfig`
@@ -77,13 +79,13 @@ That keeps transient CDN delivery behavior local to the vendor seam and out of A
 ## Query/auth stance
 
 - public/read flows default to query-based `api_key` injection
-- authenticated flows prefer bearer token headers
-- read flows can also prefer bearer tokens when a caller has an authenticated session already
+- authenticated `GET /me`, `GET /me/subscribed`, logout, and subscription writes require bearer-token headers
 - endpoint query serialization is intentionally capability-gated so unsupported filters do not leak onto the wrong wrapped endpoint
 - platform-targeted `GET /me/subscribed` requests must include `game_id`, so this repo injects it when platform targeting is configured
 - token request expiry values are sanitized per documented flow instead of blindly forwarding stale/oversized values
-- portal/platform/language headers remain provider-local config concerns
-- no automatic blind retries are performed in the low-level seam
+- portal/platform/language/delegation headers remain provider-local config concerns
+- host selection stays explicit/configurable through `ModioClientConfig` (`api`, `game`, `user`, optional sandbox) while explicit base-URL overrides still win
+- the low-level seam performs no automatic blind retries
 
 ## Validation stance
 
@@ -94,13 +96,13 @@ The current validation layer is fixture-driven and based on current official API
 - `/home/derrick/.openclaw/workspace/projects/modio/modio-sdk`
 - `/home/derrick/.openclaw/workspace/projects/modio/modio-unity`
 
-Repo-local tests intentionally use simulated payloads derived from the documented shapes instead of live network calls.
+Repo-local tests intentionally use simulated payloads derived from the documented shapes instead of live network calls, but they now validate the transport seam at the executed-request level: final encoded URL, final headers, form body encoding, and normalized HTTP/error outcomes.
 
 ## Next implementation slices
 
-### 1. Live transport execution
+### 1. Multipart/upload and richer write coverage
 
-Add real HTTP execution behind `ModioHttpTransport` without changing the current adapter contract.
+If AeroBeat needs creation/update surfaces later, extend the transport only far enough to support documented multipart and other write-specific content types.
 
 ### 2. Richer filtering and platform targeting
 

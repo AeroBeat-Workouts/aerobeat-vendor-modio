@@ -1,0 +1,12 @@
+{
+  "error": {
+    "code": 422,
+    "error_ref": 13009,
+    "message": "The payload passed in the request was unable to be validated/read by mod.io, please try again.",
+    "errors": {
+      "include_dependencies": [
+        "The include_dependencies field must be true or false."
+      ]
+    }
+  }
+}

@@ -593,8 +593,6 @@ func _build_read_headers(requires_bearer: bool) -> Dictionary:
 	var headers := _config.build_default_headers()
 	if requires_bearer and _config.has_access_token():
 		headers["Authorization"] = "Bearer %s" % _config.access_token
-	elif not requires_bearer and _config.has_access_token():
-		headers["Authorization"] = "Bearer %s" % _config.access_token
 	return headers
 
 func _build_form_headers(requires_bearer: bool) -> Dictionary:
@@ -603,10 +601,8 @@ func _build_form_headers(requires_bearer: bool) -> Dictionary:
 	return headers
 
 func _resolve_read_auth_mode(requires_bearer: bool) -> String:
-	if _config.has_access_token():
-		return "bearer"
 	if requires_bearer:
-		return "api_key_fallback"
+		return "bearer"
 	return "api_key_query"
 
 func _sanitize_requested_expiry(requested_expiry: int, max_lifetime_seconds: int) -> int:

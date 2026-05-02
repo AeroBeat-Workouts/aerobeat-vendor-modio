@@ -2,6 +2,13 @@ class_name ModioHttpTransport
 extends RefCounted
 
 const CONTENT_TYPE_FORM := "application/x-www-form-urlencoded"
+const DEFAULT_TIMEOUT_SECONDS := 30.0
+const DEFAULT_RETRY_AFTER_SECONDS := 60
+
+var _executor: Callable
+
+func _init(executor: Callable = Callable()) -> void:
+	_executor = executor
 
 func build_request(
 	method: String,
@@ -21,6 +28,67 @@ func build_request(
 		"auth_mode": meta.get("auth_mode", "none"),
 		"expects": meta.get("expects", "json")
 	}
+
+func execute(request: Dictionary, config: ModioClientConfig = null, options: Dictionary = {}) -> Dictionary:
+	var prepared := prepare_request(request, config, options)
+	if not prepared.ok:
+		return prepared
+
+	var final_request: Dictionary = prepared.request
+	var raw_result := _dispatch_request(final_request, options)
+	if raw_result.get("transport_error", "") != "":
+		return _build_transport_error_result(str(raw_result.transport_error), final_request, int(raw_result.get("code", ERR_CANT_CONNECT)))
+
+	var payload = raw_result.get("payload", null)
+	var raw_body := str(raw_result.get("body", ""))
+	if payload == null:
+		payload = _decode_payload(raw_body, str(final_request.get("expects", "json")))
+
+	var normalized := normalize_response(int(raw_result.get("status_code", 0)), raw_result.get("headers", {}), payload)
+	normalized["request"] = final_request.duplicate(true)
+	normalized["raw_body"] = raw_body
+	return normalized
+
+func prepare_request(request: Dictionary, config: ModioClientConfig = null, options: Dictionary = {}) -> Dictionary:
+	var effective_config: ModioClientConfig = config if config != null else ModioClientConfig.new()
+	var final_request := request.duplicate(true)
+	var path := _normalize_path(str(final_request.get("path", "/")))
+	var method := str(final_request.get("method", "GET")).to_upper()
+	var auth_mode := str(final_request.get("auth_mode", "none"))
+	var query: Dictionary = _stringify_dictionary(final_request.get("query", {}))
+	var headers: Dictionary = _normalize_outbound_headers(final_request.get("headers", {}))
+	var body: Dictionary = _stringify_dictionary(final_request.get("body", {}))
+	var content_type := str(final_request.get("content_type", ""))
+	var expects := str(final_request.get("expects", "json"))
+	var explicit_base_url := str(options.get("base_url", ""))
+	var base_url := effective_config.resolve_base_url(explicit_base_url)
+
+	var auth_error := _apply_auth_mode(method, auth_mode, query, headers, effective_config)
+	if not auth_error.is_empty():
+		return _build_transport_error_result(auth_error, {"method": method, "path": path}, ERR_INVALID_PARAMETER)
+
+	var encoded_query := _encode_parameters(query)
+	var encoded_body := _encode_form_body(body, content_type)
+	if content_type != "" and not headers.has("Content-Type"):
+		headers["Content-Type"] = content_type
+	if encoded_body != "" and not headers.has("Content-Length"):
+		headers["Content-Length"] = str(encoded_body.to_utf8_buffer().size())
+
+	final_request = {
+		"method": method,
+		"path": path,
+		"url": _join_url(base_url, path, encoded_query),
+		"query": query,
+		"query_string": encoded_query,
+		"headers": headers,
+		"body": body,
+		"body_string": encoded_body,
+		"content_type": content_type,
+		"auth_mode": auth_mode,
+		"expects": expects,
+		"base_url": base_url
+	}
+	return {"ok": true, "request": final_request}
 
 func normalize_response(status_code: int, headers: Dictionary = {}, payload: Variant = null) -> Dictionary:
 	var normalized_headers := _normalize_headers(headers)
@@ -61,16 +129,223 @@ func normalize_response(status_code: int, headers: Dictionary = {}, payload: Var
 	}
 	return result
 
+func _dispatch_request(final_request: Dictionary, options: Dictionary) -> Dictionary:
+	if _executor.is_valid():
+		return _executor.call(final_request, options)
+	return _execute_with_http_client(final_request, options)
+
+func _execute_with_http_client(final_request: Dictionary, options: Dictionary) -> Dictionary:
+	var parsed := _parse_url(final_request.url)
+	if not parsed.ok:
+		return parsed
+
+	var client := HTTPClient.new()
+	var connect_error := client.connect_to_host(parsed.host, parsed.port, parsed.tls)
+	if connect_error != OK:
+		return {"transport_error": error_string(connect_error), "code": connect_error}
+
+	var timeout_seconds := float(options.get("timeout_seconds", DEFAULT_TIMEOUT_SECONDS))
+	if not _wait_for_client(client, timeout_seconds, [HTTPClient.STATUS_CONNECTED]):
+		return {"transport_error": "Timed out connecting to mod.io host.", "code": ERR_TIMEOUT}
+
+	var request_headers := _headers_to_lines(final_request.headers)
+	var request_error := client.request(_http_method_to_constant(final_request.method), parsed.request_path, request_headers, final_request.body_string)
+	if request_error != OK:
+		return {"transport_error": error_string(request_error), "code": request_error}
+
+	if not _wait_for_client(client, timeout_seconds, [HTTPClient.STATUS_BODY, HTTPClient.STATUS_CONNECTED]):
+		return {"transport_error": "Timed out waiting for mod.io response.", "code": ERR_TIMEOUT}
+
+	var response_code := client.get_response_code()
+	var response_headers := _response_headers_to_dictionary(client.get_response_headers())
+	var body_chunks := PackedByteArray()
+	while client.get_status() == HTTPClient.STATUS_BODY:
+		client.poll()
+		var chunk := client.read_response_body_chunk()
+		if chunk.is_empty():
+			OS.delay_msec(10)
+			continue
+		body_chunks.append_array(chunk)
+
+	return {
+		"status_code": response_code,
+		"headers": response_headers,
+		"body": body_chunks.get_string_from_utf8()
+	}
+
+func _wait_for_client(client: HTTPClient, timeout_seconds: float, terminal_statuses: Array) -> bool:
+	var started_at := Time.get_ticks_msec()
+	while true:
+		client.poll()
+		var status := client.get_status()
+		if terminal_statuses.has(status):
+			return true
+		if status == HTTPClient.STATUS_DISCONNECTED:
+			return false
+		var elapsed_seconds := float(Time.get_ticks_msec() - started_at) / 1000.0
+		if elapsed_seconds >= timeout_seconds:
+			return false
+		OS.delay_msec(10)
+	return false
+
+func _build_transport_error_result(message: String, request: Dictionary, code: int = ERR_INVALID_PARAMETER) -> Dictionary:
+	return {
+		"ok": false,
+		"status_code": -1,
+		"headers": {},
+		"payload": null,
+		"retry_after_seconds": -1,
+		"rate_limit_scope": "none",
+		"request": request.duplicate(true),
+		"error": {
+			"code": code,
+			"error_ref": 0,
+			"message": message,
+			"details": {},
+			"category": "transport",
+			"should_clear_session": false,
+			"should_retry_with_terms": false,
+			"is_key_issue": false,
+			"is_account_locked": false
+		}
+	}
+
 func _normalize_path(path: String) -> String:
-	if path.begins_with("/"):
-		return path
-	return "/%s" % path
+	var sanitized := path.strip_edges()
+	if sanitized.is_empty():
+		return "/"
+	sanitized = sanitized.trim_prefix("/")
+	return "/%s" % sanitized
 
 func _normalize_headers(headers: Dictionary) -> Dictionary:
 	var normalized := {}
 	for key in headers.keys():
 		normalized[str(key).to_lower()] = headers[key]
 	return normalized
+
+func _normalize_outbound_headers(headers: Dictionary) -> Dictionary:
+	var normalized := {}
+	for key in headers.keys():
+		normalized[str(key)] = str(headers[key])
+	return normalized
+
+func _apply_auth_mode(method: String, auth_mode: String, query: Dictionary, headers: Dictionary, config: ModioClientConfig) -> String:
+	match auth_mode:
+		"bearer":
+			if not _has_bearer_authorization(headers):
+				return "Bearer-authenticated mod.io requests require an Authorization header."
+			query.erase("api_key")
+		"api_key_query":
+			if not config.api_key.is_empty() and not query.has("api_key"):
+				query["api_key"] = config.api_key
+		"api_key_fallback":
+			if _has_bearer_authorization(headers):
+				query.erase("api_key")
+			elif method == "GET" and not config.api_key.is_empty():
+				query["api_key"] = config.api_key
+			else:
+				return "Authenticated mod.io fallback requests can only fall back to api_key on GET endpoints."
+		_:
+			pass
+	return ""
+
+func _has_bearer_authorization(headers: Dictionary) -> bool:
+	if not headers.has("Authorization"):
+		return false
+	return str(headers.Authorization).begins_with("Bearer ") and str(headers.Authorization).length() > 7
+
+func _encode_parameters(values: Dictionary) -> String:
+	var keys: Array = values.keys()
+	keys.sort_custom(func(a, b): return str(a) < str(b))
+	var parts: PackedStringArray = []
+	for key in keys:
+		parts.append("%s=%s" % [str(key).uri_encode(), _parameter_to_string(values[key]).uri_encode()])
+	return "&".join(parts)
+
+func _encode_form_body(values: Dictionary, content_type: String) -> String:
+	if values.is_empty():
+		return ""
+	if content_type == "" or content_type == CONTENT_TYPE_FORM:
+		return _encode_parameters(values)
+	return JSON.stringify(values)
+
+func _decode_payload(raw_body: String, expects: String) -> Variant:
+	var body := raw_body.strip_edges()
+	if body.is_empty():
+		return {}
+	if expects == "json":
+		var parsed = JSON.parse_string(body)
+		if parsed != null:
+			return parsed
+	return raw_body
+
+func _parameter_to_string(value: Variant) -> String:
+	if value is bool:
+		return "true" if value else "false"
+	return str(value)
+
+func _join_url(base_url: String, path: String, query_string: String) -> String:
+	var sanitized_base := base_url.rstrip("/")
+	var full_url := "%s%s" % [sanitized_base, _normalize_path(path)]
+	if not query_string.is_empty():
+		full_url += "?%s" % query_string
+	return full_url
+
+func _parse_url(url: String) -> Dictionary:
+	var trimmed := url.strip_edges()
+	var parts := trimmed.split("://", false, 1)
+	if parts.size() != 2:
+		return {"ok": false, "transport_error": "Unsupported URL: %s" % url, "code": ERR_INVALID_PARAMETER}
+	var scheme := parts[0].to_lower()
+	var remainder := parts[1]
+	var slash_index := remainder.find("/")
+	var host_port := remainder
+	var request_path := "/"
+	if slash_index >= 0:
+		host_port = remainder.substr(0, slash_index)
+		request_path = remainder.substr(slash_index)
+	var host := host_port
+	var port := 443 if scheme == "https" else 80
+	if host_port.contains(":"):
+		var host_parts := host_port.rsplit(":", true, 1)
+		host = host_parts[0]
+		port = int(host_parts[1])
+	return {
+		"ok": true,
+		"scheme": scheme,
+		"tls": scheme == "https",
+		"host": host,
+		"port": port,
+		"request_path": request_path
+	}
+
+func _headers_to_lines(headers: Dictionary) -> PackedStringArray:
+	var lines: PackedStringArray = []
+	var keys: Array = headers.keys()
+	keys.sort_custom(func(a, b): return str(a) < str(b))
+	for key in keys:
+		lines.append("%s: %s" % [str(key), str(headers[key])])
+	return lines
+
+func _response_headers_to_dictionary(header_lines: PackedStringArray) -> Dictionary:
+	var headers := {}
+	for line in header_lines:
+		var separator_index := line.find(":")
+		if separator_index < 0:
+			continue
+		var key := line.substr(0, separator_index).strip_edges()
+		var value := line.substr(separator_index + 1).strip_edges()
+		headers[key] = value
+	return headers
+
+func _http_method_to_constant(method: String) -> HTTPClient.Method:
+	match method:
+		"POST":
+			return HTTPClient.METHOD_POST
+		"DELETE":
+			return HTTPClient.METHOD_DELETE
+		_:
+			return HTTPClient.METHOD_GET
 
 func _parse_retry_after(headers: Dictionary) -> int:
 	if not headers.has("retry-after"):
@@ -80,7 +355,7 @@ func _parse_retry_after(headers: Dictionary) -> int:
 		return -1
 	var parsed := int(raw_value)
 	if parsed == 0:
-		return 60
+		return DEFAULT_RETRY_AFTER_SECONDS
 	return parsed
 
 func _categorize_error(status_code: int, error_ref: int) -> String:

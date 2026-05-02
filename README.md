@@ -15,7 +15,7 @@ This package owns the concrete mod.io-side seam for:
 - subscription/user-state request construction for `GET /me/subscribed` and subscribe/unsubscribe flows
 - download metadata resolution from `modfile.download.binary_url` and `date_expires`
 - provider-specific DTOs, query shapes, and error/rate-limit normalization
-- future transport glue that talks to mod.io without leaking that surface into `aerobeat-tool-api`
+- thin transport glue that can execute mod.io requests without leaking that surface into `aerobeat-tool-api`
 
 This package should **not** own:
 
@@ -50,10 +50,14 @@ This slice now implements a fixture-driven REST wrapper for the current research
   - access token, logout, terms, agreement, user, game, mod list/detail, modfiles, subscriptions
   - documented page helpers derived from `result_count`, `result_offset`, `result_limit`, and `result_total`
   - structured error/rate-limit mapping including `retry-after`, auth exchange/OpenID/key/terms variants, `11008`, `11009`, `11017`, `11074`, `15025`, and `17053`
+- transport execution seam
+  - `ModioHttpTransport.execute(...)` and `prepare_request(...)` for final URL/header/query/body assembly
+  - explicit base-URL override handling, deterministic host fallback, no double-slash joins, and configurable api/game/user+sandbox host selection via `ModioClientConfig`
+  - GET/POST/DELETE execution with form-encoded bodies, bearer-only authenticated writes, and no automatic retries
 
-The wrapper still does **not** perform live HTTP execution in this repo. It owns request construction, endpoint-aware query serialization, provider-local DTO normalization, paging/session helpers, and download metadata handling so the execution layer can land later without changing the upstream seam.
+The wrapper now owns a **thin execution seam** in addition to request construction and normalization. The live transport remains intentionally narrow: it prepares and dispatches mod.io-specific HTTP requests, normalizes the response/error envelope, and keeps provider-only host/auth/header logic local to this repo so higher layers can compose it later without inheriting raw mod.io rules.
 
-The current query model is intentionally endpoint-aware instead of emitting every filter everywhere. `GET /games/{game-id}/mods`, `GET /games/{game-id}/mods/{mod-id}/files`, and `GET /me/subscribed` now serialize only the documented subset each wrapped endpoint should receive, while still preserving shared paging inputs. Platform-targeted `GET /me/subscribed` requests also continue to force the required `game_id` field.
+The current query model is intentionally endpoint-aware instead of emitting every filter everywhere. `GET /games/{game-id}/mods`, `GET /games/{game-id}/mods/{mod-id}/files`, and `GET /me/subscribed` now serialize only the documented subset each wrapped endpoint should receive, while still preserving shared paging inputs. Platform-targeted `GET /me/subscribed` requests also continue to force the required `game_id` field, and integration-style tests now validate the final encoded URLs that the transport would execute.
 
 ## Download URL stance
 
