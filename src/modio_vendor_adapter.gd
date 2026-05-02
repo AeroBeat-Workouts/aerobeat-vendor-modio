@@ -78,10 +78,10 @@ func build_terms_request() -> Dictionary:
 		{"auth_mode": "api_key_query"}
 	)
 
-func build_current_agreement_request(agreement_type_id: String) -> Dictionary:
+func build_current_agreement_request(agreement_type_id: int) -> Dictionary:
 	return _transport.build_request(
 		"GET",
-		"/agreements/types/%s/current" % agreement_type_id.strip_edges(),
+		"/agreements/types/%s/current" % agreement_type_id,
 		_build_public_query(),
 		{},
 		_build_read_headers(false),
@@ -211,10 +211,17 @@ func normalize_terms_response(payload: Dictionary) -> Dictionary:
 func normalize_agreement_response(payload: Dictionary) -> Dictionary:
 	return {
 		"id": int(payload.get("id", 0)),
+		"is_active": bool(payload.get("is_active", false)),
+		"is_latest": bool(payload.get("is_latest", false)),
+		"type": int(payload.get("type", 0)),
+		"user": payload.get("user", {}),
+		"date_added": int(payload.get("date_added", 0)),
+		"date_updated": int(payload.get("date_updated", 0)),
+		"date_live": int(payload.get("date_live", 0)),
 		"name": str(payload.get("name", "")),
-		"version": str(payload.get("version", "")),
-		"text": str(payload.get("text", payload.get("plaintext", ""))),
-		"url": str(payload.get("url", ""))
+		"changelog": str(payload.get("changelog", "")),
+		"description": str(payload.get("description", "")),
+		"adjacent_versions": payload.get("adjacent_versions", {})
 	}
 
 func normalize_authenticated_user_response(payload: Dictionary) -> Dictionary:

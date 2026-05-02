@@ -42,8 +42,8 @@ func test_builds_terms_and_agreement_requests_with_localization_headers() -> voi
 	assert_eq(terms_request.headers["X-Modio-Portal"], "steam")
 	assert_eq(terms_request.headers["X-Modio-Platform"], "WINDOWS")
 
-	var agreement_request = adapter.build_current_agreement_request("privacy")
-	assert_eq(agreement_request.path, "/agreements/types/privacy/current")
+	var agreement_request = adapter.build_current_agreement_request(2)
+	assert_eq(agreement_request.path, "/agreements/types/2/current")
 	assert_eq(agreement_request.query.api_key, "demo-key")
 
 func test_builds_browse_and_detail_requests_with_documented_query_shapes() -> void:
@@ -124,8 +124,10 @@ func test_normalizes_fixture_payloads_for_current_slice() -> void:
 	assert_true(terms.links.terms.required)
 
 	var agreement = adapter.normalize_agreement_response(_fixture("agreement_current.json"))
-	assert_eq(agreement.name, "privacy")
-	assert_eq(agreement.version, "2026-04-01")
+	assert_eq(agreement.name, "Privacy Policy")
+	assert_true(agreement.is_latest)
+	assert_eq(agreement.type, 2)
+	assert_string_contains(agreement.description, "Privacy Agreement")
 
 	var me = adapter.normalize_authenticated_user_response(_fixture("me.json"))
 	assert_eq(me.id, 42)

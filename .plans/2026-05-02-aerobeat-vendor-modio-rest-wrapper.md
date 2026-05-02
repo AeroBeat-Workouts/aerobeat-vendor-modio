@@ -102,9 +102,9 @@ This means the work should start with a source-of-truth research pass: identify 
 - implementation/tests/docs as needed
 - `.plans/2026-05-02-aerobeat-vendor-modio-rest-wrapper.md`
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** Independently re-verified the implemented wrapper and fixture-driven tests against the current official `modio-docs` mirror plus the local official `modio-sdk` / `modio-unity` references. Found two concrete drift issues and fixed only those: (1) `GET /agreements/types/{agreement-type-id}/current` was being exercised with a slug-like value (`privacy`) even though the official docs define an integer agreement-type id, and (2) the agreement fixture/normalizer modeled non-current fields (`version`, `text`, `url`) instead of the documented Agreement Version object (`is_active`, `is_latest`, `type`, `user`, `date_*`, `name`, `changelog`, `description`, `adjacent_versions`). Updated the adapter, test expectations, and fixture to match the current official shape. Re-ran repo-local validation successfully with `godot --headless --path .testbed --script res://tests/validate_scaffold.gd` and `godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit` (8/8 tests passed). Vendor concerns remain local to this repo and the intended current slice is still covered: auth/session, browse/detail, subscribed state, subscribe/unsubscribe, download metadata handling, and error/rate-limit normalization.
 
 ---
 
