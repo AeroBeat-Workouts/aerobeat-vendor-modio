@@ -225,7 +225,7 @@ Execution-ready recommendation: Task 2 should implement a minimal live `ModioHtt
 **Commits:**
 - `0f54ed3` - Add mod.io transport execution seam
 - `9ce3088` - Record QA verification for mod.io transport slice
-- `d4942fd` - Record audit verification for mod.io transport slice
+- Audit plan update committed and pushed on `main` after independent verification
 
 **Lessons Learned:** The highest-value drift risk in this slice was not endpoint coverage but transport truth: host selection, auth separation, and execution-level encoding/header behavior are where silent contract mismatches would have surfaced first. Keeping those rules explicit, tested, and vendor-local makes later composition into `aerobeat-tool-api` safer.
 
