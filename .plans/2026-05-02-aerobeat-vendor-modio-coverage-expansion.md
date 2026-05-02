@@ -125,24 +125,26 @@ This pass should continue to use the official mod.io docs as primary truth, with
 - implementation/tests/docs as needed
 - `.plans/2026-05-02-aerobeat-vendor-modio-coverage-expansion.md`
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** Performed an independent source-of-truth audit against the local official `modio-docs` REST reference first, then cross-checked the audited surface against the pinned `modio-sdk` and `modio-unity` repos. Confirmed the paging helpers still align with the documented `result_count`, `result_offset`, `result_limit`, and `result_total` fields; confirmed the session/auth handling still matches the current documented email exchange / OpenID / terms flows; confirmed the expanded normalization fields and fixtures still match the current documented response shapes; and confirmed vendor-specific concerns remain local to this repo. Found one remaining contract drift in the endpoint-aware query gating: `GET /games/{game-id}/mods/{mod-id}/files` does not currently document `_sort`, but `ModioListingQuery` still emitted `_sort` for the modfiles endpoint and the fixture-driven test incorrectly locked that unsupported behavior in. Applied the minimum fix by removing `sort` capability from `ENDPOINT_MODFILES` and updating the test to require that `_sort` is not emitted there. Re-ran repo-local validation with `godot --headless --path .testbed --import && godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit`; all 8/8 tests passed with 161 asserts. No additional unintended drift was found in the audited coverage slice.
 
 ---
 
 ## Final Results
 
-**Status:** ⚠️ Partial
+**Status:** ✅ Complete
 
-**What We Built:** Finished the coder implementation slice for the expanded vendor seam: endpoint-aware query/filter serialization, documented paging helpers, stronger auth/session normalization, richer game/mod/user/terms/page normalization, and broader fixture-driven coverage for multi-page results, `/me/subscribed` platform targeting, logout success, and auth failure variants.
+**What We Built:** Finished the expanded vendor seam for mod.io with audited endpoint-aware query/filter serialization, documented paging helpers, stronger auth/session normalization, richer game/mod/user/terms/page normalization, and broader fixture-driven coverage for multi-page results, `/me/subscribed` platform targeting, logout success, and auth failure variants.
 
-**Reference Check:** Tasks 1-2 were validated against the local official `modio-docs` REST mirror first, then cross-checked with the official `modio-sdk` and `modio-unity` repos for integration behavior and edge-case expectations.
+**Reference Check:** Research, coder, QA, and audit all validated against the local official `modio-docs` REST mirror first, then cross-checked with the pinned official `modio-sdk` and `modio-unity` repos for integration behavior and edge-case expectations. The final audit removed the last remaining documented drift by stopping unsupported `_sort` emission on `GET /games/{game-id}/mods/{mod-id}/files` while preserving the earlier `/me/subscribed` corrections.
 
 **Commits:**
 - `9043a00` - Expand mod.io wrapper paging and auth coverage
+- `5bfbafe` - Fix mod.io subscription query gating
+- Pending auditor commit for the final modfiles query-gating audit fix and plan update
 
-**Lessons Learned:** The biggest immediate value is still seam-drift reduction rather than raw endpoint count. The tricky parts were per-endpoint filter differences, platform-targeted subscription rules, and request/response expiry semantics that look similar across auth flows but are not actually identical in the docs.
+**Lessons Learned:** The biggest immediate value was seam-drift reduction rather than raw endpoint count. The tricky parts were per-endpoint filter differences, platform-targeted subscription rules, auth expiry semantics that look similar across flows but are not actually identical in the docs, and not assuming list endpoints share the same sorting surface.
 
 ---
 

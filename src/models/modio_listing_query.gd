@@ -88,7 +88,7 @@ func to_query_dict(endpoint: String = ENDPOINT_MODS) -> Dictionary:
 func _get_capabilities(endpoint: String) -> PackedStringArray:
 	match endpoint:
 		ENDPOINT_MODFILES:
-			return PackedStringArray(["sort", "id"])
+			return PackedStringArray(["id"])
 		ENDPOINT_SUBSCRIPTIONS:
 			return PackedStringArray([
 				"search_term",

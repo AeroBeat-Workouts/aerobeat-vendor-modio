@@ -90,8 +90,8 @@ func test_builds_browse_and_detail_requests_with_endpoint_aware_query_shapes() -
 
 	var modfiles_request = adapter.build_modfiles_request("1001", query)
 	assert_eq(modfiles_request.path, "/games/777/mods/1001/files")
-	assert_eq(modfiles_request.query._sort, "-downloads_total")
 	assert_eq(modfiles_request.query.id, "1001")
+	assert_false(modfiles_request.query.has("_sort"))
 	assert_false(modfiles_request.query.has("_q"))
 	assert_false(modfiles_request.query.has("tags"))
 	assert_false(modfiles_request.query.has("metadata_kvp"))
