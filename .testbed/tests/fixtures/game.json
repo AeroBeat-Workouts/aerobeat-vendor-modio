@@ -28,10 +28,19 @@
   ],
   "theme": {
     "primary": "#101820",
-    "dark": true
+    "dark": "#17242f",
+    "light": "#f7fbff",
+    "success": "#68D391",
+    "warning": "#d6af2e",
+    "danger": "#ff000e"
   },
   "stats": {
-    "mods_total": 44,
-    "subscribers_total": 2301
+    "game_id": 777,
+    "mods_count_total": 44,
+    "mods_downloads_today": 128,
+    "mods_downloads_total": 2048,
+    "mods_downloads_daily_average": 96,
+    "mods_subscribers_total": 2301,
+    "date_expires": 1777800000
   }
 }

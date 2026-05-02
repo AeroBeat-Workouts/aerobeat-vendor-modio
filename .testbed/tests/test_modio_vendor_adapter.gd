@@ -210,6 +210,10 @@ func test_normalizes_fixture_payloads_for_richer_slice() -> void:
 	assert_eq(game.tag_options[0].name, "Difficulty")
 	assert_eq(game.platforms[0].platform, "WINDOWS")
 	assert_eq(game.theme.primary, "#101820")
+	assert_eq(game.theme.dark, "#17242f")
+	assert_eq(game.stats.game_id, 777)
+	assert_eq(game.stats.mods_count_total, 44)
+	assert_eq(game.stats.mods_subscribers_total, 2301)
 
 	var mods = adapter.normalize_mod_list_response(_fixture("mods.json"))
 	assert_eq(mods.result_offset, 5)

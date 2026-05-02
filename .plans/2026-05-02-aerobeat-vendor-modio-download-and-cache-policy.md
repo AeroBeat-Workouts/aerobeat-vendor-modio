@@ -215,12 +215,13 @@ Execution-ready recommendation: Task 2 should implement a vendor-local **artifac
 - `.plans/`
 
 **Files Created/Deleted/Modified:**
-- implementation/tests/docs as needed
+- `.testbed/tests/fixtures/game.json`
+- `.testbed/tests/test_modio_vendor_adapter.gd`
 - `.plans/2026-05-02-aerobeat-vendor-modio-download-and-cache-policy.md`
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** Independently re-verified the metadata-only download/cache slice against the local official `modio-docs` REST mirror first, then cross-checked the audited dependency/download response shapes against the pinned `modio-sdk` and `modio-unity` refs. Confirmed the implementation still keeps dependency reads explicit (`recursive=true|false` always serialized), preserves the docs-defined recursive semantics and `dependency_depth`, derives stable artifact/cache identity from `provider + game_id + mod_id + modfile.id` instead of `binary_url`, interprets `api_access_options` / `dependency_option` into repo-local policy metadata without adding downloader/install orchestration, and keeps all vendor concerns inside this repo. Found one concrete fixture drift against the current Game Object docs: `.testbed/tests/fixtures/game.json` still used non-current `stats` keys plus a boolean `theme.dark`. Applied the minimum fix by updating that fixture to the current documented `Game Stats Object` and theme shape and by extending the adapter test to lock those fields in. Re-ran repo-local validation successfully with `godot --headless --path .testbed --script res://tests/validate_scaffold.gd` and `godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit` (20/20 tests passed, 319 asserts). No downloader, install orchestration, AeroBeat trust/policy logic, or cross-repo vendor leakage was introduced.
 
 ---
 
@@ -252,9 +253,9 @@ Execution-ready recommendation: Task 2 should implement a vendor-local **artifac
 
 **Status:** ⚠️ Partial
 
-**What We Built:** Research and coder implementation are complete for the metadata-only slice. `ModioVendorAdapter` now covers dependency request building/normalization, game download-policy interpretation, canonical artifact/cache identity, dependency-aware artifact resolution, expiry/cacheability metadata, and fixture-backed dedupe/partiality tests. QA and auditor verification are still pending.
+**What We Built:** Research, coder implementation, and QA verification are complete for the metadata-only slice. `ModioVendorAdapter` now covers dependency request building/normalization, game download-policy interpretation, canonical artifact/cache identity, dependency-aware artifact resolution, expiry/cacheability metadata, and fixture-backed dedupe/partiality tests. Independent auditor verification is still pending.
 
-**Reference Check:** Task 1 and Task 2 re-validated behavior against the local official `modio-docs` mirror first, with the pinned `modio-sdk` and `modio-unity` repos used only as supporting workflow references. The coder slice also corrected fixture drift against the documented platform enums and added explicit dependency recursion coverage.
+**Reference Check:** Task 1, Task 2, and Task 3 re-validated behavior against the local official `modio-docs` mirror first, with the pinned `modio-sdk` and `modio-unity` repos used only as supporting workflow references. QA also corrected one remaining fixture drift against the current documented `Game Object` stats/theme shape while preserving the earlier platform-enum and explicit dependency-recursion coverage.
 
 **Commits:**
 - Pending
