@@ -11,9 +11,10 @@ This repo exists to keep mod.io-specific concerns local, replaceable, and out of
 This package owns the concrete mod.io-side seam for:
 
 - auth request construction and token/session normalization
-- browse/list/detail request construction for game, mod, and modfile reads
+- browse/list/detail request construction for game, mod, modfile, and dependency reads
 - subscription/user-state request construction for `GET /me/subscribed` and subscribe/unsubscribe flows
 - download metadata resolution from `modfile.download.binary_url` and `date_expires`
+- canonical artifact/cache metadata resolution grounded in `provider + game_id + mod_id + modfile.id`
 - provider-specific DTOs, query shapes, and error/rate-limit normalization
 - thin transport glue that can execute mod.io requests without leaking that surface into `aerobeat-tool-api`
 
@@ -47,9 +48,14 @@ This slice now implements a fixture-driven REST wrapper for the current research
   - `POST /games/{game-id}/mods/{mod-id}/subscribe`
   - `DELETE /games/{game-id}/mods/{mod-id}/subscribe`
 - response normalization seams
-  - access token, logout, terms, agreement, user, game, mod list/detail, modfiles, subscriptions
+  - access token, logout, terms, agreement, user, game, mod list/detail, modfiles, subscriptions, and dependencies
   - documented page helpers derived from `result_count`, `result_offset`, `result_limit`, and `result_total`
   - structured error/rate-limit mapping including `retry-after`, auth exchange/OpenID/key/terms variants, `11008`, `11009`, `11017`, `11074`, `15025`, and `17053`
+- artifact/cache metadata helpers
+  - canonical artifact identity + stable cache keys based on `provider + game_id + mod_id + modfile.id`
+  - game-policy interpretation from `api_access_options` and `dependency_option`
+  - dependency-aware artifact resolution from mod detail, modfiles, and dependencies payloads
+  - explicit recursive dependency request handling and metadata-only cacheability/expiry flags
 - transport execution seam
   - `ModioHttpTransport.execute(...)` and `prepare_request(...)` for final URL/header/query/body assembly
   - explicit base-URL override handling, deterministic host fallback, no double-slash joins, and configurable api/game/user+sandbox host selection via `ModioClientConfig`

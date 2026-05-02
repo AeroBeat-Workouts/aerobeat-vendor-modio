@@ -142,6 +142,22 @@ func test_executes_platform_targeted_subscription_sync_with_required_game_id() -
 	assert_eq(_recorded_requests[0].headers.Authorization, "Bearer user-token")
 	assert_false(_recorded_requests[0].url.contains("api_key="))
 
+func test_executes_dependency_requests_with_explicit_recursive_semantics() -> void:
+	var config := ModioClientConfig.new("777", "demo-key", "https://api.mod.io/v1/", "", "en-US", "steam", "WINDOWS")
+	var transport := ModioHttpTransport.new(Callable(self, "_transport_double"))
+	var adapter := ModioVendorAdapter.new(config, transport)
+
+	_queue_json_response(200, _fixture("dependencies_recursive.json"))
+	var immediate_response := transport.execute(adapter.build_dependencies_request("1001"), config)
+	assert_true(immediate_response.ok)
+	assert_eq(_recorded_requests[0].url, "https://api.mod.io/v1/games/777/mods/1001/dependencies?api_key=demo-key&recursive=false")
+
+	_queue_json_response(200, _fixture("dependencies_recursive.json"))
+	var recursive_response := transport.execute(adapter.build_dependencies_request("1001", true), config)
+	assert_true(recursive_response.ok)
+	assert_eq(_recorded_requests[1].url, "https://api.mod.io/v1/games/777/mods/1001/dependencies?api_key=demo-key&recursive=true")
+	assert_eq(int(recursive_response.payload.result_total), 2)
+
 func test_normalizes_rate_limit_validation_admin_server_and_auth_error_cases_from_execute() -> void:
 	var config := ModioClientConfig.new("777", "demo-key", "", "user-token", "en-US", "steam", "WINDOWS", ModioClientConfig.HOST_GAME)
 	var transport := ModioHttpTransport.new(Callable(self, "_transport_double"))

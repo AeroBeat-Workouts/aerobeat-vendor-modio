@@ -79,13 +79,13 @@
     },
     "platforms": [
       {"platform": "WINDOWS", "status": 1},
-      {"platform": "STEAM", "status": 3}
+      {"platform": "SOURCE", "status": 3}
     ]
   },
   "dependencies": false,
   "platforms": [
     {"platform": "WINDOWS", "modfile_live": 5001},
-    {"platform": "STEAM", "modfile_live": 5001}
+    {"platform": "SOURCE", "modfile_live": 5001}
   ],
   "metadata_kvp": [
     {"metakey": "workout_type", "metavalue": "cardio"},

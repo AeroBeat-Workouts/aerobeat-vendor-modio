@@ -12,10 +12,11 @@ Keep **provider-native** concerns in this repo while allowing `aerobeat-tool-api
 
 - mod.io request construction
 - auth/session request-shape support for email and OpenID flows
-- provider listing/search/detail query mapping
+- provider listing/search/detail/dependency query mapping
 - endpoint-aware filter serialization per wrapped endpoint
 - provider subscription/user-state mapping via `GET /me/subscribed`
 - provider download metadata resolution from `modfile.download`
+- canonical artifact/cache metadata resolution derived from `provider + game_id + mod_id + modfile.id`
 - provider DTO parsing, page-state helpers, and error normalization
 - thin HTTP transport execution for mod.io-specific endpoints
 
@@ -40,20 +41,22 @@ The current slice now exposes a larger request-builder and normalization seam:
     - `build_current_agreement_request(...)`
     - `build_authenticated_user_request(...)`
     - `build_logout_request()`
-  - browse/detail request builders
+  - browse/detail/dependency request builders
     - `build_game_request(...)`
     - `build_listing_request(...)`
     - `build_mod_detail_request(...)`
     - `build_modfiles_request(...)`
+    - `build_dependencies_request(...)`
   - subscription request builders
     - `build_user_subscriptions_request(...)`
     - `build_subscribe_request(...)`
     - `build_unsubscribe_request(...)`
   - normalization helpers
-    - auth/logout/user/game/mod/modfile/subscription responses
+    - auth/logout/user/game/mod/modfile/subscription/dependency responses
     - page-state helpers derived from `result_count`, `result_offset`, `result_limit`, and `result_total`
     - subscription write responses
     - download metadata resolution helpers
+    - artifact/cache metadata resolution + dedupe helpers
 - `ModioHttpTransport`
   - normalized request-dictionary builder
   - `prepare_request(...)` for final URL/query/header/body assembly
@@ -70,9 +73,11 @@ For AeroBeat's current slice, this repo does **not** expose a fake stable `/down
 
 Instead it:
 
-- resolves downloads from modfile payloads returned by `GET /games/{game-id}/mods/{mod-id}` or `GET /games/{game-id}/mods/{mod-id}/files`
-- preserves `binary_url`, `date_expires`, hash, and filename
+- resolves downloads from modfile payloads returned by `GET /games/{game-id}/mods/{mod-id}`, `GET /games/{game-id}/mods/{mod-id}/files`, or dependency payloads from `GET /games/{game-id}/mods/{mod-id}/dependencies`
+- derives a canonical artifact/cache identity from `provider + game_id + mod_id + modfile.id`
+- preserves `binary_url`, `date_expires`, hash, filename, dependency depth, and game download-policy bits as transport/cache metadata
 - explicitly marks the resolved URL as non-canonical because current mod.io docs state hashed URLs can expire and should not be saved/reused as stable identifiers
+- records recursive dependency intent explicitly because the official docs warn the endpoint's default recursion behavior will change in a future API version
 
 That keeps transient CDN delivery behavior local to the vendor seam and out of AeroBeat's higher-level identity/trust decisions.
 

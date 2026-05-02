@@ -6,8 +6,25 @@ const ModioListingQuery = preload("res://src/models/modio_listing_query.gd")
 const ModioDownloadRequest = preload("res://src/models/modio_download_request.gd")
 const ModioHttpTransport = preload("res://src/network/modio_http_transport.gd")
 
+const PROVIDER_NAME := "modio"
 const COMMON_YEAR_SECONDS := 31536000
 const WEEK_SECONDS := 604800
+const DOCUMENTED_RECURSIVE_DEPENDENCY_DEPTH := 5
+
+const API_ACCESS_OPEN := 1
+const API_ACCESS_DOWNLOADS := 2
+const API_ACCESS_AUTHORISED_DOWNLOADS := 4
+const API_ACCESS_PAID_DOWNLOADS := 8
+
+const DEPENDENCY_OPTION_DISALLOW := 0
+const DEPENDENCY_OPTION_ALLOW_OPT_IN := 1
+const DEPENDENCY_OPTION_ALLOW_OPT_OUT := 2
+const DEPENDENCY_OPTION_ALLOW_ALL := 3
+
+const DEPENDENCY_POLICY_NONE := "none"
+const DEPENDENCY_POLICY_IMMEDIATE_ONLY := "immediate_only"
+const DEPENDENCY_POLICY_RECURSIVE := "recursive"
+const DEPENDENCY_POLICY_SUBSCRIPTION_INCLUDE := "subscription_include_dependencies"
 
 var _config: ModioClientConfig
 var _transport: ModioHttpTransport
@@ -163,6 +180,18 @@ func build_modfiles_request(mod_id: String, query: ModioListingQuery = ModioList
 		{"auth_mode": _resolve_read_auth_mode(false)}
 	)
 
+func build_dependencies_request(mod_id: String, recursive: bool = false) -> Dictionary:
+	var full_query := _build_public_query()
+	full_query["recursive"] = recursive
+	return _transport.build_request(
+		"GET",
+		"/games/%s/mods/%s/dependencies" % [_config.game_id, mod_id.strip_edges()],
+		full_query,
+		{},
+		_build_read_headers(false),
+		{"auth_mode": _resolve_read_auth_mode(false)}
+	)
+
 func build_user_subscriptions_request(query: ModioListingQuery = ModioListingQuery.new()) -> Dictionary:
 	var full_query := _build_authenticated_query()
 	full_query.merge(query.to_query_dict(ModioListingQuery.ENDPOINT_SUBSCRIPTIONS), true)
@@ -256,13 +285,15 @@ func normalize_game_response(payload: Dictionary) -> Dictionary:
 		"instructions": str(payload.get("instructions", "")),
 		"instructions_url": str(payload.get("instructions_url", "")),
 		"api_access_options": int(payload.get("api_access_options", 0)),
+		"dependency_option": int(payload.get("dependency_option", 0)),
 		"submission_option": int(payload.get("submission_option", 0)),
 		"community_options": int(payload.get("community_options", 0)),
 		"maturity_options": int(payload.get("maturity_options", 0)),
 		"tag_options": _normalize_tag_options(payload.get("tag_options", [])),
 		"platforms": _normalize_game_platforms(payload.get("platforms", [])),
 		"theme": _normalize_dictionary(payload.get("theme", {})),
-		"stats": _normalize_dictionary(payload.get("stats", {}))
+		"stats": _normalize_dictionary(payload.get("stats", {})),
+		"download_policy": interpret_game_download_policy(payload)
 	}
 
 func normalize_mod_list_response(payload: Dictionary) -> Dictionary:
@@ -273,6 +304,15 @@ func normalize_mod_detail_response(payload: Dictionary) -> Dictionary:
 
 func normalize_modfiles_response(payload: Dictionary) -> Dictionary:
 	return _normalize_list_payload(payload, Callable(self, "_normalize_modfile_object"))
+
+func normalize_dependencies_response(payload: Dictionary, recursive_requested: bool = false) -> Dictionary:
+	var normalized := _normalize_list_payload(payload, Callable(self, "_normalize_dependency_object"))
+	normalized["resolution"] = {
+		"recursive_requested": recursive_requested,
+		"policy": DEPENDENCY_POLICY_RECURSIVE if recursive_requested else DEPENDENCY_POLICY_IMMEDIATE_ONLY,
+		"documented_recursive_depth_limit": DOCUMENTED_RECURSIVE_DEPENDENCY_DEPTH
+	}
+	return normalized
 
 func normalize_subscriptions_response(payload: Dictionary) -> Dictionary:
 	return normalize_mod_list_response(payload)
@@ -313,12 +353,105 @@ func resolve_download_request_from_modfile(mod_id: String, modfile_payload: Dict
 	var filehash: Dictionary = modfile_payload.get("filehash", {})
 	return ModioDownloadRequest.new(
 		mod_id.strip_edges(),
-		str(int(modfile_payload.get("id", 0))),
+		_stringify_id_value(modfile_payload.get("id", 0)),
 		str(download.get("binary_url", "")),
 		int(download.get("date_expires", 0)),
 		str(filehash.get("md5", "")),
 		str(modfile_payload.get("filename", ""))
 	)
+
+func interpret_game_download_policy(game_payload: Dictionary) -> Dictionary:
+	var api_access_options := int(game_payload.get("api_access_options", 0))
+	var dependency_option := int(game_payload.get("dependency_option", DEPENDENCY_OPTION_DISALLOW))
+	var allows_direct_downloads := (api_access_options & API_ACCESS_DOWNLOADS) != 0
+	var requires_authenticated_download := (api_access_options & API_ACCESS_AUTHORISED_DOWNLOADS) != 0 or (api_access_options & API_ACCESS_PAID_DOWNLOADS) != 0
+	var requires_entitlement_download := (api_access_options & API_ACCESS_PAID_DOWNLOADS) != 0
+	return {
+		"api_access_options": api_access_options,
+		"dependency_option": dependency_option,
+		"allows_open_api": (api_access_options & API_ACCESS_OPEN) != 0,
+		"allows_direct_downloads": allows_direct_downloads,
+		"requires_authenticated_download": requires_authenticated_download,
+		"requires_entitlement_download": requires_entitlement_download,
+		"delivery_urls_require_api_resolution": not allows_direct_downloads,
+		"dependencies_enabled": dependency_option != DEPENDENCY_OPTION_DISALLOW,
+		"dependency_mode": _dependency_option_to_string(dependency_option)
+	}
+
+func resolve_artifact_record_from_mod_detail(mod_payload: Dictionary, game_payload: Dictionary = {}) -> Dictionary:
+	var source := {
+		"kind": "mod_detail_current_modfile",
+		"endpoint": "get_mod",
+		"has_embedded_modfile": mod_payload.get("modfile", null) is Dictionary
+	}
+	return _build_artifact_record_from_mod_object(mod_payload, game_payload, source, _build_dependency_block(DEPENDENCY_POLICY_NONE, false, "", -1, false))
+
+func resolve_artifact_record_from_modfile(mod_id: String, modfile_payload: Dictionary, game_payload: Dictionary = {}, extra: Dictionary = {}) -> Dictionary:
+	var source := {
+		"kind": str(extra.get("source_kind", "modfiles_item")),
+		"endpoint": str(extra.get("source_endpoint", "get_modfiles")),
+		"has_embedded_modfile": false
+	}
+	var dependency_block := _build_dependency_block(
+		str(extra.get("dependency_policy", DEPENDENCY_POLICY_NONE)),
+		bool(extra.get("is_dependency", false)),
+		_stringify_id_value(extra.get("parent_mod_id", "")),
+		int(extra.get("dependency_depth", -1)),
+		bool(extra.get("recursive_requested", false))
+	)
+	var game_id := _resolve_game_id(game_payload, modfile_payload)
+	return _build_artifact_record(game_id, mod_id, modfile_payload, game_payload, source, dependency_block)
+
+func resolve_artifact_records_from_modfiles(mod_id: String, payload: Dictionary, game_payload: Dictionary = {}) -> Array:
+	var records: Array = []
+	for item in payload.get("data", []):
+		if item is Dictionary:
+			records.append(resolve_artifact_record_from_modfile(mod_id, item, game_payload))
+	return dedupe_artifact_records(records)
+
+func resolve_artifact_records_from_dependencies(parent_mod_id: String, payload: Dictionary, game_payload: Dictionary = {}, recursive_requested: bool = false) -> Dictionary:
+	var records: Array = []
+	for item in payload.get("data", []):
+		if item is Dictionary:
+			var mod_payload: Dictionary = item
+			var source := {
+				"kind": "dependency_modfile",
+				"endpoint": "get_mod_dependencies",
+				"has_embedded_modfile": mod_payload.get("modfile", null) is Dictionary
+			}
+			var dependency_block := _build_dependency_block(
+				DEPENDENCY_POLICY_RECURSIVE if recursive_requested else DEPENDENCY_POLICY_IMMEDIATE_ONLY,
+				true,
+				parent_mod_id,
+				int(mod_payload.get("dependency_depth", 0)),
+				recursive_requested
+			)
+			records.append(_build_artifact_record_from_mod_object(mod_payload, game_payload, source, dependency_block))
+	return {
+		"artifacts": dedupe_artifact_records(records),
+		"resolution": {
+			"parent_mod_id": parent_mod_id,
+			"recursive_requested": recursive_requested,
+			"policy": DEPENDENCY_POLICY_RECURSIVE if recursive_requested else DEPENDENCY_POLICY_IMMEDIATE_ONLY,
+			"documented_recursive_depth_limit": DOCUMENTED_RECURSIVE_DEPENDENCY_DEPTH
+		}
+	}
+
+func dedupe_artifact_records(records: Array) -> Array:
+	var deduped: Array = []
+	var seen := {}
+	for record in records:
+		if not (record is Dictionary):
+			continue
+		var artifact_key := str(record.get("artifact_key", ""))
+		if artifact_key.is_empty():
+			deduped.append(record)
+			continue
+		if seen.has(artifact_key):
+			continue
+		seen[artifact_key] = true
+		deduped.append(record)
+	return deduped
 
 func normalize_transport_response(status_code: int, headers: Dictionary = {}, payload: Variant = null) -> Dictionary:
 	return _transport.normalize_response(status_code, headers, payload)
@@ -362,7 +495,7 @@ func _normalize_mod_object(payload: Dictionary) -> Dictionary:
 	var normalized_modfile := {}
 	if payload.get("modfile", null) is Dictionary:
 		normalized_modfile = _normalize_modfile_object(payload.modfile)
-	return {
+	var normalized := {
 		"id": int(payload.get("id", 0)),
 		"game_id": int(payload.get("game_id", 0)),
 		"name": str(payload.get("name", "")),
@@ -396,6 +529,14 @@ func _normalize_mod_object(payload: Dictionary) -> Dictionary:
 		"modfile": normalized_modfile,
 		"skus": _normalize_skus(payload.get("skus", []))
 	}
+	if payload.has("dependency_depth"):
+		normalized["dependency_depth"] = int(payload.get("dependency_depth", 0))
+	return normalized
+
+func _normalize_dependency_object(payload: Dictionary) -> Dictionary:
+	var normalized := _normalize_mod_object(payload)
+	normalized["dependency_depth"] = int(payload.get("dependency_depth", 0))
+	return normalized
 
 func _normalize_stats_object(payload: Dictionary) -> Dictionary:
 	return {
@@ -613,3 +754,132 @@ func _sanitize_requested_expiry(requested_expiry: int, max_lifetime_seconds: int
 		return 0
 	var max_expiry := now + max_lifetime_seconds
 	return mini(requested_expiry, max_expiry)
+
+func _build_artifact_record_from_mod_object(mod_payload: Dictionary, game_payload: Dictionary, source: Dictionary, dependency_block: Dictionary) -> Dictionary:
+	var modfile_payload: Dictionary = mod_payload.get("modfile", {})
+	var game_id: String = _resolve_game_id(game_payload, mod_payload)
+	var mod_id: String = _stringify_id_value(mod_payload.get("id", 0))
+	return _build_artifact_record(game_id, mod_id, modfile_payload, game_payload, source, dependency_block)
+
+func _build_artifact_record(game_id: String, mod_id: String, modfile_payload: Dictionary, game_payload: Dictionary, source: Dictionary, dependency_block: Dictionary) -> Dictionary:
+	var resolved_at := Time.get_unix_time_from_system()
+	var file_id := _stringify_id_value(modfile_payload.get("id", 0))
+	var binary_url := str(modfile_payload.get("download", {}).get("binary_url", "")).strip_edges()
+	var date_expires := int(modfile_payload.get("download", {}).get("date_expires", 0))
+	var md5 := str(modfile_payload.get("filehash", {}).get("md5", "")).strip_edges()
+	var artifact_key := build_artifact_key(game_id, mod_id, file_id)
+	var game_policy := interpret_game_download_policy(game_payload)
+	var error_issues: Array = []
+	var warning_issues: Array = []
+	if game_id.is_empty():
+		error_issues.append("missing game_id")
+	if mod_id.is_empty():
+		error_issues.append("missing mod_id")
+	if file_id.is_empty():
+		error_issues.append("missing modfile.id")
+	if binary_url.is_empty():
+		warning_issues.append("missing download.binary_url")
+	if md5.is_empty():
+		warning_issues.append("missing filehash.md5")
+	var is_expired: bool = date_expires > 0 and date_expires <= resolved_at
+	var requires_fresh_resolution: bool = binary_url.is_empty() or is_expired
+	var is_delivery_url_expiring: bool = date_expires > 0 or bool(game_policy.get("delivery_urls_require_api_resolution", false))
+	var has_identity: bool = error_issues.is_empty()
+	var has_integrity: bool = not md5.is_empty()
+	var has_delivery: bool = not binary_url.is_empty()
+	return {
+		"provider": PROVIDER_NAME,
+		"game_id": game_id,
+		"mod_id": mod_id,
+		"file_id": file_id,
+		"artifact_key": artifact_key,
+		"cache_key": artifact_key,
+		"identity": {
+			"provider": PROVIDER_NAME,
+			"game_id": game_id,
+			"mod_id": mod_id,
+			"file_id": file_id,
+			"canonical_id": artifact_key
+		},
+		"integrity": {
+			"md5": md5,
+			"filename": str(modfile_payload.get("filename", "")),
+			"version": str(modfile_payload.get("version", "")),
+			"filesize": int(modfile_payload.get("filesize", 0)),
+			"filesize_uncompressed": int(modfile_payload.get("filesize_uncompressed", 0)),
+			"metadata_blob": str(modfile_payload.get("metadata_blob", "")),
+			"virus_status": int(modfile_payload.get("virus_status", 0)),
+			"virus_positive": int(modfile_payload.get("virus_positive", 0)),
+			"virustotal_hash": str(modfile_payload.get("virustotal_hash", "")),
+			"platforms": _normalize_file_platforms(modfile_payload.get("platforms", []))
+		},
+		"delivery": {
+			"binary_url": binary_url,
+			"date_expires": date_expires,
+			"resolved_at": resolved_at,
+			"has_binary_url": has_delivery,
+			"is_delivery_url_expiring": is_delivery_url_expiring,
+			"is_delivery_url_expired": is_expired,
+			"requires_fresh_resolution": requires_fresh_resolution,
+			"is_canonical_url": false,
+			"is_transient_transport": true
+		},
+		"dependency": dependency_block,
+		"game_policy": game_policy,
+		"source": source,
+		"validity": {
+			"has_identity": has_identity,
+			"has_integrity": has_integrity,
+			"has_delivery": has_delivery,
+			"is_cacheable": has_identity and has_integrity and has_delivery,
+			"is_partial": not (has_identity and has_integrity and has_delivery),
+			"issues": {
+				"errors": error_issues,
+				"warnings": warning_issues
+			}
+		}
+	}
+
+func build_artifact_key(game_id: String, mod_id: String, file_id: String) -> String:
+	if game_id.strip_edges().is_empty() or mod_id.strip_edges().is_empty() or file_id.strip_edges().is_empty():
+		return ""
+	return "%s:%s:%s:%s" % [PROVIDER_NAME, game_id.strip_edges(), mod_id.strip_edges(), file_id.strip_edges()]
+
+func _resolve_game_id(game_payload: Dictionary, fallback_payload: Dictionary = {}) -> String:
+	var from_game := _stringify_id_value(game_payload.get("id", 0))
+	if not from_game.is_empty():
+		return from_game
+	var from_payload := _stringify_id_value(fallback_payload.get("game_id", 0))
+	if not from_payload.is_empty():
+		return from_payload
+	return _config.game_id.strip_edges()
+
+func _stringify_id_value(value: Variant) -> String:
+	if value is int or value is float:
+		var numeric_value := int(value)
+		return "" if numeric_value <= 0 else str(numeric_value)
+	var text := str(value).strip_edges()
+	if text == "" or text == "0" or text == "0.0":
+		return ""
+	return text
+
+func _build_dependency_block(policy: String, is_dependency: bool, parent_mod_id: String, dependency_depth: int, recursive_requested: bool) -> Dictionary:
+	return {
+		"policy": policy,
+		"is_dependency": is_dependency,
+		"parent_mod_id": parent_mod_id,
+		"dependency_depth": dependency_depth,
+		"recursive_requested": recursive_requested,
+		"documented_recursive_depth_limit": DOCUMENTED_RECURSIVE_DEPENDENCY_DEPTH if recursive_requested else 0
+	}
+
+func _dependency_option_to_string(value: int) -> String:
+	match value:
+		DEPENDENCY_OPTION_ALLOW_OPT_IN:
+			return "allow_opt_in"
+		DEPENDENCY_OPTION_ALLOW_OPT_OUT:
+			return "allow_opt_out"
+		DEPENDENCY_OPTION_ALLOW_ALL:
+			return "allow_all"
+		_:
+			return "disallow"

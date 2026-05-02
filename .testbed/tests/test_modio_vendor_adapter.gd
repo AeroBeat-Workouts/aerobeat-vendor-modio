@@ -147,6 +147,31 @@ func test_builds_authenticated_subscription_requests_and_gates_unsupported_filte
 	assert_eq(logout_request.path, "/oauth/logout")
 	assert_eq(logout_request.headers.Authorization, "Bearer user-token")
 
+func test_builds_dependency_requests_and_normalizes_recursive_dependency_payloads() -> void:
+	var adapter := _build_adapter()
+
+	var immediate_request = adapter.build_dependencies_request("1001")
+	assert_eq(immediate_request.path, "/games/777/mods/1001/dependencies")
+	assert_eq(immediate_request.query.api_key, "demo-key")
+	assert_false(immediate_request.query.recursive)
+
+	var recursive_request = adapter.build_dependencies_request("1001", true)
+	assert_true(recursive_request.query.recursive)
+
+	var normalized_dependencies = adapter.normalize_dependencies_response(_fixture("dependencies_recursive.json"), true)
+	assert_eq(normalized_dependencies.data.size(), 2)
+	assert_true(normalized_dependencies.resolution.recursive_requested)
+	assert_eq(normalized_dependencies.resolution.policy, ModioVendorAdapter.DEPENDENCY_POLICY_RECURSIVE)
+	assert_eq(normalized_dependencies.data[0].dependency_depth, 0)
+	assert_eq(normalized_dependencies.data[1].dependency_depth, 1)
+
+	var artifact_resolution = adapter.resolve_artifact_records_from_dependencies("1001", _fixture("dependencies_recursive.json"), _fixture("game.json"), true)
+	assert_eq(artifact_resolution.artifacts.size(), 2)
+	assert_eq(artifact_resolution.resolution.parent_mod_id, "1001")
+	assert_eq(artifact_resolution.artifacts[0].dependency.policy, ModioVendorAdapter.DEPENDENCY_POLICY_RECURSIVE)
+	assert_eq(artifact_resolution.artifacts[1].dependency.dependency_depth, 1)
+	assert_true(artifact_resolution.artifacts[0].game_policy.requires_authenticated_download)
+
 func test_normalizes_fixture_payloads_for_richer_slice() -> void:
 	var adapter := _build_adapter_with_token()
 
@@ -177,6 +202,11 @@ func test_normalizes_fixture_payloads_for_richer_slice() -> void:
 	var game = adapter.normalize_game_response(_fixture("game.json"))
 	assert_eq(game.id, 777)
 	assert_eq(game.api_access_options, 7)
+	assert_eq(game.dependency_option, 2)
+	assert_eq(game.download_policy.dependency_mode, "allow_opt_out")
+	assert_true(game.download_policy.allows_direct_downloads)
+	assert_true(game.download_policy.requires_authenticated_download)
+	assert_false(game.download_policy.requires_entitlement_download)
 	assert_eq(game.tag_options[0].name, "Difficulty")
 	assert_eq(game.platforms[0].platform, "WINDOWS")
 	assert_eq(game.theme.primary, "#101820")
@@ -196,7 +226,7 @@ func test_normalizes_fixture_payloads_for_richer_slice() -> void:
 	assert_eq(mod_detail.modfile.id, 5001)
 	assert_eq(mod_detail.tags[1].name, "Expert")
 	assert_eq(mod_detail.metadata_kvp[1].metakey, "difficulty")
-	assert_eq(mod_detail.platforms[1].platform, "STEAM")
+	assert_eq(mod_detail.platforms[1].platform, "SOURCE")
 	assert_eq(mod_detail.media.images[0].filename, "cardio-shot.png")
 	assert_eq(mod_detail.skus[0].portal, "steam")
 
@@ -204,6 +234,7 @@ func test_normalizes_fixture_payloads_for_richer_slice() -> void:
 	assert_eq(modfiles.data[0].download.binary_url, "https://api.mod.io/v1/games/777/mods/1001/files/5001/download/hash123")
 	assert_true(modfiles.data[0].download.is_expiring)
 	assert_false(modfiles.data[0].download.is_canonical_url)
+	assert_eq(modfiles.data[0].platforms[1].platform, "SOURCE")
 	assert_eq(modfiles.page.page_count, 1)
 
 	var subscriptions = adapter.normalize_subscriptions_response(_fixture("subscribed.json"))
@@ -228,6 +259,66 @@ func test_resolves_download_requests_from_modfile_metadata_not_download_endpoint
 	assert_true(normalized.is_expiring)
 	assert_false(normalized.is_canonical_url)
 	assert_string_contains(normalized.warning, "expiring delivery URLs")
+
+func test_builds_stable_artifact_keys_and_dedupes_by_identity() -> void:
+	var adapter := _build_adapter_with_token()
+	var game_payload := _fixture("game.json")
+	var mod_detail_payload := _fixture("mod_detail.json")
+	var modfiles_payload := _fixture("modfiles.json")
+
+	var detail_record = adapter.resolve_artifact_record_from_mod_detail(mod_detail_payload, game_payload)
+	var modfile_payload: Dictionary = modfiles_payload.data[0].duplicate(true)
+		
+	modfile_payload.download.binary_url = "https://api.mod.io/v1/games/777/mods/1001/files/5001/download/hash456"
+	var list_record = adapter.resolve_artifact_record_from_modfile("1001", modfile_payload, game_payload)
+
+	assert_eq(detail_record.identity.canonical_id, "modio:777:1001:5001")
+	assert_eq(detail_record.artifact_key, list_record.artifact_key)
+	assert_eq(detail_record.cache_key, list_record.cache_key)
+	assert_ne(detail_record.delivery.binary_url, list_record.delivery.binary_url)
+
+	var deduped = adapter.dedupe_artifact_records([detail_record, list_record])
+	assert_eq(deduped.size(), 1)
+	assert_eq(deduped[0].artifact_key, "modio:777:1001:5001")
+
+func test_marks_expired_urls_and_interprets_api_access_options_for_cache_metadata() -> void:
+	var adapter := _build_adapter_with_token()
+	var restricted_game := _fixture("game.json").duplicate(true)
+	restricted_game.api_access_options = 12
+	var expired_modfile: Dictionary = _fixture("modfiles.json").data[0].duplicate(true)
+	expired_modfile.download.date_expires = Time.get_unix_time_from_system() - 30
+
+	var record = adapter.resolve_artifact_record_from_modfile("1001", expired_modfile, restricted_game)
+
+	assert_true(record.delivery.is_delivery_url_expired)
+	assert_true(record.delivery.requires_fresh_resolution)
+	assert_true(record.delivery.is_delivery_url_expiring)
+	assert_false(record.game_policy.allows_direct_downloads)
+	assert_true(record.game_policy.requires_authenticated_download)
+	assert_true(record.game_policy.requires_entitlement_download)
+	assert_true(record.game_policy.delivery_urls_require_api_resolution)
+
+func test_flags_partial_or_invalid_artifact_metadata_when_download_fields_are_missing() -> void:
+	var adapter := _build_adapter_with_token()
+	var game_payload := _fixture("game.json")
+	var partial_modfile: Dictionary = _fixture("modfiles.json").data[0].duplicate(true)
+	partial_modfile.download = {}
+	partial_modfile.filehash = {}
+
+	var partial_record = adapter.resolve_artifact_record_from_modfile("1001", partial_modfile, game_payload)
+	assert_false(partial_record.validity.has_delivery)
+	assert_false(partial_record.validity.has_integrity)
+	assert_false(partial_record.validity.is_cacheable)
+	assert_true(partial_record.validity.is_partial)
+	assert_eq(partial_record.validity.issues.warnings[0], "missing download.binary_url")
+	assert_eq(partial_record.validity.issues.warnings[1], "missing filehash.md5")
+
+	var invalid_modfile: Dictionary = partial_modfile.duplicate(true)
+	invalid_modfile.id = 0
+	var invalid_record = adapter.resolve_artifact_record_from_modfile("1001", invalid_modfile, game_payload)
+	assert_false(invalid_record.validity.has_identity)
+	assert_eq(invalid_record.artifact_key, "")
+	assert_eq(invalid_record.validity.issues.errors[0], "missing modfile.id")
 
 func test_normalizes_auth_failure_variants_and_terms_handling() -> void:
 	var adapter := _build_adapter_with_token()

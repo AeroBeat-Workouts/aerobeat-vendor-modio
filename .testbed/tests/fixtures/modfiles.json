@@ -20,7 +20,8 @@
         "date_expires": 1777800000
       },
       "platforms": [
-        {"platform": "WINDOWS", "status": 1}
+        {"platform": "WINDOWS", "status": 1},
+        {"platform": "SOURCE", "status": 3}
       ]
     }
   ],

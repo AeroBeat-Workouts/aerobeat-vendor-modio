@@ -1,0 +1,206 @@
+{
+  "data": [
+    {
+      "id": 2001,
+      "game_id": 777,
+      "status": 1,
+      "visible": 1,
+      "submitted_by": {
+        "id": 88,
+        "name_id": "coach-dev",
+        "username": "CoachDev",
+        "display_name_portal": null,
+        "date_online": 1777701000,
+        "date_joined": 1777001000,
+        "avatar": {
+          "filename": "coach.png",
+          "original": "https://assets.modcdn.io/images/placeholder/coach.png",
+          "thumb_50x50": "https://assets.modcdn.io/images/placeholder/coach_50x50.png",
+          "thumb_100x100": "https://assets.modcdn.io/images/placeholder/coach_100x100.png"
+        },
+        "timezone": "",
+        "language": "",
+        "profile_url": "https://mod.io/u/coach-dev"
+      },
+      "date_added": 1777601000,
+      "date_updated": 1777701000,
+      "date_live": 1777751000,
+      "maturity_option": 0,
+      "community_options": 1024,
+      "monetization_options": 0,
+      "stock": 0,
+      "price": 0,
+      "tax": 0,
+      "logo": {
+        "filename": "warmup.png",
+        "original": "https://assets.modcdn.io/images/rogue/warmup.png",
+        "thumb_320x180": "https://assets.modcdn.io/images/rogue/warmup_320x180.png",
+        "thumb_640x360": "https://assets.modcdn.io/images/rogue/warmup_640x360.png",
+        "thumb_1280x720": "https://assets.modcdn.io/images/rogue/warmup_1280x720.png"
+      },
+      "homepage_url": "https://www.aerobeat.example/mods/warmup-kit",
+      "name": "Warmup Kit",
+      "name_id": "warmup-kit",
+      "summary": "Shared warmup routines.",
+      "description": "<p>Shared warmup routines.</p>",
+      "description_plaintext": "Shared warmup routines.",
+      "metadata_blob": "{\"category\":\"warmup\"}",
+      "profile_url": "https://mod.io/g/aerobeat/m/warmup-kit",
+      "media": {"youtube": [], "sketchfab": [], "images": []},
+      "modfile": {
+        "id": 6001,
+        "mod_id": 2001,
+        "date_added": 1777601000,
+        "date_updated": 1777701000,
+        "date_scanned": 1777701100,
+        "virus_status": 1,
+        "virus_positive": 0,
+        "virustotal_hash": "",
+        "filesize": 123456,
+        "filesize_uncompressed": 234567,
+        "filehash": {"md5": "warmup-md5"},
+        "filename": "warmup-kit.zip",
+        "version": "2.0.0",
+        "changelog": "Warmup refresh.",
+        "metadata_blob": "{\"category\":\"warmup\"}",
+        "download": {
+          "binary_url": "https://api.mod.io/v1/games/777/mods/2001/files/6001/download/hash-warmup",
+          "date_expires": 1777900000
+        },
+        "platforms": [
+          {"platform": "WINDOWS", "status": 1}
+        ]
+      },
+      "dependencies": false,
+      "platforms": [
+        {"platform": "WINDOWS", "modfile_live": 6001}
+      ],
+      "metadata_kvp": [
+        {"metakey": "workout_type", "metavalue": "warmup"}
+      ],
+      "tags": [
+        {"name": "Approved", "name_localized": "Approved", "date_added": 1777601000}
+      ],
+      "stats": {
+        "mod_id": 2001,
+        "popularity_rank_position": 4,
+        "popularity_rank_total_mods": 204,
+        "downloads_today": 45,
+        "downloads_total": 800,
+        "subscribers_total": 200,
+        "ratings_total": 40,
+        "ratings_positive": 38,
+        "ratings_negative": 2,
+        "ratings_percentage_positive": 95,
+        "ratings_weighted_aggregate": 90.2,
+        "ratings_display_text": "Very Positive",
+        "date_expires": 1777900000
+      },
+      "dependency_depth": 0
+    },
+    {
+      "id": 3001,
+      "game_id": 777,
+      "status": 1,
+      "visible": 1,
+      "submitted_by": {
+        "id": 90,
+        "name_id": "studio-audio",
+        "username": "StudioAudio",
+        "display_name_portal": null,
+        "date_online": 1777702000,
+        "date_joined": 1777002000,
+        "avatar": {
+          "filename": "audio.png",
+          "original": "https://assets.modcdn.io/images/placeholder/audio.png",
+          "thumb_50x50": "https://assets.modcdn.io/images/placeholder/audio_50x50.png",
+          "thumb_100x100": "https://assets.modcdn.io/images/placeholder/audio_100x100.png"
+        },
+        "timezone": "",
+        "language": "",
+        "profile_url": "https://mod.io/u/studio-audio"
+      },
+      "date_added": 1777602000,
+      "date_updated": 1777702000,
+      "date_live": 1777752000,
+      "maturity_option": 0,
+      "community_options": 1024,
+      "monetization_options": 0,
+      "stock": 0,
+      "price": 0,
+      "tax": 0,
+      "logo": {
+        "filename": "audio-pack.png",
+        "original": "https://assets.modcdn.io/images/rogue/audio-pack.png",
+        "thumb_320x180": "https://assets.modcdn.io/images/rogue/audio-pack_320x180.png",
+        "thumb_640x360": "https://assets.modcdn.io/images/rogue/audio-pack_640x360.png",
+        "thumb_1280x720": "https://assets.modcdn.io/images/rogue/audio-pack_1280x720.png"
+      },
+      "homepage_url": "https://www.aerobeat.example/mods/audio-pack",
+      "name": "Audio Pack",
+      "name_id": "audio-pack",
+      "summary": "Nested dependency for shared audio.",
+      "description": "<p>Nested dependency for shared audio.</p>",
+      "description_plaintext": "Nested dependency for shared audio.",
+      "metadata_blob": "{\"category\":\"audio\"}",
+      "profile_url": "https://mod.io/g/aerobeat/m/audio-pack",
+      "media": {"youtube": [], "sketchfab": [], "images": []},
+      "modfile": {
+        "id": 7001,
+        "mod_id": 3001,
+        "date_added": 1777602000,
+        "date_updated": 1777702000,
+        "date_scanned": 1777702100,
+        "virus_status": 1,
+        "virus_positive": 0,
+        "virustotal_hash": "",
+        "filesize": 223344,
+        "filesize_uncompressed": 334455,
+        "filehash": {"md5": "audio-md5"},
+        "filename": "audio-pack.zip",
+        "version": "1.4.0",
+        "changelog": "Audio refresh.",
+        "metadata_blob": "{\"category\":\"audio\"}",
+        "download": {
+          "binary_url": "https://api.mod.io/v1/games/777/mods/3001/files/7001/download/hash-audio",
+          "date_expires": 1777950000
+        },
+        "platforms": [
+          {"platform": "WINDOWS", "status": 1},
+          {"platform": "LINUX", "status": 1}
+        ]
+      },
+      "dependencies": false,
+      "platforms": [
+        {"platform": "WINDOWS", "modfile_live": 7001},
+        {"platform": "LINUX", "modfile_live": 7001}
+      ],
+      "metadata_kvp": [
+        {"metakey": "workout_type", "metavalue": "audio"}
+      ],
+      "tags": [
+        {"name": "Approved", "name_localized": "Approved", "date_added": 1777602000}
+      ],
+      "stats": {
+        "mod_id": 3001,
+        "popularity_rank_position": 10,
+        "popularity_rank_total_mods": 204,
+        "downloads_today": 20,
+        "downloads_total": 500,
+        "subscribers_total": 125,
+        "ratings_total": 25,
+        "ratings_positive": 23,
+        "ratings_negative": 2,
+        "ratings_percentage_positive": 92,
+        "ratings_weighted_aggregate": 86.5,
+        "ratings_display_text": "Very Positive",
+        "date_expires": 1777950000
+      },
+      "dependency_depth": 1
+    }
+  ],
+  "result_count": 2,
+  "result_offset": 0,
+  "result_limit": 100,
+  "result_total": 2
+}
