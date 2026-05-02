@@ -208,24 +208,26 @@ Execution-ready recommendation: Task 2 should implement a minimal live `ModioHtt
 - implementation/tests/docs as needed
 - `.plans/2026-05-02-aerobeat-vendor-modio-live-transport-and-integration-tests.md`
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** Independent truth-check passed against the local official `modio-docs` REST mirror, then against the pinned `modio-sdk` and `modio-unity` references for client-host/header behavior. Confirmed the implementation still matches the current documented host patterns (`https://api.mod.io/v1` generic examples plus explicit `g-{game-id}.modapi.io` / `u-{user-id}.modapi.io` and `.test.mod.io` sandbox variants), keeps request execution shaping limited and sound for `GET` / `POST` / `DELETE`, preserves documented auth separation (`api_key` query for read-only public reads vs `Authorization: Bearer ...` for authenticated reads/writes), forwards `Accept-Language`, `X-Modio-Platform`, `X-Modio-Portal`, and `X-Modio-Delegation-Token` in the expected places, and keeps `/me/subscribed` platform targeting paired with required `game_id`. Re-verified transport-level query/body encoding for `_limit` / `_offset`, endpoint-gated filters, `metadata_kvp` ordering, and boolean `include_dependencies` form encoding; re-verified response/error normalization for documented `200` / `201` / `204`, `429` + `retry-after` + `11008` / `11009`, auth failures, terms-required, admin-filter, validation, and fallback server errors. Vendor concerns remain local to this repo with no `aerobeat-tool-api` orchestration bleed. Repo-local validation passed unchanged via `godot --headless --path .testbed --script res://tests/validate_scaffold.gd` and `godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit` (15/15 tests passed, 258 asserts). No code changes were required; only this plan was updated to record the independent audit.
 
 ---
 
 ## Final Results
 
-**Status:** ⏳ In Progress
+**Status:** ✅ Complete
 
-**What We Built:** Pending.
+**What We Built:** A hardened repo-local mod.io transport execution seam plus integration-style request/response coverage that validates final assembled URLs, auth/header propagation, form/query encoding, and doc-backed response/error normalization while keeping all responsibilities scoped to the vendor adapter.
 
-**Reference Check:** Pending.
+**Reference Check:** `REF-04` through `REF-07` satisfied. The transport and tests still align with the current local official mod.io REST mirror for host patterns, API-key-vs-bearer auth, platform/portal/localization/delegation headers, `/me/subscribed` platform targeting + `game_id`, subscription write response codes, and rate-limit semantics, and those expectations remain consistent with the pinned `modio-sdk` / `modio-unity` reference behavior.
 
 **Commits:**
-- Pending
+- `0f54ed3` - Add mod.io transport execution seam
+- `9ce3088` - Record QA verification for mod.io transport slice
+- `d4942fd` - Record audit verification for mod.io transport slice
 
-**Lessons Learned:** Pending.
+**Lessons Learned:** The highest-value drift risk in this slice was not endpoint coverage but transport truth: host selection, auth separation, and execution-level encoding/header behavior are where silent contract mismatches would have surfaced first. Keeping those rules explicit, tested, and vendor-local makes later composition into `aerobeat-tool-api` safer.
 
 ---
 
