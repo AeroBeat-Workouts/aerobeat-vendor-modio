@@ -184,9 +184,9 @@ Execution-ready recommendation: Task 2 should implement a minimal live `ModioHtt
 - implementation/tests/docs as needed
 - `.plans/2026-05-02-aerobeat-vendor-modio-live-transport-and-integration-tests.md`
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** Independently re-verified the live transport + integration-style slice against the local official `modio-docs` REST mirror first, then cross-checked the exercised host/header/request-shaping behavior against the pinned `modio-sdk` and `modio-unity` repos. Confirmed the host/base URL handling still matches the documented generic API host plus explicit `g-{game-id}.modapi.io` / `u-{user-id}.modapi.io` patterns and the `.test.mod.io` sandbox variants used by the new config tests; confirmed executed `GET` / `POST` / `DELETE` shaping, bearer-vs-query auth separation, `Accept-Language` / `X-Modio-Platform` / `X-Modio-Portal` / `X-Modio-Delegation-Token` propagation, platform-targeted `/me/subscribed` + required `game_id`, form/query encoding, and response/error normalization all remain aligned with the current official references. No contract drift requiring code changes was found, vendor-specific behavior remains isolated to this repo, and repo-local validation passed with `godot --headless --path .testbed --script res://tests/validate_scaffold.gd` plus `godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit` (15/15 tests passed, 258 asserts).
 
 ---
 
