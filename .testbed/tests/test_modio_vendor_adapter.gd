@@ -315,7 +315,7 @@ func test_normalizes_fixture_payloads_for_richer_slice() -> void:
 
 	var add_rating = adapter.normalize_add_mod_rating_response(_fixture("add_mod_rating_success.json"))
 	assert_true(add_rating.success)
-	assert_eq(add_rating.message, "response_mod_rating_added")
+	assert_eq(add_rating.message, "response_mod_rating_add")
 
 	var report = adapter.normalize_report_response(_fixture("report_success.json"))
 	assert_true(report.success)

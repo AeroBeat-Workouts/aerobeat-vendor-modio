@@ -253,9 +253,9 @@ Execution-ready recommendation: Task 2 should implement the five-endpoint **mod 
 - implementation/tests/docs as needed
 - `.plans/2026-05-02-aerobeat-vendor-modio-broader-endpoint-coverage.md`
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** QA re-verified the five-endpoint batch against the current local official `modio-docs` REST mirror and pinned `modio-unity` references. Request builders for single modfile detail, mod stats, `/me/ratings`, ratings writes, and `/report` match the documented paths and form/query shapes; user-ratings query gating stays limited to the currently documented filter subset; normalization for modfile/stats/paged ratings/message responses matches the current schema pages; and `community_policy.allows_negative_ratings` remains correctly derived from `community_options & 256`. One repo-local mismatch was found and fixed: the add-rating success fixture/test expected `response_mod_rating_added`, but the current official docs example is `response_mod_rating_add`, so the fixture/assertion were corrected to stay docs-aligned. Repo-local validation then passed with `godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit` (22/22 passing). Vendor concerns remain isolated to this repo.
 
 ---
 
