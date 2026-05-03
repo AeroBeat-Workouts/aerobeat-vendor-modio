@@ -140,9 +140,26 @@ Derrick decisions needed before implementation:
 - implementation/tests/docs as needed
 - `.plans/2026-05-03-aerobeat-vendor-modio-collection-subscription-coverage.md`
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** Independent QA pass against `REF-05` through `REF-07` confirmed the collection subscription slice matches the refreshed documented REST surface and stays within the vendor-local seam described by `REF-03`/`REF-04`.
+
+Exact QA findings:
+- **PASS — request paths/methods/auth mode:** `src/modio_vendor_adapter.gd` builds bearer-authenticated `POST /games/{game-id}/collections/{collection-id}/subscriptions` and `DELETE /games/{game-id}/collections/{collection-id}/subscriptions`, matching the REST docs in `REF-05` and generated Unity endpoints in `REF-07`.
+- **PASS — no documented body / no query params:** both adapter builders send empty query/body dictionaries; transport integration tests confirm final encoded URL has no query string and final body string is empty for both requests.
+- **PASS — response handling as `200 OK` + `Mod Collection Object`:** `normalize_subscribe_collection_response` / `normalize_unsubscribe_collection_response` both flow through `_normalize_collection_write_response`, preserving the returned collection payload as normalized collection data. Tests cover `200 OK` success for both routes using the local `collection_detail.json` fixture.
+- **PASS — `Location` header preservation:** `_normalize_collection_write_response` preserves `response.headers.location`; unsubscribe is explicitly asserted in adapter QA coverage, and the shared helper applies equally to subscribe/unsubscribe.
+- **PASS — README/docs truthfulness:** `README.md` and `docs/modio-seam-plan.md` correctly describe the two routes as bodyless bearer-only writes returning normalized collection data without widening scope.
+- **PASS — vendor-local boundary discipline:** no install/update/uninstall orchestration was added locally, and no `include_dependencies` input was introduced for collection subscribe/unsubscribe. This correctly differs from the C++ SDK’s higher-level orchestration notes and undocumented query behavior, which remain intentionally out of scope for this repo.
+
+Reference drift observed but intentionally **not** treated as repo drift:
+- The C++ SDK corpus (`REF-06`) still layers SDK-local behavior on top of the REST call: subscribe docs mention a follow-up `FetchExternalUpdatesAsync`, unsubscribe docs mention uninstall synchronization, and the internal subscribe op appends undocumented `include_dependencies`. The refreshed REST docs and generated Unity endpoints do not expose that query/body surface, so the repo’s thinner REST seam is the correct implementation boundary for this slice.
+
+Validation rerun succeeded:
+- `godot --headless --path .testbed --import`
+- `godot --headless --path .testbed --script res://tests/validate_scaffold.gd`
+- `godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit`
+- Result: **44/44 tests passing**.
 
 ---
 
