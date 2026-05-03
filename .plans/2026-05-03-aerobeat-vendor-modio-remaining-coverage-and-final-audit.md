@@ -291,6 +291,26 @@ Validation evidence for this QA pass:
 Files changed during this QA pass:
 - `.plans/2026-05-03-aerobeat-vendor-modio-remaining-coverage-and-final-audit.md`
 
+Additional QA pass — external auth provider parity batch:
+- ✅ Request paths/methods re-verified against the refreshed local official corpus for every implemented provider route in this batch: `POST /external/appleauth`, `POST /external/discordauth`, `POST /external/epicgamesauth`, `POST /external/galaxyauth`, `POST /external/googleauth`, `POST /external/oculusauth`, `POST /external/openidauth`, `POST /external/psnauth`, `POST /external/steamauth`, `POST /external/switchauth`, `POST /external/udtauth`, and `POST /external/xboxauth`.
+- ✅ The doc-truth route corrections held across implementation/tests/docs: this repo continues to use `POST /external/galaxyauth` instead of stale `gogauth` wording and `POST /external/xboxauth` instead of stale `xboxliveauth` wording.
+- ✅ Provider-specific request/body/header differences vs generic OpenID stayed truthful:
+  - Apple uses `id_token` + `terms_agreed` (+ optional clamped `date_expires`) with no email field in this wrapper, matching the refreshed REST schema.
+  - Discord uses `discord_token`; Epic uses `id_token`; GOG Galaxy and Steam use `appdata`; Google supports `auth_code` or `id_token`; Oculus uses `device` + `nonce` + `user_id` + `access_token`; PSN uses `auth_code` + optional `env`; Switch uses `id_token`; Xbox uses `xbox_token`; UDT sends the delegation token in the `X-Modio-Delegation-Token` header with an otherwise empty form body.
+  - OpenID-only fields (`monetization_account`, `psn_token`, `psn_env`) remained isolated to `build_openid_auth_request(...)` and were not incorrectly leaked into the provider-specific builders.
+- ✅ Expiry clamping rules stayed truthful to the refreshed corpus where documented: week clamp (`+604800s`) remains on OpenID, Apple, Discord, Epic, GOG Galaxy, Google, and Steam; common-year clamp (`+31536000s`) remains on Oculus, PSN, Switch, Xbox, and email exchange; UDT correctly has no request-body expiry field.
+- ✅ Normalization reuse stayed truthful: the external auth batch still reuses the existing access-token normalization seam without inventing provider-specific token result shapes or leaking higher-level account policy out of this vendor adapter.
+- ✅ README/docs claims stayed truthful and vendor-local boundaries remained intact: the repo documents only the wrapped mod.io-facing auth seam, correctly calls out the galaxyauth/xboxauth doc-truth names, and does not drift into AeroBeat public API, UI, consent orchestration, or product-side account policy.
+- ✅ No repo-local drift was found in this QA pass, so no code/test/docs fixes were required in `aerobeat-vendor-modio`.
+- ⚠️ Residual corpus drift found upstream, not in this repo: the refreshed local Unity generated request objects still model Google auth with an optional `email` field and Epic auth with `access_token`, while the refreshed REST docs and C++ SDK guidance point to Google `auth_code`/`id_token` semantics and Epic `id_token` semantics. This repo currently matches the refreshed REST docs / C++ SDK auth guidance and the generated Unity endpoint paths (`/external/googleauth`, `/external/epicgamesauth`, `/external/galaxyauth`, `/external/xboxauth`).
+
+Validation evidence for this QA pass:
+- `godot --headless --path .testbed --script res://tests/validate_scaffold.gd` ✅
+- `godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit` ✅ (`42/42` tests passed, `1323` asserts)
+
+Files changed during this QA pass:
+- `.plans/2026-05-03-aerobeat-vendor-modio-remaining-coverage-and-final-audit.md`
+
 ---
 
 ### Task 4: Audit each remaining slice automatically
