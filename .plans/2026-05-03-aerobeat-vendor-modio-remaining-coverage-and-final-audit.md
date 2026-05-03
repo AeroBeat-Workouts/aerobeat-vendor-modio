@@ -469,7 +469,7 @@ Validation evidence for the final audit:
 **Reference Check:** `REF-08` through `REF-10` remain the source of truth for the final surface classification, while `REF-01` through `REF-07` show the correction trail from stale wording to final repo truth. The final audit confirmed that prior corpus corrections are reflected consistently in code/docs/plan state: `/me/games|mods|files`, game-scoped collections, `metadatakvp`, `/games/{game-id}/monetization/token-packs`, `/agreements/versions/{agreement-version-id}`, `/external/galaxyauth`, `/external/xboxauth`, and `maturity_options` for game-list filtering.
 
 **Commits:**
-- `fd5e676` - docs: record final modio corpus gap audit
+- Final auditor closeout recorded in git history for this plan-only audit pass.
 
 **Lessons Learned:** The biggest remaining audit risk was not missing giant endpoint families; it was trusting endpoint titles or earlier wording instead of the actual refreshed page path/schema contract. In this corpus, several deceptive names (`Get User Games`, `Get Mod Collections`, provider auth page titles) only stay truthful if we check the concrete `MethodEndpoint` path and request schema every time.
 
