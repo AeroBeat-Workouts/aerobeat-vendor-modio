@@ -365,10 +365,24 @@ Additional audit pass — authenticated user inventory/profile read batch:
 - ✅ Vendor-local boundary discipline held: this slice stayed read-only and did not pull in write-side user/social mutation, authoring/CMS, uploads, install orchestration, monetization purchase/wallet/intents, or legacy event work.
 - ✅ No residual drift found. No code/docs/test fixes were required during this audit pass.
 
+Additional audit pass — external auth provider parity batch:
+- ✅ Request paths/methods truth-check passed for every implemented provider route in this batch: `POST /external/appleauth`, `POST /external/discordauth`, `POST /external/epicgamesauth`, `POST /external/galaxyauth`, `POST /external/googleauth`, `POST /external/oculusauth`, `POST /external/openidauth`, `POST /external/psnauth`, `POST /external/steamauth`, `POST /external/switchauth`, `POST /external/udtauth`, and `POST /external/xboxauth`.
+- ✅ The doc-truth route corrections held across implementation/tests/docs: this repo continues to use `POST /external/galaxyauth` instead of stale `gogauth` wording and `POST /external/xboxauth` instead of stale `xboxliveauth` wording.
+- ✅ Provider-specific request/body/header differences vs generic OpenID stayed truthful to the refreshed corpus:
+  - Apple uses `id_token` + `terms_agreed` (+ optional week-clamped `date_expires`) and intentionally does **not** expose an email field in this wrapper, matching the refreshed REST schema.
+  - Discord uses `discord_token` plus optional `email`; Epic uses `id_token` plus optional `email`; GOG Galaxy and Steam use `appdata` plus optional `email`; Oculus uses `device` + `nonce` + `user_id` + `access_token` plus optional `email`; PSN uses `auth_code` + optional `env` + optional `email`; Switch uses `id_token` + optional `email`; Xbox uses `xbox_token` + optional `email`; UDT sends the delegation token in the `X-Modio-Delegation-Token` header with an otherwise empty form body.
+  - Google remains distinct from generic OpenID and from the Unity-generated drift: this repo accepts the refreshed REST-documented `auth_code` or `id_token` semantics without adding an undocumented email field.
+  - OpenID-only fields (`monetization_account`, `psn_token`, `psn_env`) remain isolated to `build_openid_auth_request(...)` and are not leaked into the provider-specific builders.
+- ✅ Expiry clamping rules stayed truthful where the refreshed corpus documents them: week clamp (`+604800s`) remains on OpenID, Apple, Discord, Epic, GOG Galaxy, Google, and Steam; common-year clamp (`+31536000s`) remains on Oculus, PSN, Switch, Xbox, and email exchange; UDT correctly has no request-body expiry field.
+- ✅ Normalization reuse stayed truthful: the external auth batch still reuses the existing access-token normalization seam without inventing provider-specific token result shapes or leaking higher-level account policy out of this vendor adapter.
+- ✅ README/docs truthfulness and vendor-local boundary discipline both held: the repo documents only the wrapped mod.io-facing auth seam, calls out the galaxyauth/xboxauth doc-truth names, and does not drift into AeroBeat public API, UI consent orchestration, or product-side account policy.
+- ⚠️ Residual corpus drift remains upstream rather than in this repo: the refreshed local Unity generated request objects still disagree with the refreshed REST docs / C++ SDK guidance on at least Google (`email` modeled in Unity vs `auth_code` / `id_token`-only REST schema) and Epic (`access_token` modeled in Unity vs `id_token` in REST docs / C++ SDK guidance). This repo currently matches the refreshed REST docs / C++ SDK guidance while still matching the generated Unity endpoint paths (`/external/googleauth`, `/external/epicgamesauth`, `/external/galaxyauth`, `/external/xboxauth`).
+- ✅ No repo-local drift was found in this audit pass. No code/docs/test fixes were required.
+
 Validation evidence:
 - `godot --headless --path .testbed --import` ✅
 - `godot --headless --path .testbed --script res://tests/validate_scaffold.gd` ✅
-- `godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit` ✅ (`41/41` tests passed, `1245` asserts)
+- `godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit` ✅ (`42/42` tests passed, `1323` asserts)
 
 Audit note: because the audit produced only plan-state documentation updates, the only tracked file changed in this pass was this umbrella plan.
 
