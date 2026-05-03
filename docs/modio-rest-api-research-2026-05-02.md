@@ -13,7 +13,7 @@ Official docs first:
 - `https://docs.mod.io/restapi/errors`
 - endpoint pages from the official `modio/modio-docs` repo cloned locally below
 
-Local long-lived reference clones created/updated under `~/workspace/projects/modio/`:
+Local long-lived reference clones created/updated under `~/.openclaw/workspace/projects/modio/`:
 
 - `modio-docs`  
   - remote: `git@github.com:modio/modio-docs.git`
@@ -30,6 +30,8 @@ Local long-lived reference clones created/updated under `~/workspace/projects/mo
   - local path: `/home/derrick/.openclaw/workspace/projects/modio/modio-unity`
   - pinned at: `f05e82d2658c3340c02c7843f34223d464b0ab4f`
   - why keep it: official Unity plugin with a ready-made client integration layer and examples for auth, browsing, subscriptions, sync, install/download, and user-facing terms handling.
+
+Refresh check on 2026-05-03: all three local official refs were fetched/pulled again and remained on these same `main` commit pins; only additional upstream release tags were fetched for `modio-unity`.
 
 ## Recommended local reference strategy
 
