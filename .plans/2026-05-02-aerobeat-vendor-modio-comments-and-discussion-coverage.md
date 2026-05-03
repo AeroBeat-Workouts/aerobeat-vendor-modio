@@ -168,24 +168,28 @@ The recommendation stays inside the vendor boundary: it adds raw mod.io comment 
 - implementation/tests/docs as needed
 - `.plans/2026-05-02-aerobeat-vendor-modio-comments-and-discussion-coverage.md`
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** Independently re-audited the post-QA state against the current local official `modio-docs` REST mirror first, then cross-checked the same surface against the pinned `modio-sdk` and `modio-unity` references. Verified that all six threaded mod comment request builders still match the current documented paths/methods/bodies, including `PUT /games/{game-id}/mods/{mod-id}/comments/{comment-id}` with `application/x-www-form-urlencoded` content and `POST /games/{game-id}/mods/{mod-id}/comments/{comment-id}/karma` with single-step `karma` payloads. Confirmed the QA `mod_id` correction is now present in `ModioListingQuery.ENDPOINT_MOD_COMMENTS`, matching the still-documented deprecated-but-supported filter alongside `id`, `resource_id`, `submitted_by`, `date_added`, `reply_id`, `thread_position`, `karma`, and `content`.
+
+Normalization still preserves the documented provider fields (`id`, `game_id`, deprecated `mod_id`, `resource_id`, `resource_ownership`, `user`, `date_added`, `reply_id`, `thread_position`, `karma`, deprecated `karma_guest`, `content`, `options`) and only adds the light vendor-local helpers already called for in the plan (`is_reply`, `thread_depth`, `is_pinned`, `is_locked`, `option_flags`, `resource_type`). Fixtures and tests still reflect the current documented API shapes and the targeted comment error cases, vendor concerns remain isolated to this repo, and no unintended cross-repo policy/orchestration drift was introduced. Re-ran repo-local validation successfully with `godot --headless --path .testbed --script res://tests/validate_scaffold.gd` and `godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit` (24/24 tests passed, 573 asserts, 3 pre-existing float/int warnings). Audit verdict: pass.
 
 ---
 
 ## Final Results
 
-**Status:** ⚠️ Partial
+**Status:** ✅ Complete
 
-**What We Built:** Research-only completion for the next comments/discussion batch. The plan is now execution-ready for the coder pass: add the six mod-comment endpoints, comment-specific query gating, comment normalization/helpers, targeted fixtures, and transport/error tests.
+**What We Built:** Completed the threaded mod comments coverage batch for the vendor adapter seam: list/detail/create/update/delete/karma request builders, comment-specific query gating (including the documented deprecated `mod_id` filter), comment normalization/helpers, targeted fixtures, and request/transport/error validation.
 
-**Reference Check:** The recommendation was grounded in the current official local `modio-docs` REST mirror first, with `modio-sdk` and `modio-unity` used only as secondary sanity checks for surrounding behavior. The key scope finding is that there is no separate mod discussion endpoint in the current docs; threaded mod comments are the discussion surface that belongs next in this repo.
+**Reference Check:** `REF-01` through `REF-08` were satisfied. The implementation and audit were grounded in the current local official `modio-docs` REST mirror first, with `modio-sdk` and `modio-unity` used as secondary sanity checks. The final shipped surface matches the current documented threaded mod comment API and stays within the intended vendor-adapter boundary.
 
 **Commits:**
-- Pending
+- `a14c773` - Add mod comment endpoint coverage
+- `04510e0` - Fix mod.io comment query gating
+- Pending plan-update commit
 
-**Lessons Learned:** The clean seam boundary here is narrower than “discussion” sounds at first glance. The right next slice is mod comments only; guide/collection comments, report UX/legal flows, moderation operations, and downloader/install-informed reporting all become broader product-surface or policy work too quickly.
+**Lessons Learned:** The biggest drift risk in this slice was not the core endpoint surface but the endpoint-specific filter gating around deprecated-but-still-supported fields. Keeping the request builder assertions and transport URL assertions locked to the current docs caught that mismatch cleanly without widening the seam.
 
 ---
 
