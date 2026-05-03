@@ -1,7 +1,7 @@
 # AeroBeat Vendor Mod.io Doc Truth and Repo Audit
 
 **Date:** 2026-05-03  
-**Status:** Draft  
+**Status:** In Progress  
 **Agent:** Chip 🐱‍💻
 
 ---
@@ -71,15 +71,15 @@ The audit standard here is strict: endpoint paths, supported query/body paramete
 
 **Folders Created/Deleted/Modified:**
 - `.plans/`
-- `docs/` if a corpus audit note is needed
+- `docs/`
 
 **Files Created/Deleted/Modified:**
 - `.plans/2026-05-03-aerobeat-vendor-modio-doc-truth-and-repo-audit.md`
-- optional corpus audit note(s)
+- `docs/modio-rest-corpus-completeness-2026-05-03.md`
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** Audited the refreshed official local corpus using `modio-docs` as the primary REST source plus `modio-sdk` and `modio-unity` as official behavior/integration sanity references. `modio-docs` currently exposes 134 endpoint pages and 85 schema pages locally, plus conceptual REST docs for introduction/filtering/pagination/sorting/errors/rate limiting/localization/status+visibility/platform targeting/reports/search/monetization. Endpoint families represented locally include: games catalog/profile/stats/tags/media/token packs/cloud-cooking finalization; mods plus comments/ratings/tags/metadata KVP/dependencies/dependants/events/stats/team/checkout and monetization team flows; modfiles plus source files/cooks/multipart uploads/platform status management; guides; collections; `/me` authenticated-user surfaces; `/users` social/profile surfaces; OAuth email flows; external auth providers; agreements/terms; reporting; S2S monetization/transactions/connections; and ping. Identified narrow but real corpus risks: (1) at least two internally referenced REST doc routes appear missing locally — `/restapi/docs/files` and `/restapi/docs/metadata`; (2) no local OpenAPI/Swagger artifact exists, so there is no single machine-readable contract for every field/enum; (3) deprecated-but-still-documented fields remain present in schema pages and must stay in audit scope; and (4) SDK/Unity references are not full REST inventories. Recommendation: the local corpus is sufficient to proceed with a strict vendor-repo audit now, but if a disputed field/enum/edge case arises during implementation audit, pull additional official material at that point rather than guessing. Captured the corpus note in `docs/modio-rest-corpus-completeness-2026-05-03.md`.
 
 ---
 
