@@ -1,0 +1,101 @@
+{
+  "data": [
+    {
+      "id": 9001,
+      "game_id": 777,
+      "mod_id": 1001,
+      "resource_id": 1001,
+      "resource_ownership": 2,
+      "user": {
+        "id": 42,
+        "name_id": "aerobeat-player",
+        "username": "AeroBeatPlayer",
+        "display_name_portal": "AeroBeatPlayer",
+        "date_online": 1777801200,
+        "date_joined": 1777700000,
+        "avatar": {
+          "filename": "avatar.png",
+          "original": "https://assets.modcdn.io/images/users/avatar.png",
+          "thumb_50x50": "https://assets.modcdn.io/images/users/avatar_50x50.png",
+          "thumb_100x100": "https://assets.modcdn.io/images/users/avatar_100x100.png"
+        },
+        "timezone": "",
+        "language": "",
+        "profile_url": "https://mod.io/u/aerobeat-player"
+      },
+      "date_added": 1777801000,
+      "reply_id": 0,
+      "thread_position": "01",
+      "karma": 4,
+      "karma_guest": 0,
+      "content": "Top-level pinned comment",
+      "options": 1
+    },
+    {
+      "id": 9002,
+      "game_id": 777,
+      "mod_id": 1001,
+      "resource_id": 1001,
+      "resource_ownership": 2,
+      "user": {
+        "id": 77,
+        "name_id": "thread-friend",
+        "username": "ThreadFriend",
+        "display_name_portal": "ThreadFriend",
+        "date_online": 1777802200,
+        "date_joined": 1777600000,
+        "avatar": {
+          "filename": "friend.png",
+          "original": "https://assets.modcdn.io/images/users/friend.png",
+          "thumb_50x50": "https://assets.modcdn.io/images/users/friend_50x50.png",
+          "thumb_100x100": "https://assets.modcdn.io/images/users/friend_100x100.png"
+        },
+        "timezone": "",
+        "language": "",
+        "profile_url": "https://mod.io/u/thread-friend"
+      },
+      "date_added": 1777801300,
+      "reply_id": 9001,
+      "thread_position": "01.01",
+      "karma": -1,
+      "karma_guest": 0,
+      "content": "Second-level reply",
+      "options": 0
+    },
+    {
+      "id": 9003,
+      "game_id": 777,
+      "mod_id": 1001,
+      "resource_id": 1001,
+      "resource_ownership": 2,
+      "user": {
+        "id": 88,
+        "name_id": "locksmith",
+        "username": "LockSmith",
+        "display_name_portal": "LockSmith",
+        "date_online": 1777803200,
+        "date_joined": 1777500000,
+        "avatar": {
+          "filename": "locksmith.png",
+          "original": "https://assets.modcdn.io/images/users/locksmith.png",
+          "thumb_50x50": "https://assets.modcdn.io/images/users/locksmith_50x50.png",
+          "thumb_100x100": "https://assets.modcdn.io/images/users/locksmith_100x100.png"
+        },
+        "timezone": "",
+        "language": "",
+        "profile_url": "https://mod.io/u/locksmith"
+      },
+      "date_added": 1777801600,
+      "reply_id": 9002,
+      "thread_position": "01.01.01",
+      "karma": 10,
+      "karma_guest": 0,
+      "content": "Third-level locked reply",
+      "options": 2
+    }
+  ],
+  "result_count": 3,
+  "result_offset": 0,
+  "result_limit": 3,
+  "result_total": 8
+}

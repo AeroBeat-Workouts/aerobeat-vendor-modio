@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": 403,
+    "error_ref": 15055,
+    "message": "User performing this operation can not rate the comment."
+  }
+}

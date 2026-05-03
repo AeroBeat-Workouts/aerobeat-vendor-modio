@@ -342,6 +342,8 @@ func _http_method_to_constant(method: String) -> HTTPClient.Method:
 	match method:
 		"POST":
 			return HTTPClient.METHOD_POST
+		"PUT":
+			return HTTPClient.METHOD_PUT
 		"DELETE":
 			return HTTPClient.METHOD_DELETE
 		_:
@@ -369,17 +371,21 @@ func _categorize_error(status_code: int, error_ref: int) -> String:
 		return "account_locked"
 	if error_ref == 15025:
 		return "admin_filter"
+	if error_ref == 40004 or (error_ref == 13009 and status_code == 403):
+		return "comments_restricted"
 	if error_ref in [11005, 11011, 11012, 11013, 11014, 11032, 11091]:
 		return "auth"
 	if status_code == 401 or error_ref in [11000, 11001, 11002, 11003, 11004, 11006, 11007]:
 		return "auth"
-	if status_code == 403:
+	if error_ref in [15090, 15028, 15043, 15059]:
+		return "conflict"
+	if status_code == 403 or error_ref in [15042, 15055, 15095, 29611]:
 		return "forbidden"
 	if status_code == 404 or error_ref in [14000, 14001, 15010, 15022, 15023]:
 		return "not_found"
-	if status_code == 409 or error_ref in [15028, 15043]:
+	if status_code == 409:
 		return "conflict"
-	if status_code == 422 or error_ref == 13009:
+	if status_code == 422:
 		return "validation"
 	if status_code >= 500:
 		return "server"

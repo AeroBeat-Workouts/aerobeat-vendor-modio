@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": 403,
+    "error_ref": 15059,
+    "message": "User has already submitted a rating for the comment."
+  }
+}

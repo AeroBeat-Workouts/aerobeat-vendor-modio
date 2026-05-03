@@ -5,6 +5,7 @@ const ENDPOINT_MODS := "mods"
 const ENDPOINT_MODFILES := "modfiles"
 const ENDPOINT_SUBSCRIPTIONS := "subscriptions"
 const ENDPOINT_USER_RATINGS := "user_ratings"
+const ENDPOINT_MOD_COMMENTS := "mod_comments"
 
 var search_term: String
 var tags_all: PackedStringArray
@@ -25,6 +26,11 @@ var mod_id: String
 var rating: int
 var resource_type: String
 var date_added: int
+var resource_id: String
+var reply_id: int
+var thread_position: String
+var karma: int
+var content: String
 
 func _init(
 	p_search_term: String = "",
@@ -45,7 +51,12 @@ func _init(
 	p_mod_id: String = "",
 	p_rating: int = 0,
 	p_resource_type: String = "",
-	p_date_added: int = 0
+	p_date_added: int = 0,
+	p_resource_id: String = "",
+	p_reply_id: int = -1,
+	p_thread_position: String = "",
+	p_karma: int = 0,
+	p_content: String = ""
 ) -> void:
 	search_term = p_search_term.strip_edges()
 	tags_all = p_tags_all
@@ -66,6 +77,11 @@ func _init(
 	rating = p_rating
 	resource_type = p_resource_type.strip_edges().to_lower()
 	date_added = maxi(0, p_date_added)
+	resource_id = p_resource_id.strip_edges()
+	reply_id = p_reply_id
+	thread_position = p_thread_position.strip_edges()
+	karma = p_karma
+	content = p_content.strip_edges()
 
 func to_query_dict(endpoint: String = ENDPOINT_MODS) -> Dictionary:
 	var query := {
@@ -108,6 +124,16 @@ func to_query_dict(endpoint: String = ENDPOINT_MODS) -> Dictionary:
 		query["resource_type"] = resource_type
 	if capabilities.has("date_added") and date_added > 0:
 		query["date_added"] = str(date_added)
+	if capabilities.has("resource_id") and not resource_id.is_empty():
+		query["resource_id"] = resource_id
+	if capabilities.has("reply_id") and reply_id >= 0:
+		query["reply_id"] = str(reply_id)
+	if capabilities.has("thread_position") and not thread_position.is_empty():
+		query["thread_position"] = thread_position
+	if capabilities.has("karma") and karma != 0:
+		query["karma"] = str(karma)
+	if capabilities.has("content") and not content.is_empty():
+		query["content"] = content
 
 	return query
 
@@ -117,6 +143,17 @@ func _get_capabilities(endpoint: String) -> PackedStringArray:
 			return PackedStringArray(["id"])
 		ENDPOINT_USER_RATINGS:
 			return PackedStringArray(["game_id", "mod_id", "rating", "resource_type", "date_added"])
+		ENDPOINT_MOD_COMMENTS:
+			return PackedStringArray([
+				"id",
+				"resource_id",
+				"submitted_by",
+				"date_added",
+				"reply_id",
+				"thread_position",
+				"karma",
+				"content"
+			])
 		ENDPOINT_SUBSCRIPTIONS:
 			return PackedStringArray([
 				"search_term",

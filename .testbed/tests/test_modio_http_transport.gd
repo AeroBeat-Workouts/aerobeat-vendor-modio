@@ -201,7 +201,81 @@ func test_executes_modfile_stats_ratings_and_report_requests_with_documented_sha
 	assert_eq(_recorded_requests[4].body_string, "game_name_id=aerobeat&id=1001&platforms=WINDOWS&reason=6&resource=MODS&summary=crashes%20after%20song%20load&type=2")
 	assert_eq(_recorded_requests[4].headers.Authorization, "Bearer user-token")
 
-func test_normalizes_rate_limit_validation_admin_server_and_auth_error_cases_from_execute() -> void:
+func test_executes_mod_comment_requests_with_documented_urls_and_form_bodies() -> void:
+	var public_config := ModioClientConfig.new("777", "demo-key", "https://api.mod.io/v1/", "", "en-US", "steam", "WINDOWS")
+	var auth_config := ModioClientConfig.new("777", "demo-key", "", "user-token", "en-US", "steam", "WINDOWS", ModioClientConfig.HOST_GAME)
+	var transport := ModioHttpTransport.new(Callable(self, "_transport_double"))
+	var public_adapter := ModioVendorAdapter.new(public_config, transport)
+	var auth_adapter := ModioVendorAdapter.new(auth_config, transport)
+	var comment_query := ModioListingQuery.new(
+		"ignored",
+		PackedStringArray(["approved"]),
+		15,
+		30,
+		"ignored-sort",
+		PackedStringArray(["cardio"]),
+		PackedStringArray(["hidden"]),
+		"ignored-metadata",
+		{"ignored": "pair"},
+		"9002",
+		"ignored-name-id",
+		1,
+		1,
+		"77",
+		"",
+		"",
+		0,
+		"",
+		1777801300,
+		"1001",
+		9001,
+		"01.01",
+		-1,
+		"Second-level reply"
+	)
+
+	_queue_json_response(200, _fixture("comments_list.json"))
+	var comments_response := transport.execute(public_adapter.build_mod_comments_request("1001", comment_query), public_config)
+	assert_true(comments_response.ok)
+	assert_eq(_recorded_requests[0].url, "https://api.mod.io/v1/games/777/mods/1001/comments?_limit=15&_offset=30&api_key=demo-key&content=Second-level%20reply&date_added=1777801300&id=9002&karma=-1&reply_id=9001&resource_id=1001&submitted_by=77&thread_position=01.01")
+
+	_queue_json_response(200, _fixture("comment_detail.json"))
+	var comment_response := transport.execute(public_adapter.build_mod_comment_request("1001", "9002"), public_config)
+	assert_true(comment_response.ok)
+	assert_eq(_recorded_requests[1].url, "https://api.mod.io/v1/games/777/mods/1001/comments/9002?api_key=demo-key")
+
+	_queue_json_response(201, _fixture("comment_created.json"), {"Location": "/games/777/mods/1001/comments/9010"})
+	var create_response := transport.execute(auth_adapter.build_add_mod_comment_request("1001", "Fresh reply from the wrapper", 9001), auth_config)
+	assert_true(create_response.ok)
+	assert_eq(_recorded_requests[2].method, "POST")
+	assert_eq(_recorded_requests[2].url, "https://g-777.modapi.io/v1/games/777/mods/1001/comments")
+	assert_eq(_recorded_requests[2].body_string, "content=Fresh%20reply%20from%20the%20wrapper&reply_id=9001")
+	assert_eq(_recorded_requests[2].headers.Authorization, "Bearer user-token")
+
+	_queue_json_response(200, _fixture("comment_updated.json"))
+	var update_response := transport.execute(auth_adapter.build_update_mod_comment_request("1001", "9010", "Edited reply from the wrapper"), auth_config)
+	assert_true(update_response.ok)
+	assert_eq(_recorded_requests[3].method, "PUT")
+	assert_eq(_recorded_requests[3].url, "https://g-777.modapi.io/v1/games/777/mods/1001/comments/9010")
+	assert_eq(_recorded_requests[3].body_string, "content=Edited%20reply%20from%20the%20wrapper")
+	assert_eq(_recorded_requests[3].headers.Authorization, "Bearer user-token")
+
+	_queue_response({"status_code": 204, "headers": {}, "body": ""})
+	var delete_response := transport.execute(auth_adapter.build_delete_mod_comment_request("1001", "9010"), auth_config)
+	assert_true(delete_response.ok)
+	assert_eq(_recorded_requests[4].method, "DELETE")
+	assert_eq(_recorded_requests[4].url, "https://g-777.modapi.io/v1/games/777/mods/1001/comments/9010")
+	assert_eq(_recorded_requests[4].body_string, "")
+
+	_queue_json_response(200, _fixture("comment_karma_updated.json"))
+	var karma_response := transport.execute(auth_adapter.build_add_mod_comment_karma_request("1001", "9002", -1), auth_config)
+	assert_true(karma_response.ok)
+	assert_eq(_recorded_requests[5].method, "POST")
+	assert_eq(_recorded_requests[5].url, "https://g-777.modapi.io/v1/games/777/mods/1001/comments/9002/karma")
+	assert_eq(_recorded_requests[5].body_string, "karma=-1")
+	assert_eq(_recorded_requests[5].headers.Authorization, "Bearer user-token")
+
+func test_normalizes_rate_limit_validation_admin_server_auth_and_comment_error_cases_from_execute() -> void:
 	var config := ModioClientConfig.new("777", "demo-key", "", "user-token", "en-US", "steam", "WINDOWS", ModioClientConfig.HOST_GAME)
 	var transport := ModioHttpTransport.new(Callable(self, "_transport_double"))
 	var adapter := ModioVendorAdapter.new(config, transport)
@@ -246,6 +320,36 @@ func test_normalizes_rate_limit_validation_admin_server_and_auth_error_cases_fro
 	var auth_error := transport.execute(adapter.build_auth_exchange_request("123456"), config, {"base_url": "https://api.mod.io/v1"})
 	assert_false(auth_error.ok)
 	assert_eq(auth_error.error.category, "auth")
+
+	_queue_json_response(403, _fixture("comment_restricted_error.json"))
+	var restricted_comment_error := transport.execute(adapter.build_add_mod_comment_request("1001", "blocked"), config)
+	assert_false(restricted_comment_error.ok)
+	assert_eq(restricted_comment_error.error.category, "comments_restricted")
+	assert_eq(restricted_comment_error.error.error_ref, 40004)
+
+	_queue_json_response(400, _fixture("comment_karma_deleted_error.json"))
+	var deleted_comment_error := transport.execute(adapter.build_add_mod_comment_karma_request("1001", "9002", 1), config)
+	assert_false(deleted_comment_error.ok)
+	assert_eq(deleted_comment_error.error.category, "conflict")
+	assert_eq(deleted_comment_error.error.error_ref, 15090)
+
+	_queue_json_response(403, _fixture("comment_karma_conflict_error.json"))
+	var karma_conflict_error := transport.execute(adapter.build_add_mod_comment_karma_request("1001", "9002", 1), config)
+	assert_false(karma_conflict_error.ok)
+	assert_eq(karma_conflict_error.error.category, "conflict")
+	assert_eq(karma_conflict_error.error.error_ref, 15059)
+
+	_queue_json_response(403, _fixture("comment_karma_forbidden_error.json"))
+	var karma_forbidden_error := transport.execute(adapter.build_add_mod_comment_karma_request("1001", "9002", 1), config)
+	assert_false(karma_forbidden_error.ok)
+	assert_eq(karma_forbidden_error.error.category, "forbidden")
+	assert_eq(karma_forbidden_error.error.error_ref, 15055)
+
+	_queue_json_response(403, _fixture("comment_karma_downvote_disabled_error.json"))
+	var karma_downvote_disabled_error := transport.execute(adapter.build_add_mod_comment_karma_request("1001", "9002", -1), config)
+	assert_false(karma_downvote_disabled_error.ok)
+	assert_eq(karma_downvote_disabled_error.error.category, "forbidden")
+	assert_eq(karma_downvote_disabled_error.error.error_ref, 15095)
 
 func test_rejects_bearer_requests_without_authorization_and_does_not_retry() -> void:
 	var config := ModioClientConfig.new("777", "demo-key", "", "", "en-US", "steam", "WINDOWS", ModioClientConfig.HOST_GAME)

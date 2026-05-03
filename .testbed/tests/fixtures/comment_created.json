@@ -1,0 +1,31 @@
+{
+  "id": 9010,
+  "game_id": 777,
+  "mod_id": 1001,
+  "resource_id": 1001,
+  "resource_ownership": 2,
+  "user": {
+    "id": 42,
+    "name_id": "aerobeat-player",
+    "username": "AeroBeatPlayer",
+    "display_name_portal": "AeroBeatPlayer",
+    "date_online": 1777801200,
+    "date_joined": 1777700000,
+    "avatar": {
+      "filename": "avatar.png",
+      "original": "https://assets.modcdn.io/images/users/avatar.png",
+      "thumb_50x50": "https://assets.modcdn.io/images/users/avatar_50x50.png",
+      "thumb_100x100": "https://assets.modcdn.io/images/users/avatar_100x100.png"
+    },
+    "timezone": "",
+    "language": "",
+    "profile_url": "https://mod.io/u/aerobeat-player"
+  },
+  "date_added": 1777802000,
+  "reply_id": 9001,
+  "thread_position": "01.02",
+  "karma": 0,
+  "karma_guest": 0,
+  "content": "Fresh reply from the wrapper",
+  "options": 0
+}

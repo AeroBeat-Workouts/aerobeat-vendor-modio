@@ -27,6 +27,9 @@ const COMMUNITY_OPTION_ALLOW_NEGATIVE_RATINGS := 256
 const COMMUNITY_OPTION_ALLOW_DEPENDENCY := 1024
 const COMMUNITY_OPTION_ALLOW_GUIDE_COMMENTS := 2048
 
+const COMMENT_OPTION_PINNED := 1
+const COMMENT_OPTION_LOCKED := 2
+
 const DEPENDENCY_POLICY_NONE := "none"
 const DEPENDENCY_POLICY_IMMEDIATE_ONLY := "immediate_only"
 const DEPENDENCY_POLICY_RECURSIVE := "recursive"
@@ -204,6 +207,71 @@ func build_mod_stats_request(mod_id: String) -> Dictionary:
 		{},
 		_build_read_headers(false),
 		{"auth_mode": _resolve_read_auth_mode(false)}
+	)
+
+func build_mod_comments_request(mod_id: String, query: ModioListingQuery = ModioListingQuery.new()) -> Dictionary:
+	var full_query := _build_public_query()
+	full_query.merge(query.to_query_dict(ModioListingQuery.ENDPOINT_MOD_COMMENTS), true)
+	return _transport.build_request(
+		"GET",
+		"/games/%s/mods/%s/comments" % [_config.game_id, mod_id.strip_edges()],
+		full_query,
+		{},
+		_build_read_headers(false),
+		{"auth_mode": _resolve_read_auth_mode(false)}
+	)
+
+func build_mod_comment_request(mod_id: String, comment_id: String) -> Dictionary:
+	return _transport.build_request(
+		"GET",
+		"/games/%s/mods/%s/comments/%s" % [_config.game_id, mod_id.strip_edges(), comment_id.strip_edges()],
+		_build_public_query(),
+		{},
+		_build_read_headers(false),
+		{"auth_mode": _resolve_read_auth_mode(false)}
+	)
+
+func build_add_mod_comment_request(mod_id: String, content: String, reply_id: int = 0) -> Dictionary:
+	var body := {"content": content.strip_edges()}
+	if reply_id > 0:
+		body["reply_id"] = reply_id
+	return _transport.build_request(
+		"POST",
+		"/games/%s/mods/%s/comments" % [_config.game_id, mod_id.strip_edges()],
+		{},
+		body,
+		_build_form_headers(true),
+		{"content_type": ModioHttpTransport.CONTENT_TYPE_FORM, "auth_mode": "bearer"}
+	)
+
+func build_update_mod_comment_request(mod_id: String, comment_id: String, content: String) -> Dictionary:
+	return _transport.build_request(
+		"PUT",
+		"/games/%s/mods/%s/comments/%s" % [_config.game_id, mod_id.strip_edges(), comment_id.strip_edges()],
+		{},
+		{"content": content.strip_edges()},
+		_build_form_headers(true),
+		{"content_type": ModioHttpTransport.CONTENT_TYPE_FORM, "auth_mode": "bearer"}
+	)
+
+func build_delete_mod_comment_request(mod_id: String, comment_id: String) -> Dictionary:
+	return _transport.build_request(
+		"DELETE",
+		"/games/%s/mods/%s/comments/%s" % [_config.game_id, mod_id.strip_edges(), comment_id.strip_edges()],
+		{},
+		{},
+		_build_form_headers(true),
+		{"content_type": ModioHttpTransport.CONTENT_TYPE_FORM, "auth_mode": "bearer"}
+	)
+
+func build_add_mod_comment_karma_request(mod_id: String, comment_id: String, karma: int) -> Dictionary:
+	return _transport.build_request(
+		"POST",
+		"/games/%s/mods/%s/comments/%s/karma" % [_config.game_id, mod_id.strip_edges(), comment_id.strip_edges()],
+		{},
+		{"karma": 1 if karma >= 0 else -1},
+		_build_form_headers(true),
+		{"content_type": ModioHttpTransport.CONTENT_TYPE_FORM, "auth_mode": "bearer"}
 	)
 
 func build_dependencies_request(mod_id: String, recursive: bool = false) -> Dictionary:
@@ -396,6 +464,23 @@ func normalize_mod_stats_response(payload: Dictionary) -> Dictionary:
 	normalized["is_stale"] = normalized.date_expires > 0 and normalized.date_expires <= now
 	return normalized
 
+func normalize_mod_comments_response(payload: Dictionary) -> Dictionary:
+	return _normalize_list_payload(payload, Callable(self, "_normalize_comment_object"))
+
+func normalize_mod_comment_response(payload: Dictionary) -> Dictionary:
+	return _normalize_comment_object(payload)
+
+func normalize_comment_write_response(payload: Dictionary) -> Dictionary:
+	return _normalize_comment_object(payload)
+
+func normalize_comment_delete_response(status_code: int, headers: Dictionary = {}) -> Dictionary:
+	var response := _transport.normalize_response(status_code, headers, {})
+	if not response.ok:
+		return response
+	response["deleted"] = status_code == 204
+	response["data"] = {}
+	return response
+
 func normalize_user_ratings_response(payload: Dictionary) -> Dictionary:
 	return _normalize_list_payload(payload, Callable(self, "_normalize_rating_object"))
 
@@ -490,6 +575,15 @@ func interpret_game_community_policy(game_payload: Dictionary) -> Dictionary:
 		"allows_negative_ratings": (community_options & COMMUNITY_OPTION_ALLOW_NEGATIVE_RATINGS) != 0,
 		"allows_dependencies": (community_options & COMMUNITY_OPTION_ALLOW_DEPENDENCY) != 0,
 		"allows_guide_comments": (community_options & COMMUNITY_OPTION_ALLOW_GUIDE_COMMENTS) != 0
+	}
+
+func interpret_mod_community_policy(mod_payload: Dictionary) -> Dictionary:
+	var community_options := int(mod_payload.get("community_options", 0))
+	return {
+		"community_options": community_options,
+		"allows_comments": (community_options & COMMUNITY_OPTION_ALLOW_MOD_COMMENTS) != 0,
+		"allows_negative_ratings": (community_options & COMMUNITY_OPTION_ALLOW_NEGATIVE_RATINGS) != 0,
+		"allows_dependencies": (community_options & COMMUNITY_OPTION_ALLOW_DEPENDENCY) != 0
 	}
 
 func resolve_artifact_record_from_mod_detail(mod_payload: Dictionary, game_payload: Dictionary = {}) -> Dictionary:
@@ -627,6 +721,7 @@ func _normalize_mod_object(payload: Dictionary) -> Dictionary:
 		"date_live": int(payload.get("date_live", 0)),
 		"maturity_option": int(payload.get("maturity_option", 0)),
 		"community_options": int(payload.get("community_options", 0)),
+		"community_policy": interpret_mod_community_policy(payload),
 		"monetization_options": int(payload.get("monetization_options", 0)),
 		"credit_options": int(payload.get("credit_options", 0)),
 		"stock": int(payload.get("stock", 0)),
@@ -710,6 +805,32 @@ func _normalize_modfile_object(payload: Dictionary) -> Dictionary:
 			"is_canonical_url": false
 		},
 		"platforms": _normalize_file_platforms(payload.get("platforms", []))
+	}
+
+func _normalize_comment_object(payload: Dictionary) -> Dictionary:
+	var raw_reply_id := int(payload.get("reply_id", 0))
+	var raw_thread_position := str(payload.get("thread_position", ""))
+	var raw_options := int(payload.get("options", 0))
+	return {
+		"id": int(payload.get("id", 0)),
+		"game_id": int(payload.get("game_id", 0)),
+		"mod_id": int(payload.get("mod_id", 0)),
+		"resource_id": int(payload.get("resource_id", 0)),
+		"resource_ownership": int(payload.get("resource_ownership", 0)),
+		"user": _normalize_user_object(payload.get("user", {})),
+		"date_added": int(payload.get("date_added", 0)),
+		"reply_id": raw_reply_id,
+		"thread_position": raw_thread_position,
+		"karma": int(payload.get("karma", 0)),
+		"karma_guest": int(payload.get("karma_guest", 0)),
+		"content": str(payload.get("content", "")),
+		"options": raw_options,
+		"is_reply": raw_reply_id > 0,
+		"thread_depth": _calculate_comment_thread_depth(raw_thread_position),
+		"is_pinned": (raw_options & COMMENT_OPTION_PINNED) != 0,
+		"is_locked": (raw_options & COMMENT_OPTION_LOCKED) != 0,
+		"option_flags": _build_comment_option_flags(raw_options),
+		"resource_type": "mod_comment"
 	}
 
 func _normalize_user_object(payload: Dictionary) -> Dictionary:
@@ -848,6 +969,18 @@ func _normalize_skus(payload: Array) -> Array:
 
 func _normalize_dictionary(payload: Dictionary) -> Dictionary:
 	return payload.duplicate(true)
+
+func _calculate_comment_thread_depth(thread_position: String) -> int:
+	var sanitized := thread_position.strip_edges()
+	if sanitized.is_empty():
+		return 0
+	return sanitized.split(".").size()
+
+func _build_comment_option_flags(raw_options: int) -> Dictionary:
+	return {
+		"pinned": (raw_options & COMMENT_OPTION_PINNED) != 0,
+		"locked": (raw_options & COMMENT_OPTION_LOCKED) != 0
+	}
 
 func _build_public_query() -> Dictionary:
 	var query := {}

@@ -192,6 +192,90 @@ func test_builds_authenticated_subscription_requests_and_gates_unsupported_filte
 	assert_eq(logout_request.path, "/oauth/logout")
 	assert_eq(logout_request.headers.Authorization, "Bearer user-token")
 
+func test_builds_mod_comment_requests_with_doc_gated_filters_and_auth_modes() -> void:
+	var public_adapter := _build_adapter()
+	var auth_adapter := _build_adapter_with_token()
+	var comment_query := ModioListingQuery.new(
+		"should_not_serialize",
+		PackedStringArray(["approved"]),
+		15,
+		30,
+		"thread_position",
+		PackedStringArray(["cardio"]),
+		PackedStringArray(["hidden"]),
+		"{\"intensity\":\"high\"}",
+		{"workout_type": "cardio"},
+		"9002",
+		"also_ignored",
+		1,
+		1,
+		"77",
+		"",
+		"",
+		0,
+		"",
+		1777801300,
+		"1001",
+		9001,
+		"01.01",
+		-1,
+		"Second-level reply"
+	)
+
+	var comments_request = public_adapter.build_mod_comments_request("1001", comment_query)
+	assert_eq(comments_request.method, "GET")
+	assert_eq(comments_request.path, "/games/777/mods/1001/comments")
+	assert_eq(comments_request.auth_mode, "api_key_query")
+	assert_eq(comments_request.query.api_key, "demo-key")
+	assert_eq(comments_request.query.id, "9002")
+	assert_eq(comments_request.query.resource_id, "1001")
+	assert_eq(comments_request.query.submitted_by, "77")
+	assert_eq(comments_request.query.date_added, "1777801300")
+	assert_eq(comments_request.query.reply_id, "9001")
+	assert_eq(comments_request.query.thread_position, "01.01")
+	assert_eq(comments_request.query.karma, "-1")
+	assert_eq(comments_request.query.content, "Second-level reply")
+	assert_eq(comments_request.query._limit, "15")
+	assert_eq(comments_request.query._offset, "30")
+	assert_false(comments_request.query.has("_q"))
+	assert_false(comments_request.query.has("tags"))
+	assert_false(comments_request.query.has("tags-in"))
+	assert_false(comments_request.query.has("tags-not-in"))
+	assert_false(comments_request.query.has("metadata_blob"))
+	assert_false(comments_request.query.has("metadata_kvp"))
+	assert_false(comments_request.query.has("_sort"))
+	assert_false(comments_request.query.has("status"))
+	assert_false(comments_request.query.has("visible"))
+	assert_false(comments_request.query.has("name_id"))
+
+	var detail_request = public_adapter.build_mod_comment_request("1001", "9002")
+	assert_eq(detail_request.path, "/games/777/mods/1001/comments/9002")
+	assert_eq(detail_request.query.api_key, "demo-key")
+
+	var create_request = auth_adapter.build_add_mod_comment_request("1001", "  Fresh reply from the wrapper  ", 9001)
+	assert_eq(create_request.method, "POST")
+	assert_eq(create_request.path, "/games/777/mods/1001/comments")
+	assert_eq(create_request.headers.Authorization, "Bearer user-token")
+	assert_eq(create_request.body.content, "Fresh reply from the wrapper")
+	assert_eq(create_request.body.reply_id, "9001")
+
+	var update_request = auth_adapter.build_update_mod_comment_request("1001", "9010", "  Edited reply from the wrapper  ")
+	assert_eq(update_request.method, "PUT")
+	assert_eq(update_request.path, "/games/777/mods/1001/comments/9010")
+	assert_eq(update_request.headers.Authorization, "Bearer user-token")
+	assert_eq(update_request.body.content, "Edited reply from the wrapper")
+
+	var delete_request = auth_adapter.build_delete_mod_comment_request("1001", "9010")
+	assert_eq(delete_request.method, "DELETE")
+	assert_eq(delete_request.path, "/games/777/mods/1001/comments/9010")
+	assert_eq(delete_request.headers.Authorization, "Bearer user-token")
+
+	var karma_request = auth_adapter.build_add_mod_comment_karma_request("1001", "9002", -999)
+	assert_eq(karma_request.method, "POST")
+	assert_eq(karma_request.path, "/games/777/mods/1001/comments/9002/karma")
+	assert_eq(karma_request.headers.Authorization, "Bearer user-token")
+	assert_eq(karma_request.body.karma, "-1")
+
 func test_builds_dependency_requests_and_normalizes_recursive_dependency_payloads() -> void:
 	var adapter := _build_adapter()
 
@@ -271,6 +355,7 @@ func test_normalizes_fixture_payloads_for_richer_slice() -> void:
 	assert_eq(mods.data[0].name_id, "cardio-blaster")
 	assert_eq(mods.data[0].stats.downloads_total, 1024)
 	assert_eq(mods.data[0].community_options, 1025)
+	assert_true(mods.data[0].community_policy.allows_comments)
 	assert_eq(mods.data[0].logo.thumb_320x180, "https://assets.modcdn.io/images/rogue/card_320x180.png")
 	assert_eq(mods.data[0].submitted_by.avatar.filename, "avatar.png")
 
@@ -299,6 +384,43 @@ func test_normalizes_fixture_payloads_for_richer_slice() -> void:
 	assert_eq(mod_stats.ratings_negative, 6)
 	assert_true(mod_stats.has_expiry)
 	assert_false(mod_stats.is_stale)
+
+	var comments = adapter.normalize_mod_comments_response(_fixture("comments_list.json"))
+	assert_eq(comments.data.size(), 3)
+	assert_true(comments.page.has_next)
+	assert_eq(comments.page.next_offset, 3)
+	assert_eq(comments.data[0].resource_type, "mod_comment")
+	assert_true(comments.data[0].is_pinned)
+	assert_false(comments.data[0].is_locked)
+	assert_false(comments.data[0].is_reply)
+	assert_eq(comments.data[0].thread_depth, 1)
+	assert_true(comments.data[2].is_reply)
+	assert_true(comments.data[2].is_locked)
+	assert_eq(comments.data[2].thread_depth, 3)
+	assert_true(comments.data[2].option_flags.locked)
+	assert_false(comments.data[2].option_flags.pinned)
+
+	var comment_detail = adapter.normalize_mod_comment_response(_fixture("comment_detail.json"))
+	assert_eq(comment_detail.id, 9002)
+	assert_eq(comment_detail.reply_id, 9001)
+	assert_eq(comment_detail.thread_depth, 2)
+	assert_false(comment_detail.is_pinned)
+
+	var created_comment = adapter.normalize_comment_write_response(_fixture("comment_created.json"))
+	assert_eq(created_comment.content, "Fresh reply from the wrapper")
+	assert_true(created_comment.is_reply)
+
+	var updated_comment = adapter.normalize_comment_write_response(_fixture("comment_updated.json"))
+	assert_eq(updated_comment.karma, 1)
+	assert_eq(updated_comment.thread_position, "01.02")
+
+	var karma_updated_comment = adapter.normalize_comment_write_response(_fixture("comment_karma_updated.json"))
+	assert_eq(karma_updated_comment.karma, 2)
+
+	var deleted_comment = adapter.normalize_comment_delete_response(204)
+	assert_true(deleted_comment.ok)
+	assert_true(deleted_comment.deleted)
+	assert_eq(deleted_comment.data, {})
 
 	var user_ratings = adapter.normalize_user_ratings_response(_fixture("user_ratings.json"))
 	assert_eq(user_ratings.data.size(), 2)
@@ -444,7 +566,7 @@ func test_normalizes_subscription_write_success_variants() -> void:
 	assert_true(existing.ok)
 	assert_true(existing.already_subscribed)
 
-func test_normalizes_rating_and_report_error_variants() -> void:
+func test_normalizes_rating_report_and_comment_error_variants() -> void:
 	var adapter := _build_adapter_with_token()
 
 	var rating_exists = adapter.normalize_transport_response(409, {}, _fixture("rating_already_exists_error.json"))
@@ -471,6 +593,31 @@ func test_normalizes_rating_and_report_error_variants() -> void:
 	assert_false(report_not_found.ok)
 	assert_eq(report_not_found.error.category, "not_found")
 	assert_eq(report_not_found.error.error_ref, 14000)
+
+	var restricted_comments = adapter.normalize_transport_response(403, {}, _fixture("comment_restricted_error.json"))
+	assert_false(restricted_comments.ok)
+	assert_eq(restricted_comments.error.category, "comments_restricted")
+	assert_eq(restricted_comments.error.error_ref, 40004)
+
+	var deleted_comment = adapter.normalize_transport_response(400, {}, _fixture("comment_karma_deleted_error.json"))
+	assert_false(deleted_comment.ok)
+	assert_eq(deleted_comment.error.category, "conflict")
+	assert_eq(deleted_comment.error.error_ref, 15090)
+
+	var karma_conflict = adapter.normalize_transport_response(403, {}, _fixture("comment_karma_conflict_error.json"))
+	assert_false(karma_conflict.ok)
+	assert_eq(karma_conflict.error.category, "conflict")
+	assert_eq(karma_conflict.error.error_ref, 15059)
+
+	var karma_forbidden = adapter.normalize_transport_response(403, {}, _fixture("comment_karma_forbidden_error.json"))
+	assert_false(karma_forbidden.ok)
+	assert_eq(karma_forbidden.error.category, "forbidden")
+	assert_eq(karma_forbidden.error.error_ref, 15055)
+
+	var karma_downvote_disabled = adapter.normalize_transport_response(403, {}, _fixture("comment_karma_downvote_disabled_error.json"))
+	assert_false(karma_downvote_disabled.ok)
+	assert_eq(karma_downvote_disabled.error.category, "forbidden")
+	assert_eq(karma_downvote_disabled.error.error_ref, 15095)
 
 func _build_adapter() -> ModioVendorAdapter:
 	return ModioVendorAdapter.new(

@@ -15,7 +15,8 @@ Keep **provider-native** concerns in this repo while allowing `aerobeat-tool-api
 - provider listing/search/detail/dependency query mapping
 - endpoint-aware filter serialization per wrapped endpoint
 - provider subscription/user-state mapping via `GET /me/subscribed` and `GET /me/ratings`
-- provider rating/report writes via `POST /games/{game-id}/mods/{mod-id}/ratings` and `POST /report`
+- provider mod comment transport/query/normalization via `GET/POST/PUT/DELETE /games/{game-id}/mods/{mod-id}/comments...`
+- provider rating/report writes via `POST /games/{game-id}/mods/{mod-id}/ratings`, `POST /games/{game-id}/mods/{mod-id}/comments/{comment-id}/karma`, and `POST /report`
 - provider download metadata resolution from `modfile.download`
 - canonical artifact/cache metadata resolution derived from `provider + game_id + mod_id + modfile.id`
 - provider DTO parsing, page-state helpers, and error normalization
@@ -50,15 +51,21 @@ The current slice now exposes a larger request-builder and normalization seam:
     - `build_modfile_request(...)`
     - `build_mod_stats_request(...)`
     - `build_dependencies_request(...)`
-  - subscription/user-rating/report request builders
+  - subscription/user-rating/report/comment request builders
     - `build_user_subscriptions_request(...)`
     - `build_user_ratings_request(...)`
     - `build_add_mod_rating_request(...)`
+    - `build_mod_comments_request(...)`
+    - `build_mod_comment_request(...)`
+    - `build_add_mod_comment_request(...)`
+    - `build_update_mod_comment_request(...)`
+    - `build_delete_mod_comment_request(...)`
+    - `build_add_mod_comment_karma_request(...)`
     - `build_submit_report_request(...)`
     - `build_subscribe_request(...)`
     - `build_unsubscribe_request(...)`
   - normalization helpers
-    - auth/logout/message/user/game/mod/modfile/mod-stats/user-ratings/subscription/dependency/report responses
+    - auth/logout/message/user/game/mod/modfile/mod-stats/mod-comment/user-ratings/subscription/dependency/report responses
     - page-state helpers derived from `result_count`, `result_offset`, `result_limit`, and `result_total`
     - subscription write responses
     - download metadata resolution helpers
