@@ -476,6 +476,46 @@ func build_user_following_request(user_id: String, query: ModioListingQuery = Mo
 		{"auth_mode": "api_key_fallback"}
 	)
 
+func build_follow_user_request(user_id: String, target_user_id: String) -> Dictionary:
+	return _transport.build_request(
+		"POST",
+		"/users/%s/following" % user_id.strip_edges(),
+		{},
+		_build_follow_user_body(target_user_id),
+		_build_form_headers(true),
+		{"content_type": ModioHttpTransport.CONTENT_TYPE_FORM, "auth_mode": "bearer"}
+	)
+
+func build_unfollow_user_request(user_id: String, target_user_id: String) -> Dictionary:
+	return _transport.build_request(
+		"DELETE",
+		"/users/%s/following/%s" % [user_id.strip_edges(), target_user_id.strip_edges()],
+		{},
+		{},
+		_build_form_headers(true),
+		{"content_type": ModioHttpTransport.CONTENT_TYPE_FORM, "auth_mode": "bearer"}
+	)
+
+func build_mute_user_request(user_id: String) -> Dictionary:
+	return _transport.build_request(
+		"POST",
+		"/users/%s/mute" % user_id.strip_edges(),
+		{},
+		{},
+		_build_form_headers(true),
+		{"content_type": ModioHttpTransport.CONTENT_TYPE_FORM, "auth_mode": "bearer"}
+	)
+
+func build_unmute_user_request(user_id: String) -> Dictionary:
+	return _transport.build_request(
+		"DELETE",
+		"/users/%s/mute" % user_id.strip_edges(),
+		{},
+		{},
+		_build_form_headers(true),
+		{"content_type": ModioHttpTransport.CONTENT_TYPE_FORM, "auth_mode": "bearer"}
+	)
+
 func build_user_collections_request(user_id: String, query: ModioListingQuery = ModioListingQuery.new()) -> Dictionary:
 	var has_access_token := _config.has_access_token()
 	var full_query := _build_public_query()
@@ -535,6 +575,26 @@ func build_followed_collections_request(query: ModioListingQuery = ModioListingQ
 		{},
 		_build_read_headers(true),
 		{"auth_mode": _resolve_read_auth_mode(true)}
+	)
+
+func build_follow_collection_request(collection_id: String) -> Dictionary:
+	return _transport.build_request(
+		"POST",
+		"/games/%s/collections/%s/followers" % [_config.game_id, collection_id.strip_edges()],
+		{},
+		{},
+		_build_form_headers(true),
+		{"content_type": ModioHttpTransport.CONTENT_TYPE_FORM, "auth_mode": "bearer"}
+	)
+
+func build_unfollow_collection_request(collection_id: String) -> Dictionary:
+	return _transport.build_request(
+		"DELETE",
+		"/games/%s/collections/%s/followers" % [_config.game_id, collection_id.strip_edges()],
+		{},
+		{},
+		_build_form_headers(true),
+		{"content_type": ModioHttpTransport.CONTENT_TYPE_FORM, "auth_mode": "bearer"}
 	)
 
 func build_collection_mods_request(collection_id: String, query: ModioListingQuery = ModioListingQuery.new()) -> Dictionary:
@@ -1110,12 +1170,43 @@ func normalize_mod_comment_response(payload: Dictionary) -> Dictionary:
 func normalize_comment_write_response(payload: Dictionary) -> Dictionary:
 	return _normalize_comment_object(payload)
 
-func normalize_comment_delete_response(status_code: int, headers: Dictionary = {}) -> Dictionary:
-	var response := _transport.normalize_response(status_code, headers, {})
+func normalize_follow_user_response(status_code: int, headers: Dictionary = {}) -> Dictionary:
+	var response := _normalize_no_content_write_response(status_code, headers)
+	response["followed"] = response.ok and status_code == 204
+	return response
+
+func normalize_unfollow_user_response(status_code: int, headers: Dictionary = {}) -> Dictionary:
+	var response := _normalize_no_content_write_response(status_code, headers)
+	response["unfollowed"] = response.ok and status_code == 204
+	return response
+
+func normalize_mute_user_response(status_code: int, headers: Dictionary = {}) -> Dictionary:
+	var response := _normalize_no_content_write_response(status_code, headers)
+	response["muted"] = response.ok and status_code == 204
+	return response
+
+func normalize_unmute_user_response(status_code: int, headers: Dictionary = {}) -> Dictionary:
+	var response := _normalize_no_content_write_response(status_code, headers)
+	response["unmuted"] = response.ok and status_code == 204
+	return response
+
+func normalize_follow_collection_response(status_code: int, headers: Dictionary, payload: Dictionary) -> Dictionary:
+	var response := _transport.normalize_response(status_code, headers, payload)
 	if not response.ok:
 		return response
-	response["deleted"] = status_code == 204
-	response["data"] = {}
+	response["data"] = _normalize_collection_object(payload)
+	response["already_followed"] = status_code == 200
+	response["location"] = response.headers.get("location", "")
+	return response
+
+func normalize_unfollow_collection_response(status_code: int, headers: Dictionary = {}) -> Dictionary:
+	var response := _normalize_no_content_write_response(status_code, headers)
+	response["unfollowed"] = response.ok and status_code == 204
+	return response
+
+func normalize_comment_delete_response(status_code: int, headers: Dictionary = {}) -> Dictionary:
+	var response := _normalize_no_content_write_response(status_code, headers)
+	response["deleted"] = response.ok and status_code == 204
 	return response
 
 func normalize_user_ratings_response(payload: Dictionary) -> Dictionary:
@@ -1171,6 +1262,13 @@ func normalize_subscription_write_response(status_code: int, headers: Dictionary
 	response["data"] = _normalize_mod_object(payload)
 	response["already_subscribed"] = status_code == 200
 	response["location"] = response.headers.get("location", "")
+	return response
+
+func _normalize_no_content_write_response(status_code: int, headers: Dictionary = {}) -> Dictionary:
+	var response := _transport.normalize_response(status_code, headers, {})
+	if not response.ok:
+		return response
+	response["data"] = {}
 	return response
 
 func build_download_request(request: ModioDownloadRequest) -> Dictionary:
@@ -1848,6 +1946,9 @@ func _append_optional_email(body: Dictionary, email: String) -> void:
 	var sanitized_email := email.strip_edges()
 	if not sanitized_email.is_empty():
 		body["email"] = sanitized_email
+
+func _build_follow_user_body(target_user_id: String) -> Dictionary:
+	return {"user_id": target_user_id.strip_edges()}
 
 func _append_optional_date_expires(body: Dictionary, date_expires: int, max_lifetime_seconds: int) -> void:
 	var sanitized_date_expires := _sanitize_requested_expiry(date_expires, max_lifetime_seconds)

@@ -748,6 +748,37 @@ func test_builds_user_social_and_account_state_requests_with_paging_only_query_s
 	assert_eq(followed_collections_request.query._offset, "80")
 	assert_false(followed_collections_request.query.has("submitted_by"))
 
+	var follow_user_request = auth_adapter.build_follow_user_request("42", "55")
+	assert_eq(follow_user_request.method, "POST")
+	assert_eq(follow_user_request.path, "/users/42/following")
+	assert_eq(follow_user_request.headers.Authorization, "Bearer user-token")
+	assert_eq(follow_user_request.body.user_id, "55")
+
+	var unfollow_user_request = auth_adapter.build_unfollow_user_request("42", "55")
+	assert_eq(unfollow_user_request.method, "DELETE")
+	assert_eq(unfollow_user_request.path, "/users/42/following/55")
+	assert_eq(unfollow_user_request.headers.Authorization, "Bearer user-token")
+
+	var mute_user_request = auth_adapter.build_mute_user_request("42")
+	assert_eq(mute_user_request.method, "POST")
+	assert_eq(mute_user_request.path, "/users/42/mute")
+	assert_eq(mute_user_request.headers.Authorization, "Bearer user-token")
+
+	var unmute_user_request = auth_adapter.build_unmute_user_request("42")
+	assert_eq(unmute_user_request.method, "DELETE")
+	assert_eq(unmute_user_request.path, "/users/42/mute")
+	assert_eq(unmute_user_request.headers.Authorization, "Bearer user-token")
+
+	var follow_collection_request = auth_adapter.build_follow_collection_request("3001")
+	assert_eq(follow_collection_request.method, "POST")
+	assert_eq(follow_collection_request.path, "/games/777/collections/3001/followers")
+	assert_eq(follow_collection_request.headers.Authorization, "Bearer user-token")
+
+	var unfollow_collection_request = auth_adapter.build_unfollow_collection_request("3001")
+	assert_eq(unfollow_collection_request.method, "DELETE")
+	assert_eq(unfollow_collection_request.path, "/games/777/collections/3001/followers")
+	assert_eq(unfollow_collection_request.headers.Authorization, "Bearer user-token")
+
 func test_normalizes_user_inventory_fixture_payloads() -> void:
 	var adapter := _build_adapter_with_token()
 
@@ -1401,6 +1432,42 @@ func test_normalizes_subscription_write_success_variants() -> void:
 	var existing = adapter.normalize_subscription_write_response(200, {}, payload)
 	assert_true(existing.ok)
 	assert_true(existing.already_subscribed)
+
+func test_normalizes_social_mutation_write_success_variants() -> void:
+	var adapter := _build_adapter_with_token()
+	var collection_payload := _fixture("collection_detail.json")
+
+	var followed_user = adapter.normalize_follow_user_response(204)
+	assert_true(followed_user.ok)
+	assert_true(followed_user.followed)
+	assert_eq(followed_user.data, {})
+
+	var unfollowed_user = adapter.normalize_unfollow_user_response(204)
+	assert_true(unfollowed_user.ok)
+	assert_true(unfollowed_user.unfollowed)
+
+	var muted_user = adapter.normalize_mute_user_response(204)
+	assert_true(muted_user.ok)
+	assert_true(muted_user.muted)
+
+	var unmuted_user = adapter.normalize_unmute_user_response(204)
+	assert_true(unmuted_user.ok)
+	assert_true(unmuted_user.unmuted)
+
+	var followed_collection = adapter.normalize_follow_collection_response(201, {"Location": "/games/777/collections/3001/followers"}, collection_payload)
+	assert_true(followed_collection.ok)
+	assert_false(followed_collection.already_followed)
+	assert_eq(followed_collection.location, "/games/777/collections/3001/followers")
+	assert_eq(followed_collection.data.id, 3001)
+
+	var already_followed_collection = adapter.normalize_follow_collection_response(200, {}, collection_payload)
+	assert_true(already_followed_collection.ok)
+	assert_true(already_followed_collection.already_followed)
+
+	var unfollowed_collection = adapter.normalize_unfollow_collection_response(204)
+	assert_true(unfollowed_collection.ok)
+	assert_true(unfollowed_collection.unfollowed)
+	assert_eq(unfollowed_collection.data, {})
 
 func test_normalizes_rating_report_and_comment_error_variants() -> void:
 	var adapter := _build_adapter_with_token()

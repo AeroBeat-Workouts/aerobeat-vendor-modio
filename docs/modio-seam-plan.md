@@ -15,7 +15,7 @@ Keep **provider-native** concerns in this repo while allowing `aerobeat-tool-api
 - provider listing/search/detail/dependency query mapping
 - endpoint-aware filter serialization per wrapped endpoint
 - provider subscription/user-state mapping via `GET /me/games`, `GET /me/mods`, `GET /me/files`, `GET /me/subscribed`, `GET /me/ratings`, `GET /me/followers`, `GET /me/users/muted`, `GET /me/collections`, and `GET /me/following/collections`
-- provider mod + guide + collection community transport/query/normalization via `GET/POST/PUT/DELETE /games/{game-id}/mods/{mod-id}/comments...`, `GET /games/{game-id}/guides...`, `GET /games/{game-id}/collections...`, and read-only `GET /users/{user-id}/followers|following|collections`
+- provider mod + guide + collection community transport/query/normalization via `GET/POST/PUT/DELETE /games/{game-id}/mods/{mod-id}/comments...`, `GET /games/{game-id}/guides...`, `GET /games/{game-id}/collections...`, read-only `GET /users/{user-id}/followers|following|collections`, and bearer-only social mutation writes for user follow/unfollow, mute/unmute, and collection follow/unfollow
 - provider rating/report writes via `POST /games/{game-id}/mods/{mod-id}/ratings`, `POST /games/{game-id}/mods/{mod-id}/comments/{comment-id}/karma`, `POST /games/{game-id}/guides/{guide-id}/comments/{comment-id}/karma`, `POST /games/{game-id}/collections/{collection-id}/comments/{comment-id}/karma`, `POST /games/{game-id}/collections/{collection-id}/compatibility`, and `POST /report`
 - provider download metadata resolution from `modfile.download`
 - canonical artifact/cache metadata resolution derived from `provider + game_id + mod_id + modfile.id`
@@ -83,9 +83,15 @@ The current slice now exposes a larger request-builder and normalization seam:
     - `build_guides_request(...)`
     - `build_guide_detail_request(...)`
     - `build_dependencies_request(...)`
-  - subscription/user-rating/report/comment request builders
+  - subscription/user-rating/report/comment/social-mutation request builders
     - `build_user_subscriptions_request(...)`
     - `build_user_ratings_request(...)`
+    - `build_follow_user_request(...)`
+    - `build_unfollow_user_request(...)`
+    - `build_mute_user_request(...)`
+    - `build_unmute_user_request(...)`
+    - `build_follow_collection_request(...)`
+    - `build_unfollow_collection_request(...)`
     - `build_add_mod_rating_request(...)`
     - `build_mod_comments_request(...)`
     - `build_mod_comment_request(...)`
@@ -110,9 +116,9 @@ The current slice now exposes a larger request-builder and normalization seam:
     - `build_subscribe_request(...)`
     - `build_unsubscribe_request(...)`
   - normalization helpers
-    - auth/logout/message/user/game/games/game-stats/game-tags/game-token-packs/game-mod-stats/guide-tags/mod/modfile/mod-stats/mod-dependants/mod-tags/mod-metadata-kvp/mod-team/mod-comment/guide/guide-comment/collection/collection-comment/user-inventory list/user-social list/user-collection list/user-ratings/subscription/dependency/report/collection-compatibility responses
+    - auth/logout/message/user/game/games/game-stats/game-tags/game-token-packs/game-mod-stats/guide-tags/mod/modfile/mod-stats/mod-dependants/mod-tags/mod-metadata-kvp/mod-team/mod-comment/guide/guide-comment/collection/collection-comment/user-inventory list/user-social list/user-collection list/user-social mutation/user-ratings/subscription/dependency/report/collection-compatibility responses
     - page-state helpers derived from `result_count`, `result_offset`, `result_limit`, and `result_total`
-    - subscription write responses
+    - no-content write responses plus subscription and collection-follow write responses
     - download metadata resolution helpers
     - artifact/cache metadata resolution + dedupe helpers
 - `ModioHttpTransport`
@@ -142,7 +148,7 @@ That keeps transient CDN delivery behavior local to the vendor seam and out of A
 ## Query/auth stance
 
 - public/read flows default to query-based `api_key` injection
-- authenticated `GET /me`, `GET /me/games`, `GET /me/mods`, `GET /me/files`, `GET /me/subscribed`, `GET /games/{game-id}/monetization/token-packs`, logout, and subscription writes require bearer-token headers
+- authenticated `GET /me`, `GET /me/games`, `GET /me/mods`, `GET /me/files`, `GET /me/subscribed`, `GET /games/{game-id}/monetization/token-packs`, logout, subscription writes, and the social-mutation writes (`POST/DELETE /users/{user-id}/following...`, `POST/DELETE /users/{user-id}/mute`, `POST/DELETE /games/{game-id}/collections/{collection-id}/followers`) require bearer-token headers
 - endpoint query serialization is intentionally capability-gated so unsupported filters do not leak onto the wrong wrapped endpoint
 - `GET /games` now serializes only the current documented game listing filters (`id`, `status`, `submitted_by`, `date_added`, `date_updated`, `date_live`, `name`, `name_id`, `summary`, `instructions_url`, `ugc_name`, `presentation_option`, `submission_option`, `curation_option`, `profanity_option`, `dependency_option`, `community_options`, `monetization_options`, `api_access_options`, `maturity_options`, `show_hidden_tags`) plus paging and the current documented game sort keys
 - `GET /games/{game-id}/mods/stats` now serializes only paging plus the documented optional `mod_id` filter
@@ -159,6 +165,9 @@ That keeps transient CDN delivery behavior local to the vendor seam and out of A
 - `GET /games/{game-id}/collections/{collection-id}/mods` now serializes the documented paging inputs, collection-mod sort keys, and the collection-mod-specific `maturity_option` / `show_hidden_mods` filters
 - `GET /games/{game-id}/collections/{collection-id}/comments` now serializes only the current documented collection-comment filters (`id`, `resource_id`, `submitted_by`, `date_added`, `reply_id`, `thread_position`, `karma`, `content`) plus paging
 - `GET /users/{user-id}/followers`, `GET /users/{user-id}/following`, `GET /users/{user-id}/collections`, `GET /me/followers`, `GET /me/users/muted`, `GET /me/collections`, and `GET /me/following/collections` now serialize paging only (`_limit`, `_offset`) even when other shared query fields are present
+- `POST /users/{user-id}/following` sends the documented redundant form-encoded `user_id` body field for the target user while staying bearer-only
+- `DELETE /users/{user-id}/following/{target-user-id}`, `POST /users/{user-id}/mute`, `DELETE /users/{user-id}/mute`, and `DELETE /games/{game-id}/collections/{collection-id}/followers` all normalize as `204 No Content` writes with empty `data`
+- `POST /games/{game-id}/collections/{collection-id}/followers` keeps the returned `Mod Collection Object`, preserves `location`, and exposes `already_followed` when the provider returns `200 OK`
 - platform-targeted `GET /me/subscribed` requests must include `game_id`, so this repo injects it when platform targeting is configured
 - `GET /me/ratings` defaults the seam to `resource_type=mods` plus the configured `game_id`, while preserving raw provider rating integers (`1` / `-1`) instead of re-inventing the contract
 - token request expiry values are sanitized per documented flow instead of blindly forwarding stale/oversized values
