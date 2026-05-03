@@ -122,6 +122,48 @@ func test_executes_form_encoded_logout_and_subscription_writes_with_bearer_auth_
 	assert_eq(_recorded_requests[2].url, "https://g-777.modapi.io/v1/games/777/mods/1001/subscribe")
 	assert_eq(unsubscribe_response.payload, {})
 
+func test_executes_external_auth_requests_with_documented_paths_bodies_and_headers() -> void:
+	var config := ModioClientConfig.new("777", "demo-key", "", "user-token")
+	var transport := ModioHttpTransport.new(Callable(self, "_transport_double"))
+	var adapter := ModioVendorAdapter.new(config, transport)
+	var now := int(Time.get_unix_time_from_system())
+	var requested_expiry := now + 999999999
+	var expected_week_expiry := now + 604800
+	var expected_year_expiry := now + 31536000
+
+	_queue_json_response(200, _fixture("access_token.json"))
+	transport.execute(adapter.build_apple_auth_request("apple-jwt", true, requested_expiry), config, {"base_url": "https://api.mod.io/v1"})
+	assert_eq(_recorded_requests[0].url, "https://api.mod.io/v1/external/appleauth?api_key=demo-key")
+	assert_eq(_recorded_requests[0].body_string, "date_expires=%s&id_token=apple-jwt&terms_agreed=true" % [expected_week_expiry])
+	assert_false(_recorded_requests[0].headers.has("Authorization"))
+
+	_queue_json_response(200, _fixture("access_token.json"))
+	transport.execute(adapter.build_gog_galaxy_auth_request("gog-ticket", true, "gog@example.com", requested_expiry), config, {"base_url": "https://api.mod.io/v1"})
+	assert_eq(_recorded_requests[1].url, "https://api.mod.io/v1/external/galaxyauth?api_key=demo-key")
+	assert_eq(_recorded_requests[1].body_string, "appdata=gog-ticket&date_expires=" + str(expected_week_expiry) + "&email=gog%40example.com&terms_agreed=true")
+
+	_queue_json_response(200, _fixture("access_token.json"))
+	transport.execute(adapter.build_google_auth_request("google-auth-code", "", true, requested_expiry), config, {"base_url": "https://api.mod.io/v1"})
+	assert_eq(_recorded_requests[2].url, "https://api.mod.io/v1/external/googleauth?api_key=demo-key")
+	assert_eq(_recorded_requests[2].body_string, "auth_code=google-auth-code&date_expires=%s&terms_agreed=true" % [expected_week_expiry])
+
+	_queue_json_response(200, _fixture("access_token.json"))
+	transport.execute(adapter.build_oculus_auth_request("quest", "nonce-value", 1829770514, "access-token", true, "vr@example.com", requested_expiry), config, {"base_url": "https://api.mod.io/v1"})
+	assert_eq(_recorded_requests[3].url, "https://api.mod.io/v1/external/oculusauth?api_key=demo-key")
+	assert_eq(_recorded_requests[3].body_string, "access_token=access-token&date_expires=" + str(expected_year_expiry) + "&device=quest&email=vr%40example.com&nonce=nonce-value&terms_agreed=true&user_id=1829770514")
+
+	_queue_json_response(200, _fixture("access_token.json"))
+	transport.execute(adapter.build_udt_auth_request("delegate-123"), config, {"base_url": "https://api.mod.io/v1"})
+	assert_eq(_recorded_requests[4].url, "https://api.mod.io/v1/external/udtauth?api_key=demo-key")
+	assert_eq(_recorded_requests[4].body_string, "")
+	assert_eq(_recorded_requests[4].headers["X-Modio-Delegation-Token"], "delegate-123")
+	assert_false(_recorded_requests[4].headers.has("Authorization"))
+
+	_queue_json_response(200, _fixture("access_token.json"))
+	transport.execute(adapter.build_xbox_live_auth_request("xbl-token", true, "xbox@example.com", requested_expiry), config, {"base_url": "https://api.mod.io/v1"})
+	assert_eq(_recorded_requests[5].url, "https://api.mod.io/v1/external/xboxauth?api_key=demo-key")
+	assert_eq(_recorded_requests[5].body_string, "date_expires=" + str(expected_year_expiry) + "&email=xbox%40example.com&terms_agreed=true&xbox_token=xbl-token")
+
 func test_executes_platform_targeted_subscription_sync_with_required_game_id() -> void:
 	var config := ModioClientConfig.new("777", "demo-key", "", "user-token", "en-US", "steam", "WINDOWS", ModioClientConfig.HOST_GAME)
 	var transport := ModioHttpTransport.new(Callable(self, "_transport_double"))

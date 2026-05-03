@@ -11,7 +11,7 @@ Keep **provider-native** concerns in this repo while allowing `aerobeat-tool-api
 ### This repo should own
 
 - mod.io request construction
-- auth/session request-shape support for email and OpenID flows
+- auth/session request-shape support for email, OpenID, and documented external provider flows (Apple, Discord, Epic Games, GOG Galaxy, Google, Meta Quest/Oculus, PSN, Steam, Switch, UDT, and Xbox Live)
 - provider listing/search/detail/dependency query mapping
 - endpoint-aware filter serialization per wrapped endpoint
 - provider subscription/user-state mapping via `GET /me/games`, `GET /me/mods`, `GET /me/files`, `GET /me/subscribed`, `GET /me/ratings`, `GET /me/followers`, `GET /me/users/muted`, `GET /me/collections`, and `GET /me/following/collections`
@@ -40,7 +40,18 @@ The current slice now exposes a larger request-builder and normalization seam:
   - auth/session request builders
     - `build_email_security_code_request(...)`
     - `build_auth_exchange_request(...)`
+    - `build_apple_auth_request(...)`
+    - `build_discord_auth_request(...)`
+    - `build_epic_games_auth_request(...)`
+    - `build_gog_galaxy_auth_request(...)`
+    - `build_google_auth_request(...)`
+    - `build_oculus_auth_request(...)`
     - `build_openid_auth_request(...)`
+    - `build_psn_auth_request(...)`
+    - `build_steam_auth_request(...)`
+    - `build_switch_auth_request(...)`
+    - `build_udt_auth_request(...)`
+    - `build_xbox_live_auth_request(...)`
     - `build_terms_request()`
     - `build_current_agreement_request(...)`
     - `build_authenticated_user_request(...)`

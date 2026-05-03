@@ -6,7 +6,7 @@ const ModioDownloadRequest = preload("res://src/models/modio_download_request.gd
 const ModioHttpTransport = preload("res://src/network/modio_http_transport.gd")
 const ModioVendorAdapter = preload("res://src/modio_vendor_adapter.gd")
 
-func test_builds_email_and_openid_auth_requests_with_hardened_expiry_handling() -> void:
+func test_builds_email_and_external_auth_requests_with_hardened_expiry_handling() -> void:
 	var adapter := _build_adapter()
 
 	var email_request = adapter.build_email_security_code_request(" player@example.com ")
@@ -32,6 +32,81 @@ func test_builds_email_and_openid_auth_requests_with_hardened_expiry_handling() 
 	assert_eq(openid_request.body.psn_token, "psn-code")
 	assert_eq(openid_request.body.psn_env, "1")
 	assert_true(int(openid_request.body.date_expires) <= now + 604800)
+
+	var apple_request = adapter.build_apple_auth_request(" apple-jwt ", false, now + 999999999)
+	assert_eq(apple_request.path, "/external/appleauth")
+	assert_eq(apple_request.body.id_token, "apple-jwt")
+	assert_false(apple_request.body.terms_agreed)
+	assert_true(int(apple_request.body.date_expires) <= now + 604800)
+	assert_false(apple_request.body.has("email"))
+
+	var discord_request = adapter.build_discord_auth_request(" discord-token ", true, " discord@example.com ", now + 999999999)
+	assert_eq(discord_request.path, "/external/discordauth")
+	assert_eq(discord_request.body.discord_token, "discord-token")
+	assert_eq(discord_request.body.email, "discord@example.com")
+	assert_true(int(discord_request.body.date_expires) <= now + 604800)
+
+	var epic_request = adapter.build_epic_games_auth_request(" epic-id-token ", true, " epic@example.com ", now + 999999999)
+	assert_eq(epic_request.path, "/external/epicgamesauth")
+	assert_eq(epic_request.body.id_token, "epic-id-token")
+	assert_eq(epic_request.body.email, "epic@example.com")
+	assert_true(int(epic_request.body.date_expires) <= now + 604800)
+
+	var gog_request = adapter.build_gog_galaxy_auth_request(" gog-ticket ", true, " gog@example.com ", now + 999999999)
+	assert_eq(gog_request.path, "/external/galaxyauth")
+	assert_eq(gog_request.body.appdata, "gog-ticket")
+	assert_eq(gog_request.body.email, "gog@example.com")
+	assert_true(int(gog_request.body.date_expires) <= now + 604800)
+
+	var google_auth_code_request = adapter.build_google_auth_request(" google-auth-code ", "", true, now + 999999999)
+	assert_eq(google_auth_code_request.path, "/external/googleauth")
+	assert_eq(google_auth_code_request.body.auth_code, "google-auth-code")
+	assert_false(google_auth_code_request.body.has("id_token"))
+	assert_true(int(google_auth_code_request.body.date_expires) <= now + 604800)
+
+	var google_id_token_request = adapter.build_google_auth_request("", " google-id-token ", false)
+	assert_eq(google_id_token_request.body.id_token, "google-id-token")
+	assert_false(google_id_token_request.body.has("auth_code"))
+	assert_false(google_id_token_request.body.has("date_expires"))
+
+	var oculus_request = adapter.build_oculus_auth_request(" quest ", " nonce-value ", 1829770514, " access-token ", true, " vr@example.com ", now + 999999999)
+	assert_eq(oculus_request.path, "/external/oculusauth")
+	assert_eq(oculus_request.body.device, "quest")
+	assert_eq(oculus_request.body.nonce, "nonce-value")
+	assert_eq(oculus_request.body.user_id, "1829770514")
+	assert_eq(oculus_request.body.access_token, "access-token")
+	assert_eq(oculus_request.body.email, "vr@example.com")
+	assert_true(int(oculus_request.body.date_expires) <= now + 31536000)
+
+	var psn_request = adapter.build_psn_auth_request(" psn-auth-code ", true, " psn@example.com ", 1, now + 999999999)
+	assert_eq(psn_request.path, "/external/psnauth")
+	assert_eq(psn_request.body.auth_code, "psn-auth-code")
+	assert_eq(psn_request.body.email, "psn@example.com")
+	assert_eq(psn_request.body.env, "1")
+	assert_true(int(psn_request.body.date_expires) <= now + 31536000)
+
+	var steam_request = adapter.build_steam_auth_request(" steam-ticket ", true, " steam@example.com ", now + 999999999)
+	assert_eq(steam_request.path, "/external/steamauth")
+	assert_eq(steam_request.body.appdata, "steam-ticket")
+	assert_eq(steam_request.body.email, "steam@example.com")
+	assert_true(int(steam_request.body.date_expires) <= now + 604800)
+
+	var switch_request = adapter.build_switch_auth_request(" switch-id-token ", true, " switch@example.com ", now + 999999999)
+	assert_eq(switch_request.path, "/external/switchauth")
+	assert_eq(switch_request.body.id_token, "switch-id-token")
+	assert_eq(switch_request.body.email, "switch@example.com")
+	assert_true(int(switch_request.body.date_expires) <= now + 31536000)
+
+	var udt_request = adapter.build_udt_auth_request(" delegate-123 ")
+	assert_eq(udt_request.path, "/external/udtauth")
+	assert_eq(udt_request.headers["X-Modio-Delegation-Token"], "delegate-123")
+	assert_true(udt_request.body.is_empty())
+
+	var xbox_request = adapter.build_xbox_live_auth_request(" xbl-token ", true, " xbox@example.com ", now + 999999999)
+	assert_eq(xbox_request.path, "/external/xboxauth")
+	assert_eq(xbox_request.body.xbox_token, "xbl-token")
+	assert_eq(xbox_request.body.email, "xbox@example.com")
+	assert_true(int(xbox_request.body.date_expires) <= now + 31536000)
 
 func test_builds_terms_and_agreement_requests_with_localization_headers() -> void:
 	var adapter := _build_adapter()

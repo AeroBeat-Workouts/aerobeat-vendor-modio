@@ -33,7 +33,18 @@ This slice now implements a fixture-driven REST wrapper for the current research
 - auth/session request shapes
   - `POST /oauth/emailrequest`
   - `POST /oauth/emailexchange`
+  - `POST /external/appleauth`
+  - `POST /external/discordauth`
+  - `POST /external/epicgamesauth`
+  - `POST /external/galaxyauth` *(GOG Galaxy doc-truth path; not `/external/gogauth`)*
+  - `POST /external/googleauth`
+  - `POST /external/oculusauth`
   - `POST /external/openidauth`
+  - `POST /external/psnauth`
+  - `POST /external/steamauth`
+  - `POST /external/switchauth`
+  - `POST /external/udtauth`
+  - `POST /external/xboxauth` *(Xbox Live doc-truth path; not `/external/xboxliveauth`)*
   - `GET /authenticate/terms`
   - `GET /agreements/types/{agreement-type-id}/current`
   - `GET /agreements/versions/{agreement-version-id}`

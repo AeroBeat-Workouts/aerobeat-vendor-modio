@@ -79,25 +79,121 @@ func build_openid_auth_request(
 		"id_token": id_token.strip_edges(),
 		"terms_agreed": terms_agreed
 	}
-	if not email.strip_edges().is_empty():
-		body["email"] = email.strip_edges()
-	var sanitized_date_expires := _sanitize_requested_expiry(date_expires, WEEK_SECONDS)
-	if sanitized_date_expires > 0:
-		body["date_expires"] = sanitized_date_expires
+	_append_optional_email(body, email)
+	_append_optional_date_expires(body, date_expires, WEEK_SECONDS)
 	if monetization_account:
 		body["monetization_account"] = true
 	if not psn_token.strip_edges().is_empty():
 		body["psn_token"] = psn_token.strip_edges()
 		if psn_env >= 0:
 			body["psn_env"] = psn_env
+	return _build_external_auth_request("/external/openidauth", body)
+
+func build_apple_auth_request(id_token: String, terms_agreed: bool, date_expires: int = 0) -> Dictionary:
+	var body := {
+		"id_token": id_token.strip_edges(),
+		"terms_agreed": terms_agreed
+	}
+	_append_optional_date_expires(body, date_expires, WEEK_SECONDS)
+	return _build_external_auth_request("/external/appleauth", body)
+
+func build_discord_auth_request(discord_token: String, terms_agreed: bool, email: String = "", date_expires: int = 0) -> Dictionary:
+	var body := {
+		"discord_token": discord_token.strip_edges(),
+		"terms_agreed": terms_agreed
+	}
+	_append_optional_email(body, email)
+	_append_optional_date_expires(body, date_expires, WEEK_SECONDS)
+	return _build_external_auth_request("/external/discordauth", body)
+
+func build_epic_games_auth_request(id_token: String, terms_agreed: bool, email: String = "", date_expires: int = 0) -> Dictionary:
+	var body := {
+		"id_token": id_token.strip_edges(),
+		"terms_agreed": terms_agreed
+	}
+	_append_optional_email(body, email)
+	_append_optional_date_expires(body, date_expires, WEEK_SECONDS)
+	return _build_external_auth_request("/external/epicgamesauth", body)
+
+func build_gog_galaxy_auth_request(appdata: String, terms_agreed: bool, email: String = "", date_expires: int = 0) -> Dictionary:
+	var body := {
+		"appdata": appdata.strip_edges(),
+		"terms_agreed": terms_agreed
+	}
+	_append_optional_email(body, email)
+	_append_optional_date_expires(body, date_expires, WEEK_SECONDS)
+	return _build_external_auth_request("/external/galaxyauth", body)
+
+func build_google_auth_request(auth_code: String = "", id_token: String = "", terms_agreed: bool = false, date_expires: int = 0) -> Dictionary:
+	var body := {"terms_agreed": terms_agreed}
+	if not auth_code.strip_edges().is_empty():
+		body["auth_code"] = auth_code.strip_edges()
+	if not id_token.strip_edges().is_empty():
+		body["id_token"] = id_token.strip_edges()
+	_append_optional_date_expires(body, date_expires, WEEK_SECONDS)
+	return _build_external_auth_request("/external/googleauth", body)
+
+func build_oculus_auth_request(device: String, nonce: String, user_id: int, access_token: String, terms_agreed: bool, email: String = "", date_expires: int = 0) -> Dictionary:
+	var body := {
+		"device": device.strip_edges(),
+		"nonce": nonce.strip_edges(),
+		"user_id": user_id,
+		"access_token": access_token.strip_edges(),
+		"terms_agreed": terms_agreed
+	}
+	_append_optional_email(body, email)
+	_append_optional_date_expires(body, date_expires, COMMON_YEAR_SECONDS)
+	return _build_external_auth_request("/external/oculusauth", body)
+
+func build_psn_auth_request(auth_code: String, terms_agreed: bool, email: String = "", env: int = -1, date_expires: int = 0) -> Dictionary:
+	var body := {
+		"auth_code": auth_code.strip_edges(),
+		"terms_agreed": terms_agreed
+	}
+	_append_optional_email(body, email)
+	if env >= 0:
+		body["env"] = env
+	_append_optional_date_expires(body, date_expires, COMMON_YEAR_SECONDS)
+	return _build_external_auth_request("/external/psnauth", body)
+
+func build_steam_auth_request(appdata: String, terms_agreed: bool, email: String = "", date_expires: int = 0) -> Dictionary:
+	var body := {
+		"appdata": appdata.strip_edges(),
+		"terms_agreed": terms_agreed
+	}
+	_append_optional_email(body, email)
+	_append_optional_date_expires(body, date_expires, WEEK_SECONDS)
+	return _build_external_auth_request("/external/steamauth", body)
+
+func build_switch_auth_request(id_token: String, terms_agreed: bool, email: String = "", date_expires: int = 0) -> Dictionary:
+	var body := {
+		"id_token": id_token.strip_edges(),
+		"terms_agreed": terms_agreed
+	}
+	_append_optional_email(body, email)
+	_append_optional_date_expires(body, date_expires, COMMON_YEAR_SECONDS)
+	return _build_external_auth_request("/external/switchauth", body)
+
+func build_udt_auth_request(delegation_token: String) -> Dictionary:
+	var headers := _build_form_headers(false)
+	headers["X-Modio-Delegation-Token"] = delegation_token.strip_edges()
 	return _transport.build_request(
 		"POST",
-		"/external/openidauth",
+		"/external/udtauth",
 		{},
-		body,
-		_build_form_headers(false),
+		{},
+		headers,
 		{"content_type": ModioHttpTransport.CONTENT_TYPE_FORM, "auth_mode": "api_key_query"}
 	)
+
+func build_xbox_live_auth_request(xbox_token: String, terms_agreed: bool, email: String = "", date_expires: int = 0) -> Dictionary:
+	var body := {
+		"xbox_token": xbox_token.strip_edges(),
+		"terms_agreed": terms_agreed
+	}
+	_append_optional_email(body, email)
+	_append_optional_date_expires(body, date_expires, COMMON_YEAR_SECONDS)
+	return _build_external_auth_request("/external/xboxauth", body)
 
 func build_terms_request() -> Dictionary:
 	return _transport.build_request(
@@ -1737,6 +1833,26 @@ func _build_comment_option_flags(raw_options: int) -> Dictionary:
 		"pinned": (raw_options & COMMENT_OPTION_PINNED) != 0,
 		"locked": (raw_options & COMMENT_OPTION_LOCKED) != 0
 	}
+
+func _build_external_auth_request(path: String, body: Dictionary) -> Dictionary:
+	return _transport.build_request(
+		"POST",
+		path,
+		{},
+		body,
+		_build_form_headers(false),
+		{"content_type": ModioHttpTransport.CONTENT_TYPE_FORM, "auth_mode": "api_key_query"}
+	)
+
+func _append_optional_email(body: Dictionary, email: String) -> void:
+	var sanitized_email := email.strip_edges()
+	if not sanitized_email.is_empty():
+		body["email"] = sanitized_email
+
+func _append_optional_date_expires(body: Dictionary, date_expires: int, max_lifetime_seconds: int) -> void:
+	var sanitized_date_expires := _sanitize_requested_expiry(date_expires, max_lifetime_seconds)
+	if sanitized_date_expires > 0:
+		body["date_expires"] = sanitized_date_expires
 
 func _build_public_query() -> Dictionary:
 	var query := {}
