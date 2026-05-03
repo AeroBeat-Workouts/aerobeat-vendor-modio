@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": 404,
+    "error_ref": 14000,
+    "message": "The resource to be reported could not be found."
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": 409,
+    "error_ref": 15028,
+    "message": "The authenticated user has already rated this mod."
+  }
+}

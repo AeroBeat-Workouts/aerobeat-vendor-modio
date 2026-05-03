@@ -14,7 +14,8 @@ Keep **provider-native** concerns in this repo while allowing `aerobeat-tool-api
 - auth/session request-shape support for email and OpenID flows
 - provider listing/search/detail/dependency query mapping
 - endpoint-aware filter serialization per wrapped endpoint
-- provider subscription/user-state mapping via `GET /me/subscribed`
+- provider subscription/user-state mapping via `GET /me/subscribed` and `GET /me/ratings`
+- provider rating/report writes via `POST /games/{game-id}/mods/{mod-id}/ratings` and `POST /report`
 - provider download metadata resolution from `modfile.download`
 - canonical artifact/cache metadata resolution derived from `provider + game_id + mod_id + modfile.id`
 - provider DTO parsing, page-state helpers, and error normalization
@@ -46,13 +47,18 @@ The current slice now exposes a larger request-builder and normalization seam:
     - `build_listing_request(...)`
     - `build_mod_detail_request(...)`
     - `build_modfiles_request(...)`
+    - `build_modfile_request(...)`
+    - `build_mod_stats_request(...)`
     - `build_dependencies_request(...)`
-  - subscription request builders
+  - subscription/user-rating/report request builders
     - `build_user_subscriptions_request(...)`
+    - `build_user_ratings_request(...)`
+    - `build_add_mod_rating_request(...)`
+    - `build_submit_report_request(...)`
     - `build_subscribe_request(...)`
     - `build_unsubscribe_request(...)`
   - normalization helpers
-    - auth/logout/user/game/mod/modfile/subscription/dependency responses
+    - auth/logout/message/user/game/mod/modfile/mod-stats/user-ratings/subscription/dependency/report responses
     - page-state helpers derived from `result_count`, `result_offset`, `result_limit`, and `result_total`
     - subscription write responses
     - download metadata resolution helpers
@@ -87,6 +93,7 @@ That keeps transient CDN delivery behavior local to the vendor seam and out of A
 - authenticated `GET /me`, `GET /me/subscribed`, logout, and subscription writes require bearer-token headers
 - endpoint query serialization is intentionally capability-gated so unsupported filters do not leak onto the wrong wrapped endpoint
 - platform-targeted `GET /me/subscribed` requests must include `game_id`, so this repo injects it when platform targeting is configured
+- `GET /me/ratings` defaults the seam to `resource_type=mods` plus the configured `game_id`, while preserving raw provider rating integers (`1` / `-1`) instead of re-inventing the contract
 - token request expiry values are sanitized per documented flow instead of blindly forwarding stale/oversized values
 - portal/platform/language/delegation headers remain provider-local config concerns
 - host selection stays explicit/configurable through `ModioClientConfig` (`api`, `game`, `user`, optional sandbox) while explicit base-URL overrides still win

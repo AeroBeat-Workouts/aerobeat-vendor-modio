@@ -4,6 +4,7 @@ extends RefCounted
 const ENDPOINT_MODS := "mods"
 const ENDPOINT_MODFILES := "modfiles"
 const ENDPOINT_SUBSCRIPTIONS := "subscriptions"
+const ENDPOINT_USER_RATINGS := "user_ratings"
 
 var search_term: String
 var tags_all: PackedStringArray
@@ -19,6 +20,11 @@ var name_id: String
 var status: int
 var visible: int
 var submitted_by: String
+var game_id: String
+var mod_id: String
+var rating: int
+var resource_type: String
+var date_added: int
 
 func _init(
 	p_search_term: String = "",
@@ -34,7 +40,12 @@ func _init(
 	p_name_id: String = "",
 	p_status: int = -1,
 	p_visible: int = -1,
-	p_submitted_by: String = ""
+	p_submitted_by: String = "",
+	p_game_id: String = "",
+	p_mod_id: String = "",
+	p_rating: int = 0,
+	p_resource_type: String = "",
+	p_date_added: int = 0
 ) -> void:
 	search_term = p_search_term.strip_edges()
 	tags_all = p_tags_all
@@ -50,6 +61,11 @@ func _init(
 	status = p_status
 	visible = p_visible
 	submitted_by = p_submitted_by.strip_edges()
+	game_id = p_game_id.strip_edges()
+	mod_id = p_mod_id.strip_edges()
+	rating = p_rating
+	resource_type = p_resource_type.strip_edges().to_lower()
+	date_added = maxi(0, p_date_added)
 
 func to_query_dict(endpoint: String = ENDPOINT_MODS) -> Dictionary:
 	var query := {
@@ -82,6 +98,16 @@ func to_query_dict(endpoint: String = ENDPOINT_MODS) -> Dictionary:
 		query["visible"] = str(visible)
 	if capabilities.has("submitted_by") and not submitted_by.is_empty():
 		query["submitted_by"] = submitted_by
+	if capabilities.has("game_id") and not game_id.is_empty():
+		query["game_id"] = game_id
+	if capabilities.has("mod_id") and not mod_id.is_empty():
+		query["mod_id"] = mod_id
+	if capabilities.has("rating") and rating != 0:
+		query["rating"] = str(rating)
+	if capabilities.has("resource_type") and not resource_type.is_empty():
+		query["resource_type"] = resource_type
+	if capabilities.has("date_added") and date_added > 0:
+		query["date_added"] = str(date_added)
 
 	return query
 
@@ -89,6 +115,8 @@ func _get_capabilities(endpoint: String) -> PackedStringArray:
 	match endpoint:
 		ENDPOINT_MODFILES:
 			return PackedStringArray(["id"])
+		ENDPOINT_USER_RATINGS:
+			return PackedStringArray(["game_id", "mod_id", "rating", "resource_type", "date_added"])
 		ENDPOINT_SUBSCRIPTIONS:
 			return PackedStringArray([
 				"search_term",

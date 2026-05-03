@@ -158,6 +158,49 @@ func test_executes_dependency_requests_with_explicit_recursive_semantics() -> vo
 	assert_eq(_recorded_requests[1].url, "https://api.mod.io/v1/games/777/mods/1001/dependencies?api_key=demo-key&recursive=true")
 	assert_eq(int(recursive_response.payload.result_total), 2)
 
+func test_executes_modfile_stats_ratings_and_report_requests_with_documented_shapes() -> void:
+	var public_config := ModioClientConfig.new("777", "demo-key", "https://api.mod.io/v1/", "", "en-US", "steam", "WINDOWS")
+	var auth_config := ModioClientConfig.new("777", "demo-key", "", "user-token", "en-US", "steam", "WINDOWS", ModioClientConfig.HOST_GAME)
+	var transport := ModioHttpTransport.new(Callable(self, "_transport_double"))
+	var public_adapter := ModioVendorAdapter.new(public_config, transport)
+	var auth_adapter := ModioVendorAdapter.new(auth_config, transport)
+
+	_queue_json_response(200, _fixture("modfile_detail.json"))
+	var modfile_response := transport.execute(public_adapter.build_modfile_request("1001", "5002"), public_config)
+	assert_true(modfile_response.ok)
+	assert_eq(_recorded_requests[0].url, "https://api.mod.io/v1/games/777/mods/1001/files/5002?api_key=demo-key")
+
+	_queue_json_response(200, _fixture("mod_stats.json"))
+	var mod_stats_response := transport.execute(public_adapter.build_mod_stats_request("1001"), public_config)
+	assert_true(mod_stats_response.ok)
+	assert_eq(_recorded_requests[1].url, "https://api.mod.io/v1/games/777/mods/1001/stats?api_key=demo-key")
+
+	var ratings_query := ModioListingQuery.new("", PackedStringArray(), 50, 0, "", PackedStringArray(), PackedStringArray(), "", {}, "", "", -1, -1, "", "777", "1001", -1, "mods", 1777800001)
+	_queue_json_response(200, _fixture("user_ratings.json"))
+	var ratings_response := transport.execute(auth_adapter.build_user_ratings_request(ratings_query), auth_config)
+	assert_true(ratings_response.ok)
+	assert_eq(_recorded_requests[2].url, "https://g-777.modapi.io/v1/me/ratings?_limit=50&_offset=0&date_added=1777800001&game_id=777&mod_id=1001&rating=-1&resource_type=mods")
+	assert_eq(_recorded_requests[2].headers.Authorization, "Bearer user-token")
+	assert_false(_recorded_requests[2].url.contains("api_key="))
+
+	_queue_json_response(201, _fixture("add_mod_rating_success.json"))
+	var add_rating_response := transport.execute(auth_adapter.build_add_mod_rating_request("1001", -1), auth_config)
+	assert_true(add_rating_response.ok)
+	assert_eq(_recorded_requests[3].url, "https://g-777.modapi.io/v1/games/777/mods/1001/ratings")
+	assert_eq(_recorded_requests[3].body_string, "rating=-1")
+	assert_eq(_recorded_requests[3].headers.Authorization, "Bearer user-token")
+
+	_queue_json_response(201, _fixture("report_success.json"))
+	var report_response := transport.execute(auth_adapter.build_submit_report_request("mods", "1001", 2, "crashes after song load", {
+		"reason": 6,
+		"platforms": "WINDOWS",
+		"game_name_id": "aerobeat"
+	}), auth_config)
+	assert_true(report_response.ok)
+	assert_eq(_recorded_requests[4].url, "https://g-777.modapi.io/v1/report")
+	assert_eq(_recorded_requests[4].body_string, "game_name_id=aerobeat&id=1001&platforms=WINDOWS&reason=6&resource=MODS&summary=crashes%20after%20song%20load&type=2")
+	assert_eq(_recorded_requests[4].headers.Authorization, "Bearer user-token")
+
 func test_normalizes_rate_limit_validation_admin_server_and_auth_error_cases_from_execute() -> void:
 	var config := ModioClientConfig.new("777", "demo-key", "", "user-token", "en-US", "steam", "WINDOWS", ModioClientConfig.HOST_GAME)
 	var transport := ModioHttpTransport.new(Callable(self, "_transport_double"))

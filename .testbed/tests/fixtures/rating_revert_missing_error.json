@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": 409,
+    "error_ref": 15043,
+    "message": "The authenticated user has no rating for this mod."
+  }
+}

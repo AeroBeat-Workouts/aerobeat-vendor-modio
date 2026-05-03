@@ -43,12 +43,17 @@ This slice now implements a fixture-driven REST wrapper for the current research
   - `GET /games/{game-id}/mods`
   - `GET /games/{game-id}/mods/{mod-id}`
   - `GET /games/{game-id}/mods/{mod-id}/files`
+  - `GET /games/{game-id}/mods/{mod-id}/files/{file-id}`
+  - `GET /games/{game-id}/mods/{mod-id}/stats`
 - user-state writes/reads
   - `GET /me/subscribed`
+  - `GET /me/ratings`
+  - `POST /games/{game-id}/mods/{mod-id}/ratings`
+  - `POST /report`
   - `POST /games/{game-id}/mods/{mod-id}/subscribe`
   - `DELETE /games/{game-id}/mods/{mod-id}/subscribe`
 - response normalization seams
-  - access token, logout, terms, agreement, user, game, mod list/detail, modfiles, subscriptions, and dependencies
+  - access token, logout/message, terms, agreement, user, game, mod list/detail, modfiles, mod stats, user ratings, subscriptions, and dependencies
   - documented page helpers derived from `result_count`, `result_offset`, `result_limit`, and `result_total`
   - structured error/rate-limit mapping including `retry-after`, auth exchange/OpenID/key/terms variants, `11008`, `11009`, `11017`, `11074`, `15025`, and `17053`
 - artifact/cache metadata helpers
@@ -63,7 +68,7 @@ This slice now implements a fixture-driven REST wrapper for the current research
 
 The wrapper now owns a **thin execution seam** in addition to request construction and normalization. The live transport remains intentionally narrow: it prepares and dispatches mod.io-specific HTTP requests, normalizes the response/error envelope, and keeps provider-only host/auth/header logic local to this repo so higher layers can compose it later without inheriting raw mod.io rules.
 
-The current query model is intentionally endpoint-aware instead of emitting every filter everywhere. `GET /games/{game-id}/mods`, `GET /games/{game-id}/mods/{mod-id}/files`, and `GET /me/subscribed` now serialize only the documented subset each wrapped endpoint should receive, while still preserving shared paging inputs. Platform-targeted `GET /me/subscribed` requests also continue to force the required `game_id` field, and integration-style tests now validate the final encoded URLs that the transport would execute.
+The current query model is intentionally endpoint-aware instead of emitting every filter everywhere. `GET /games/{game-id}/mods`, `GET /games/{game-id}/mods/{mod-id}/files`, `GET /me/subscribed`, and `GET /me/ratings` now serialize only the documented subset each wrapped endpoint should receive, while still preserving shared paging inputs. Platform-targeted `GET /me/subscribed` requests also continue to force the required `game_id` field, and `GET /me/ratings` defaults to the mod-centric `resource_type=mods` seam while still preserving raw provider fields in normalized output. Integration-style tests validate the final encoded URLs and form bodies that the transport would execute.
 
 ## Download URL stance
 
@@ -76,6 +81,12 @@ The wrapper therefore:
 - marks resolved download URLs as non-canonical so higher layers do not use them as durable cache keys
 
 This follows the current official mod.io docs note that hashed download URLs can expire and should not be saved/reused as if they were permanent.
+
+## Ratings/reporting notes
+
+The current mod.io docs and generated refs are a little uneven around ratings. The repo-local seam therefore preserves the raw provider `rating` integer exactly as returned/sent, and only derives convenience booleans/sentiment around it. Tests cover the currently documented and SDK-backed mod rating values of `1` and `-1`, without pretending the provider contract is cleaner than it is.
+
+Game-level capability interpretation now also exposes `community_policy.allows_negative_ratings`, so higher layers can make decisions from the documented `community_options` bitfield without moving that provider logic upstream.
 
 ## Source layout
 

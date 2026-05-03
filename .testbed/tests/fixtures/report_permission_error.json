@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": 403,
+    "error_ref": 15029,
+    "message": "The authenticated user does not have permission to submit reports on mod.io due to their access being revoked."
+  }
+}

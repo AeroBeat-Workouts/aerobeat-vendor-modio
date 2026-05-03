@@ -1,0 +1,24 @@
+{
+  "data": [
+    {
+      "game_id": 777,
+      "mod_id": 1001,
+      "resource_type": "mods",
+      "resource_id": 1001,
+      "rating": 1,
+      "date_added": 1777800001
+    },
+    {
+      "game_id": 777,
+      "mod_id": 1002,
+      "resource_type": "mods",
+      "resource_id": 1002,
+      "rating": -1,
+      "date_added": 1777800002
+    }
+  ],
+  "result_count": 2,
+  "result_offset": 0,
+  "result_limit": 100,
+  "result_total": 2
+}

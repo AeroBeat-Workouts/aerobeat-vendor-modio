@@ -21,6 +21,12 @@ const DEPENDENCY_OPTION_ALLOW_OPT_IN := 1
 const DEPENDENCY_OPTION_ALLOW_OPT_OUT := 2
 const DEPENDENCY_OPTION_ALLOW_ALL := 3
 
+const COMMUNITY_OPTION_ALLOW_MOD_COMMENTS := 1
+const COMMUNITY_OPTION_ALLOW_GUIDES := 2
+const COMMUNITY_OPTION_ALLOW_NEGATIVE_RATINGS := 256
+const COMMUNITY_OPTION_ALLOW_DEPENDENCY := 1024
+const COMMUNITY_OPTION_ALLOW_GUIDE_COMMENTS := 2048
+
 const DEPENDENCY_POLICY_NONE := "none"
 const DEPENDENCY_POLICY_IMMEDIATE_ONLY := "immediate_only"
 const DEPENDENCY_POLICY_RECURSIVE := "recursive"
@@ -180,6 +186,26 @@ func build_modfiles_request(mod_id: String, query: ModioListingQuery = ModioList
 		{"auth_mode": _resolve_read_auth_mode(false)}
 	)
 
+func build_modfile_request(mod_id: String, file_id: String) -> Dictionary:
+	return _transport.build_request(
+		"GET",
+		"/games/%s/mods/%s/files/%s" % [_config.game_id, mod_id.strip_edges(), file_id.strip_edges()],
+		_build_public_query(),
+		{},
+		_build_read_headers(false),
+		{"auth_mode": _resolve_read_auth_mode(false)}
+	)
+
+func build_mod_stats_request(mod_id: String) -> Dictionary:
+	return _transport.build_request(
+		"GET",
+		"/games/%s/mods/%s/stats" % [_config.game_id, mod_id.strip_edges()],
+		_build_public_query(),
+		{},
+		_build_read_headers(false),
+		{"auth_mode": _resolve_read_auth_mode(false)}
+	)
+
 func build_dependencies_request(mod_id: String, recursive: bool = false) -> Dictionary:
 	var full_query := _build_public_query()
 	full_query["recursive"] = recursive
@@ -204,6 +230,60 @@ func build_user_subscriptions_request(query: ModioListingQuery = ModioListingQue
 		{},
 		_build_read_headers(true),
 		{"auth_mode": _resolve_read_auth_mode(true)}
+	)
+
+func build_user_ratings_request(query: ModioListingQuery = ModioListingQuery.new()) -> Dictionary:
+	var full_query := _build_authenticated_query()
+	full_query.merge(query.to_query_dict(ModioListingQuery.ENDPOINT_USER_RATINGS), true)
+	if not full_query.has("resource_type"):
+		full_query["resource_type"] = "mods"
+	if not full_query.has("game_id") and not _config.game_id.is_empty():
+		full_query["game_id"] = _config.game_id
+	return _transport.build_request(
+		"GET",
+		"/me/ratings",
+		full_query,
+		{},
+		_build_read_headers(true),
+		{"auth_mode": _resolve_read_auth_mode(true)}
+	)
+
+func build_add_mod_rating_request(mod_id: String, rating: int) -> Dictionary:
+	return _transport.build_request(
+		"POST",
+		"/games/%s/mods/%s/ratings" % [_config.game_id, mod_id.strip_edges()],
+		{},
+		{"rating": rating},
+		_build_form_headers(true),
+		{"content_type": ModioHttpTransport.CONTENT_TYPE_FORM, "auth_mode": "bearer"}
+	)
+
+func build_submit_report_request(resource: String, resource_id: String, report_type: int, summary: String, options: Dictionary = {}) -> Dictionary:
+	var body := {
+		"resource": resource.strip_edges().to_upper(),
+		"id": resource_id.strip_edges(),
+		"type": report_type,
+		"summary": summary.strip_edges()
+	}
+	if options.has("name") and not str(options.get("name", "")).strip_edges().is_empty():
+		body["name"] = str(options.get("name", "")).strip_edges()
+	if options.has("contact") and not str(options.get("contact", "")).strip_edges().is_empty():
+		body["contact"] = str(options.get("contact", "")).strip_edges()
+	if options.has("reason"):
+		var reason := int(options.get("reason", 0))
+		if reason >= 0:
+			body["reason"] = reason
+	if options.has("platforms") and not str(options.get("platforms", "")).strip_edges().is_empty():
+		body["platforms"] = str(options.get("platforms", "")).strip_edges().to_upper()
+	if options.has("game_name_id") and not str(options.get("game_name_id", "")).strip_edges().is_empty():
+		body["game_name_id"] = str(options.get("game_name_id", "")).strip_edges()
+	return _transport.build_request(
+		"POST",
+		"/report",
+		{},
+		body,
+		_build_form_headers(true),
+		{"content_type": ModioHttpTransport.CONTENT_TYPE_FORM, "auth_mode": "bearer"}
 	)
 
 func build_subscribe_request(mod_id: String, include_dependencies: bool = false) -> Dictionary:
@@ -293,7 +373,8 @@ func normalize_game_response(payload: Dictionary) -> Dictionary:
 		"platforms": _normalize_game_platforms(payload.get("platforms", [])),
 		"theme": _normalize_dictionary(payload.get("theme", {})),
 		"stats": _normalize_dictionary(payload.get("stats", {})),
-		"download_policy": interpret_game_download_policy(payload)
+		"download_policy": interpret_game_download_policy(payload),
+		"community_policy": interpret_game_community_policy(payload)
 	}
 
 func normalize_mod_list_response(payload: Dictionary) -> Dictionary:
@@ -304,6 +385,32 @@ func normalize_mod_detail_response(payload: Dictionary) -> Dictionary:
 
 func normalize_modfiles_response(payload: Dictionary) -> Dictionary:
 	return _normalize_list_payload(payload, Callable(self, "_normalize_modfile_object"))
+
+func normalize_modfile_response(payload: Dictionary) -> Dictionary:
+	return _normalize_modfile_object(payload)
+
+func normalize_mod_stats_response(payload: Dictionary) -> Dictionary:
+	var normalized := _normalize_stats_object(payload)
+	var now := Time.get_unix_time_from_system()
+	normalized["has_expiry"] = normalized.date_expires > 0
+	normalized["is_stale"] = normalized.date_expires > 0 and normalized.date_expires <= now
+	return normalized
+
+func normalize_user_ratings_response(payload: Dictionary) -> Dictionary:
+	return _normalize_list_payload(payload, Callable(self, "_normalize_rating_object"))
+
+func normalize_message_response(payload: Dictionary) -> Dictionary:
+	return {
+		"code": int(payload.get("code", 0)),
+		"message": str(payload.get("message", "")),
+		"success": int(payload.get("code", 0)) >= 200 and int(payload.get("code", 0)) < 300
+	}
+
+func normalize_add_mod_rating_response(payload: Dictionary) -> Dictionary:
+	return normalize_message_response(payload)
+
+func normalize_report_response(payload: Dictionary) -> Dictionary:
+	return normalize_message_response(payload)
 
 func normalize_dependencies_response(payload: Dictionary, recursive_requested: bool = false) -> Dictionary:
 	var normalized := _normalize_list_payload(payload, Callable(self, "_normalize_dependency_object"))
@@ -318,11 +425,7 @@ func normalize_subscriptions_response(payload: Dictionary) -> Dictionary:
 	return normalize_mod_list_response(payload)
 
 func normalize_logout_response(payload: Dictionary) -> Dictionary:
-	return {
-		"code": int(payload.get("code", 0)),
-		"message": str(payload.get("message", "")),
-		"success": int(payload.get("code", 0)) >= 200 and int(payload.get("code", 0)) < 300
-	}
+	return normalize_message_response(payload)
 
 func normalize_subscription_write_response(status_code: int, headers: Dictionary, payload: Dictionary) -> Dictionary:
 	var response := _transport.normalize_response(status_code, headers, payload)
@@ -376,6 +479,17 @@ func interpret_game_download_policy(game_payload: Dictionary) -> Dictionary:
 		"delivery_urls_require_api_resolution": not allows_direct_downloads,
 		"dependencies_enabled": dependency_option != DEPENDENCY_OPTION_DISALLOW,
 		"dependency_mode": _dependency_option_to_string(dependency_option)
+	}
+
+func interpret_game_community_policy(game_payload: Dictionary) -> Dictionary:
+	var community_options := int(game_payload.get("community_options", 0))
+	return {
+		"community_options": community_options,
+		"allows_mod_comments": (community_options & COMMUNITY_OPTION_ALLOW_MOD_COMMENTS) != 0,
+		"allows_guides": (community_options & COMMUNITY_OPTION_ALLOW_GUIDES) != 0,
+		"allows_negative_ratings": (community_options & COMMUNITY_OPTION_ALLOW_NEGATIVE_RATINGS) != 0,
+		"allows_dependencies": (community_options & COMMUNITY_OPTION_ALLOW_DEPENDENCY) != 0,
+		"allows_guide_comments": (community_options & COMMUNITY_OPTION_ALLOW_GUIDE_COMMENTS) != 0
 	}
 
 func resolve_artifact_record_from_mod_detail(mod_payload: Dictionary, game_payload: Dictionary = {}) -> Dictionary:
@@ -553,6 +667,22 @@ func _normalize_stats_object(payload: Dictionary) -> Dictionary:
 		"ratings_weighted_aggregate": float(payload.get("ratings_weighted_aggregate", 0.0)),
 		"ratings_display_text": str(payload.get("ratings_display_text", "")),
 		"date_expires": int(payload.get("date_expires", 0))
+	}
+
+func _normalize_rating_object(payload: Dictionary) -> Dictionary:
+	var raw_rating := int(payload.get("rating", 0))
+	var resource_type := str(payload.get("resource_type", "")).to_lower()
+	var resource_id := int(payload.get("resource_id", 0))
+	return {
+		"game_id": int(payload.get("game_id", 0)),
+		"mod_id": int(payload.get("mod_id", 0)),
+		"resource_type": resource_type,
+		"resource_id": resource_id,
+		"rating": raw_rating,
+		"is_positive": raw_rating > 0,
+		"is_negative": raw_rating < 0,
+		"sentiment": "positive" if raw_rating > 0 else "negative" if raw_rating < 0 else "neutral",
+		"date_added": int(payload.get("date_added", 0))
 	}
 
 func _normalize_modfile_object(payload: Dictionary) -> Dictionary:

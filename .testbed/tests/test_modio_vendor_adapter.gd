@@ -98,6 +98,12 @@ func test_builds_browse_and_detail_requests_with_endpoint_aware_query_shapes() -
 	assert_false(modfiles_request.query.has("status"))
 	assert_false(modfiles_request.query.has("submitted_by"))
 
+	var modfile_request = adapter.build_modfile_request("1001", "5002")
+	assert_eq(modfile_request.path, "/games/777/mods/1001/files/5002")
+
+	var mod_stats_request = adapter.build_mod_stats_request("1001")
+	assert_eq(mod_stats_request.path, "/games/777/mods/1001/stats")
+
 func test_builds_authenticated_subscription_requests_and_gates_unsupported_filters() -> void:
 	var adapter := _build_adapter_with_token()
 
@@ -132,6 +138,45 @@ func test_builds_authenticated_subscription_requests_and_gates_unsupported_filte
 	assert_eq(subscribed_request.query.status, "1")
 	assert_eq(subscribed_request.query.visible, "1")
 	assert_eq(subscribed_request.query.submitted_by, "55")
+
+	var ratings_query := ModioListingQuery.new("", PackedStringArray(), 50, 0, "", PackedStringArray(), PackedStringArray(), "", {}, "", "", -1, -1, "", "777", "1001", -1, "mods", 1777800001)
+	var user_ratings_request = adapter.build_user_ratings_request(ratings_query)
+	assert_eq(user_ratings_request.path, "/me/ratings")
+	assert_eq(user_ratings_request.headers.Authorization, "Bearer user-token")
+	assert_eq(user_ratings_request.query.game_id, "777")
+	assert_eq(user_ratings_request.query.mod_id, "1001")
+	assert_eq(user_ratings_request.query.rating, "-1")
+	assert_eq(user_ratings_request.query.resource_type, "mods")
+	assert_eq(user_ratings_request.query.date_added, "1777800001")
+	assert_false(user_ratings_request.query.has("api_key"))
+
+	var default_user_ratings_request = adapter.build_user_ratings_request()
+	assert_eq(default_user_ratings_request.query.resource_type, "mods")
+	assert_eq(default_user_ratings_request.query.game_id, "777")
+
+	var add_rating_request = adapter.build_add_mod_rating_request("1001", -1)
+	assert_eq(add_rating_request.method, "POST")
+	assert_eq(add_rating_request.path, "/games/777/mods/1001/ratings")
+	assert_eq(add_rating_request.headers.Authorization, "Bearer user-token")
+	assert_eq(add_rating_request.body.rating, "-1")
+
+	var report_request = adapter.build_submit_report_request("mods", "1001", 2, "  crashes after song load  ", {
+		"name": "Player One",
+		"contact": "player@example.com",
+		"reason": 6,
+		"platforms": "windows",
+		"game_name_id": "aerobeat"
+	})
+	assert_eq(report_request.method, "POST")
+	assert_eq(report_request.path, "/report")
+	assert_eq(report_request.headers.Authorization, "Bearer user-token")
+	assert_eq(report_request.body.resource, "MODS")
+	assert_eq(report_request.body.id, "1001")
+	assert_eq(report_request.body.type, "2")
+	assert_eq(report_request.body.summary, "crashes after song load")
+	assert_eq(report_request.body.reason, "6")
+	assert_eq(report_request.body.platforms, "WINDOWS")
+	assert_eq(report_request.body.game_name_id, "aerobeat")
 
 	var subscribe_request = adapter.build_subscribe_request("1001", true)
 	assert_eq(subscribe_request.method, "POST")
@@ -207,6 +252,9 @@ func test_normalizes_fixture_payloads_for_richer_slice() -> void:
 	assert_true(game.download_policy.allows_direct_downloads)
 	assert_true(game.download_policy.requires_authenticated_download)
 	assert_false(game.download_policy.requires_entitlement_download)
+	assert_true(game.community_policy.allows_mod_comments)
+	assert_false(game.community_policy.allows_dependencies)
+	assert_false(game.community_policy.allows_negative_ratings)
 	assert_eq(game.tag_options[0].name, "Difficulty")
 	assert_eq(game.platforms[0].platform, "WINDOWS")
 	assert_eq(game.theme.primary, "#101820")
@@ -241,10 +289,37 @@ func test_normalizes_fixture_payloads_for_richer_slice() -> void:
 	assert_eq(modfiles.data[0].platforms[1].platform, "SOURCE")
 	assert_eq(modfiles.page.page_count, 1)
 
+	var modfile_detail = adapter.normalize_modfile_response(_fixture("modfile_detail.json"))
+	assert_eq(modfile_detail.id, 5002)
+	assert_eq(modfile_detail.filehash.md5, "def456md5")
+	assert_eq(modfile_detail.download.binary_url, "https://api.mod.io/v1/games/777/mods/1001/files/5002/download/hash456")
+
+	var mod_stats = adapter.normalize_mod_stats_response(_fixture("mod_stats.json"))
+	assert_eq(mod_stats.mod_id, 1001)
+	assert_eq(mod_stats.ratings_negative, 6)
+	assert_true(mod_stats.has_expiry)
+	assert_false(mod_stats.is_stale)
+
+	var user_ratings = adapter.normalize_user_ratings_response(_fixture("user_ratings.json"))
+	assert_eq(user_ratings.data.size(), 2)
+	assert_true(user_ratings.data[0].is_positive)
+	assert_false(user_ratings.data[0].is_negative)
+	assert_true(user_ratings.data[1].is_negative)
+	assert_eq(user_ratings.data[1].rating, -1)
+	assert_eq(user_ratings.page.page_count, 1)
+
 	var subscriptions = adapter.normalize_subscriptions_response(_fixture("subscribed.json"))
 	assert_eq(subscriptions.result_total, 3)
 	assert_true(subscriptions.page.has_next)
 	assert_eq(subscriptions.data[0].id, 1001)
+
+	var add_rating = adapter.normalize_add_mod_rating_response(_fixture("add_mod_rating_success.json"))
+	assert_true(add_rating.success)
+	assert_eq(add_rating.message, "response_mod_rating_added")
+
+	var report = adapter.normalize_report_response(_fixture("report_success.json"))
+	assert_true(report.success)
+	assert_eq(report.message, "response_report_add")
 
 	var logout = adapter.normalize_logout_response(_fixture("logout_success.json"))
 	assert_true(logout.success)
@@ -368,6 +443,34 @@ func test_normalizes_subscription_write_success_variants() -> void:
 	var existing = adapter.normalize_subscription_write_response(200, {}, payload)
 	assert_true(existing.ok)
 	assert_true(existing.already_subscribed)
+
+func test_normalizes_rating_and_report_error_variants() -> void:
+	var adapter := _build_adapter_with_token()
+
+	var rating_exists = adapter.normalize_transport_response(409, {}, _fixture("rating_already_exists_error.json"))
+	assert_false(rating_exists.ok)
+	assert_eq(rating_exists.error.category, "conflict")
+	assert_eq(rating_exists.error.error_ref, 15028)
+
+	var rating_missing = adapter.normalize_transport_response(409, {}, _fixture("rating_revert_missing_error.json"))
+	assert_false(rating_missing.ok)
+	assert_eq(rating_missing.error.category, "conflict")
+	assert_eq(rating_missing.error.error_ref, 15043)
+
+	var report_permission = adapter.normalize_transport_response(403, {}, _fixture("report_permission_error.json"))
+	assert_false(report_permission.ok)
+	assert_eq(report_permission.error.category, "forbidden")
+	assert_eq(report_permission.error.error_ref, 15029)
+
+	var report_unavailable = adapter.normalize_transport_response(403, {}, _fixture("report_unavailable_error.json"))
+	assert_false(report_unavailable.ok)
+	assert_eq(report_unavailable.error.category, "forbidden")
+	assert_eq(report_unavailable.error.error_ref, 15030)
+
+	var report_not_found = adapter.normalize_transport_response(404, {}, _fixture("report_not_found_error.json"))
+	assert_false(report_not_found.ok)
+	assert_eq(report_not_found.error.category, "not_found")
+	assert_eq(report_not_found.error.error_ref, 14000)
 
 func _build_adapter() -> ModioVendorAdapter:
 	return ModioVendorAdapter.new(
