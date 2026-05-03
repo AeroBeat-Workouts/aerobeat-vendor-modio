@@ -187,9 +187,9 @@ Also re-verified that README + seam docs are truthful about the social-mutation 
 - implementation/tests/docs as needed
 - `.plans/2026-05-03-aerobeat-vendor-modio-social-mutation-coverage.md`
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** Auditor truth-check passed against the refreshed local official corpus (`modio-docs`, `modio-sdk`, `modio-unity`) with no residual drift found in the social-mutation slice. Confirmed all 6 write routes match the corpus for path/method/auth mode: `POST /users/{user-id}/following`, `DELETE /users/{user-id}/following/{target-user-id}`, `POST /users/{user-id}/mute`, `DELETE /users/{user-id}/mute`, `POST /games/{game-id}/collections/{collection-id}/followers`, and `DELETE /games/{game-id}/collections/{collection-id}/followers` all stay form-encoded and bearer-authenticated. Confirmed follow-user preserves the documented redundant `user_id` body field for the target user. Confirmed the repo reuses a shared `204 No Content` normalization helper for unfollow/mute/unmute + collection unfollow, returning empty `data` without inventing payloads. Confirmed collection-follow truthfully preserves provider semantics by normalizing the returned collection object, surfacing `already_followed := (status == 200)`, and passing through `location`; the refreshed corpus still supports both `200` already-followed/no-op success and `201` created-style success handling. Confirmed README/docs remain truthful about the seam and that collection subscribe/unsubscribe remains explicitly deferred, preserving the vendor-local boundary. Repo-local validation rerun passed: `godot --headless --path .testbed --import`; `godot --headless --path .testbed --script res://tests/validate_scaffold.gd`; `godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit` → 44/44 tests passed. No code/docs changes were necessary beyond this audit-plan status update.
 
 ---
 
