@@ -162,7 +162,10 @@ func to_query_dict(endpoint: String = ENDPOINT_MODS) -> Dictionary:
 	if capabilities.has("category") and not category.is_empty():
 		query["category"] = category
 	if capabilities.has("maturity_option") and maturity_option >= 0:
-		query["maturity_option"] = str(maturity_option)
+		if endpoint == ENDPOINT_GAMES:
+			query["maturity_options"] = str(maturity_option)
+		else:
+			query["maturity_option"] = str(maturity_option)
 	if capabilities.has("presentation_option") and presentation_option >= 0:
 		query["presentation_option"] = str(presentation_option)
 	if capabilities.has("submission_option") and submission_option >= 0:

@@ -1185,7 +1185,7 @@ func test_builds_catalog_game_meta_and_taxonomy_requests_with_doc_corrected_path
 	assert_eq(games_request.query.community_options, "258")
 	assert_eq(games_request.query.monetization_options, "1")
 	assert_eq(games_request.query.api_access_options, "7")
-	assert_eq(games_request.query.maturity_option, "0")
+	assert_eq(games_request.query.maturity_options, "0")
 	assert_true(games_request.query.show_hidden_tags)
 
 	var invalid_games_sort := ModioListingQuery.new()

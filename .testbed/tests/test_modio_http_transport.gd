@@ -705,7 +705,7 @@ func test_executes_catalog_game_meta_and_taxonomy_reads_with_doc_corrected_urls(
 	_queued_responses.append({"status_code": 200, "headers": {}, "body": JSON.stringify(_fixture("games.json"))})
 	var games_response := transport.execute(public_adapter.build_games_request(games_query), public_config)
 	assert_true(games_response.ok)
-	assert_eq(_recorded_requests[0].url, "https://api.mod.io/v1/games?_limit=3&_offset=1&_sort=-date_updated&api_access_options=7&api_key=demo-key&community_options=258&curation_option=2&dependency_option=2&instructions_url=https%3A%2F%2Fdocs.aerobeat.example%2Fmods&maturity_option=0&monetization_options=1&name=AeroBeat&presentation_option=0&profanity_option=3&show_hidden_tags=true&status=1&submission_option=1&submitted_by=42&summary=Rhythm%20workouts&ugc_name=mods")
+	assert_eq(_recorded_requests[0].url, "https://api.mod.io/v1/games?_limit=3&_offset=1&_sort=-date_updated&api_access_options=7&api_key=demo-key&community_options=258&curation_option=2&dependency_option=2&instructions_url=https%3A%2F%2Fdocs.aerobeat.example%2Fmods&maturity_options=0&monetization_options=1&name=AeroBeat&presentation_option=0&profanity_option=3&show_hidden_tags=true&status=1&submission_option=1&submitted_by=42&summary=Rhythm%20workouts&ugc_name=mods")
 
 	_queued_responses.append({"status_code": 200, "headers": {}, "body": JSON.stringify(_fixture("game_stats.json"))})
 	var game_stats_response := transport.execute(public_adapter.build_game_stats_request(), public_config)

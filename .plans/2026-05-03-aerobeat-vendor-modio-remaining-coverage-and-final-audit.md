@@ -191,9 +191,28 @@ Scope notes:
 - implementation/tests/docs as needed
 - `.plans/2026-05-03-aerobeat-vendor-modio-remaining-coverage-and-final-audit.md`
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** Independently QA-checked the catalog / game-meta / taxonomy utility batch against the refreshed local official corpus in `REF-08` through `REF-10`.
+
+Exact QA findings:
+- ✅ Request paths/methods verified against local official docs/SDK/Unity for `GET /games`, `GET /games/{game-id}/stats`, `GET /games/{game-id}/tags`, `GET /games/{game-id}/mods/stats`, `GET /games/{game-id}/guides/tags`, `GET /agreements/versions/{agreement-version-id}`, `GET /games/{game-id}/monetization/token-packs`, and `GET /ping`.
+- ✅ The coder’s doc-truth corrections for token packs and agreement-version routes were correct; implementation/tests already used the corrected paths instead of the earlier stale gap-map wording.
+- ✅ Token-pack auth boundary stayed truthful: the local Unity integration requires authentication for `GET /games/{game-id}/monetization/token-packs`, and the repo continues to issue it as bearer-auth without leaking an API key into the request URL.
+- ✅ Normalization/fixtures stayed truthful for the added game stats, game tags, guide tags, agreement-version, token-pack, and ping payloads; no seam-local invention beyond light helper fields already used elsewhere (`has_expiry` / `is_stale` for expiring stats payloads, raw localization/count payload preservation for tag options).
+- ✅ Vendor-local boundaries remained intact: no write routes, authoring/CMS, install orchestration, wallet/purchase flows, or legacy event work were added.
+- ❌ One drift was found and fixed: `GET /games` filter serialization/docs/tests used `maturity_option` (singular), but the refreshed official docs + Unity generator use `maturity_options` (plural) for that endpoint. Fixed the query serialization plus the affected repo-local docs/tests.
+
+Files changed during QA:
+- `src/models/modio_listing_query.gd`
+- `.testbed/tests/test_modio_vendor_adapter.gd`
+- `.testbed/tests/test_modio_http_transport.gd`
+- `docs/modio-seam-plan.md`
+- `.plans/2026-05-03-aerobeat-vendor-modio-remaining-coverage-and-final-audit.md`
+
+Validation evidence after the fix:
+- `godot --headless --path .testbed --script res://tests/validate_scaffold.gd` ✅
+- `godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit` ✅ (`35/35` tests passed, `1100` asserts)
 
 ---
 
