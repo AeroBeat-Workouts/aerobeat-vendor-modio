@@ -143,24 +143,34 @@ Validation evidence:
 - implementation/tests/docs as needed
 - `.plans/2026-05-03-aerobeat-vendor-modio-user-and-social-surface-coverage.md`
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** Independent truth-check passed against the refreshed local official corpus, with the docs mirror in `REF-06` as primary path/auth truth and the generated Unity endpoints in `REF-08` as the paging/auth corroboration source, plus spot checks in `REF-07`. All seven wrapped routes still point at the documented paths: `GET /users/{user-id}/followers`, `GET /users/{user-id}/following`, `GET /users/{user-id}/collections`, `GET /me/followers`, `GET /me/users/muted`, `GET /me/collections`, and `GET /me/following/collections`. The three public-profile `/users/{user-id}/...` builders now correctly preserve GET-time API-key fallback for unauthenticated callers while also sending bearer headers when a token is present, which is the minimum truthful compromise across the docs-visible public routes and the authenticated Unity-generated usage on the follower/following variants.
+
+Pagination shaping still holds exactly as planned: this slice serializes only `_limit` and `_offset`, with unrelated shared filters/sorts/search fields intentionally dropped. Response normalization remains thin and correctly vendor-local: user-list wrappers reuse `_normalize_user_object` + `_normalize_list_payload`, collection-list wrappers reuse `_normalize_collection_object` + `_normalize_list_payload`, and no new product-facing DTO policy leaked into this repo. README and `docs/modio-seam-plan.md` remain truthful about scope, pagination-only shaping, and the boundary that higher-level AeroBeat mapping belongs outside this vendor adapter.
+
+No residual implementation drift was found in this audit pass, so no code changes were required. Validation was rerun after the truth-check.
+
+Validation evidence:
+- Command: `/home/derrick/.local/bin/godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit`
+- Result: `33/33` tests passed, `1007` asserts, exit code `0`
+- Notes: the same `3` pre-existing float/int comparison warnings remained; no new warnings/failures were introduced.
 
 ---
 
 ## Final Results
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**What We Built:** Pending.
+**What We Built:** Added and verified a coherent read-only mod.io user/profile/social/account-state slice for AeroBeat’s vendor adapter: user followers, user following, user collections, authenticated followers, muted users, authenticated collections, and authenticated followed collections. The implementation stays intentionally thin, reuses existing normalization/query primitives, and keeps raw mod.io auth/host/query behavior isolated inside this repo.
 
-**Reference Check:** Pending.
+**Reference Check:** `REF-06` through `REF-08` were satisfied for the shipped seven-route slice. Public path coverage, authenticated `/me` coverage, pagination-only shaping, normalization reuse, and vendor-local boundary discipline all held after the QA auth-fallback correction. No further deviations were required.
 
 **Commits:**
-- Pending.
+- `2b93b1a` - Add mod.io user social read wrappers
+- `d91c7ad` - qa: prefer auth fallback for user social reads
 
-**Lessons Learned:** Pending.
+**Lessons Learned:** For this seam, the local docs mirror is the path/source-of-truth anchor, while generated Unity endpoints are most useful as a secondary check on auth expectations and on how narrow the filter surface should stay. Keeping these user/social reads pagination-only avoided accidental overexposure of shared query fields.
 
 ---
 
