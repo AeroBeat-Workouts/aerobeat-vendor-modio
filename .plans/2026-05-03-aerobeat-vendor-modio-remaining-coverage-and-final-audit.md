@@ -404,24 +404,74 @@ Audit note: because the audit produced only plan-state documentation updates, th
 - `.plans/2026-05-03-aerobeat-vendor-modio-remaining-coverage-and-final-audit.md`
 - optional final audit note(s)
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** Final corpus-vs-repo audit completed against `REF-08` through `REF-10`, with the repo surface confirmed from `REF-11` plus `README.md`, `docs/modio-seam-plan.md`, and the earlier plan trail in `REF-01` through `REF-07`.
+
+Final covered endpoint families:
+- **Auth/session + agreement utility**
+  - OAuth email request/exchange, OpenID, all documented external provider auth variants (Apple, Discord, Epic Games, GOG Galaxy, Google, Meta Quest/Oculus, PSN, Steam, Switch, UDT, Xbox), terms, current agreement, agreement version, authenticated user, logout, and ping.
+- **Catalog / game-meta / taxonomy utility**
+  - `GET /games`, `GET /games/{game-id}`, `GET /games/{game-id}/stats`, `GET /games/{game-id}/tags`, `GET /games/{game-id}/mods/stats`, `GET /games/{game-id}/guides/tags`, and authenticated read-only token-pack discovery at `GET /games/{game-id}/monetization/token-packs`.
+- **Core mod browse/detail/file/state reads**
+  - `GET /games/{game-id}/mods`, `GET /games/{game-id}/mods/{mod-id}`, `GET /games/{game-id}/mods/{mod-id}/files`, `GET /games/{game-id}/mods/{mod-id}/files/{file-id}`, `GET /games/{game-id}/mods/{mod-id}/stats`, dependency reads, dependants, tags, metadata KVP, and team reads.
+- **User inventory/profile/state reads and adjacent writes that stay vendor-local**
+  - `GET /me/games`, `GET /me/mods`, `GET /me/files`, `GET /me/subscribed`, `GET /me/ratings`, mod rating write, report submit, and mod subscribe/unsubscribe.
+- **Guide/community family**
+  - guide list/detail, guide tags, guide comments list/detail/create/update/delete, and guide comment karma.
+- **Collection/community family**
+  - collection list/detail, collection-mod membership reads, collection comments list/detail/create/update/delete, collection comment karma, and collection compatibility rating write.
+- **Read-only user/social/account-state family**
+  - `GET /users/{user-id}/followers`, `GET /users/{user-id}/following`, `GET /users/{user-id}/collections`, `GET /me/followers`, `GET /me/users/muted`, `GET /me/collections`, and `GET /me/following/collections`.
+
+Final intentionally deferred / out-of-scope families:
+- **Authoring / CMS / admin writes**
+  - create/edit/delete game media, mods, guides, collections, mod media, mod tags, mod metadata KVP, mod dependencies, and collection membership management.
+- **Upload / file-pipeline / platform-management surfaces**
+  - add/edit/delete modfiles, source modfiles, multipart upload session/parts lifecycle, browse modfile cooks, finalize cloud cooking, and per-platform status management.
+- **Collection follow/subscribe and install-orchestration edges**
+  - collection follow/unfollow, subscribe/unsubscribe-to-collection-mods, and the broader SDK/plugin install loops these imply.
+- **Write-side social / moderation-policy mutation**
+  - follow/unfollow user, mute/unmute user, and other account-state mutation behavior.
+- **Monetization / purchase / entitlement / partner-team / S2S policy surfaces**
+  - checkout/purchase, wallet, purchases, entitlements, monetization-team management, transaction endpoints, and S2S connection/disconnect flows.
+- **Legacy event feeds**
+  - `/me/events`, `/games/{game-id}/mods/events`, and `/games/{game-id}/mods/{mod-id}/events`.
+
+Final missed clean vendor-local surfaces:
+- **None found.** After the corpus refresh and explicit correction pass, no remaining uncovered family met all of these conditions at once: clearly documented in the refreshed official local corpus, cleanly vendor-local for this adapter, and not already covered by an existing wrapped route under the corrected path/auth truth. The main apparent gaps from earlier wording all resolved into corpus-truth corrections rather than real misses:
+  - user inventory is the authenticated `/me/games`, `/me/mods`, and `/me/files` family, not undocumented `/users/{user-id}/...` aliases
+  - mod collection pages still resolve to the already wrapped game-scoped collection routes rather than mod-scoped aliases
+  - token packs live on `/games/{game-id}/monetization/token-packs`
+  - agreement-version reads live on `/agreements/versions/{agreement-version-id}`
+  - GOG Galaxy / Xbox auth live on `/external/galaxyauth` and `/external/xboxauth`
+  - mod metadata KVP lives on `/metadatakvp`
+
+Corpus-correction truth check:
+- ✅ The repo/docs/plan trail now consistently reflects the corrected authenticated user inventory routes (`/me/games`, `/me/mods`, `/me/files`), game-scoped collection reads, token-pack monetization route, agreement-version route, `metadatakvp`, `galaxyauth`, `xboxauth`, and the `maturity_options` fix for game listing filters.
+- ✅ Residual disagreement remains upstream rather than in this repo: the refreshed Unity-generated request objects still drift from refreshed REST docs / SDK guidance on Google and Epic auth request fields, while this repo matches the refreshed REST docs / SDK contract and the generated Unity endpoint paths.
+
+Validation evidence for the final audit:
+- `grep -n "^[[:space:]]*func build_" src/modio_vendor_adapter.gd`
+- `grep -RInE "galaxyauth|xboxauth|maturity_options|metadatakvp|/me/games|/me/mods|/me/files|monetization/token-packs|agreements/versions" README.md docs/modio-seam-plan.md .plans/2026-05-03-aerobeat-vendor-modio-remaining-coverage-and-final-audit.md .plans/2026-05-03-aerobeat-vendor-modio-doc-truth-and-repo-audit.md`
+- `python3` inventory passes over `modio-docs/public/en-us/restapi/docs/*.api.mdx` to enumerate the remaining official families and spot-check corrected pages such as `get-user-games.api.mdx`, `get-mod-collections.api.mdx`, `get-game-token-packs.api.mdx`, `get-agreement-version.api.mdx`, `authenticate-via-gog-galaxy.api.mdx`, and `authenticate-via-xbox-live.api.mdx`
+- `godot --headless --path .testbed --script res://tests/validate_scaffold.gd`
+- `godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit` ✅ (`42/42` tests passed, `1323` asserts)
 
 ---
 
 ## Final Results
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**What We Built:** Pending.
+**What We Built:** The repo now truthfully covers the clean vendor-local mod.io seam for AeroBeat across auth/session, external auth parity, game/catalog meta, core mod browse/detail/file/state reads, dependency/community reads, guides, collections, authenticated user inventory/state, read-only user/social/account-state reads, ratings/reporting, and subscription flows. The remaining official corpus families now cluster on intentionally deferred policy-heavy or pipeline-heavy surfaces rather than missed clean adapter work.
 
-**Reference Check:** Pending.
+**Reference Check:** `REF-08` through `REF-10` remain the source of truth for the final surface classification, while `REF-01` through `REF-07` show the correction trail from stale wording to final repo truth. The final audit confirmed that prior corpus corrections are reflected consistently in code/docs/plan state: `/me/games|mods|files`, game-scoped collections, `metadatakvp`, `/games/{game-id}/monetization/token-packs`, `/agreements/versions/{agreement-version-id}`, `/external/galaxyauth`, `/external/xboxauth`, and `maturity_options` for game-list filtering.
 
 **Commits:**
-- Pending.
+- `fd5e676` - docs: record final modio corpus gap audit
 
-**Lessons Learned:** Pending.
+**Lessons Learned:** The biggest remaining audit risk was not missing giant endpoint families; it was trusting endpoint titles or earlier wording instead of the actual refreshed page path/schema contract. In this corpus, several deceptive names (`Get User Games`, `Get Mod Collections`, provider auth page titles) only stay truthful if we check the concrete `MethodEndpoint` path and request schema every time.
 
 ---
 
