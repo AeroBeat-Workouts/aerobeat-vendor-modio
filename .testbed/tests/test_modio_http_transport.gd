@@ -306,6 +306,12 @@ func test_executes_guide_requests_with_documented_urls_filters_and_form_bodies()
 	assert_eq(_recorded_requests[8].url, "https://g-777.modapi.io/v1/games/777/guides/7001/comments/9902/karma")
 	assert_eq(_recorded_requests[8].body_string, "karma=-1")
 
+	_queue_json_response(403, _fixture("guide_comment_karma_downvote_disabled_error.json"))
+	var guide_karma_forbidden_response := transport.execute(auth_adapter.build_add_guide_comment_karma_request("7001", "9902", -1), auth_config)
+	assert_false(guide_karma_forbidden_response.ok)
+	assert_eq(guide_karma_forbidden_response.error.category, "forbidden")
+	assert_eq(guide_karma_forbidden_response.error.error_ref, 19045)
+
 func test_executes_mod_comment_requests_with_documented_urls_and_form_bodies() -> void:
 	var public_config := ModioClientConfig.new("777", "demo-key", "https://api.mod.io/v1/", "", "en-US", "steam", "WINDOWS")
 	var auth_config := ModioClientConfig.new("777", "demo-key", "", "user-token", "en-US", "steam", "WINDOWS", ModioClientConfig.HOST_GAME)

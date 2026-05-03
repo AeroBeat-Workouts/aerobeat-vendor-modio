@@ -202,24 +202,24 @@ Execution-ready recommendation:
 - implementation/tests/docs as needed
 - `.plans/2026-05-02-aerobeat-vendor-modio-adjacent-comment-surfaces.md`
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** Performed an independent truth-check of the guide discovery/read + guide comments batch against the current local official `modio-docs` REST mirror first, then sanity-checked the surrounding contract against the pinned `modio-sdk` / `modio-unity` references. Confirmed the guide list/detail and guide comment list/detail/create/update/delete request builders still match the current docs, guide `_sort` remains restricted to the documented keys only, guide-comment query gating still matches the documented subset, and the guide/guide-comment normalization helpers still match the current Guide Object / Comment Object shapes while preserving the QA-added seam-local convenience fields (`resource_type`, `allows_comments`, flattened visit/comment counts). Found one remaining guide-specific drift in the error surface: the current official `POST /games/{game-id}/guides/{guide-id}/comments/{comment-id}/karma` docs use error ref `19045` for disabled guide downvotes, but the transport categorizer/tests only covered the mod-comment variant `15095`. Applied the minimum fix in `src/network/modio_http_transport.gd`, added a focused guide fixture + adapter/transport coverage, and re-ran repo-local validation successfully with `godot --headless --path .testbed --import`, `godot --headless --path .testbed --script res://tests/validate_scaffold.gd`, and `godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit` (27/27 tests passed, 715 asserts, 3 pre-existing float/int warnings). Vendor concerns remain local to this repo and no unintended drift remains in the audited guide surface.
 
 ---
 
 ## Final Results
 
-**Status:** ⏳ In Progress
+**Status:** ✅ Complete
 
-**What We Built:** Research complete. The execution-ready next batch is guide discovery/read plus guide comments, with collection-adjacent and authoring/install-policy surfaces intentionally deferred.
+**What We Built:** The repo now includes an audited guide discovery/read + guide comments slice on top of the existing mod.io vendor seam: guide list/detail request builders, guide comment list/detail/create/update/delete/karma request builders, documented guide/query gating, Guide Object / Comment Object normalization plus the intended seam-local convenience fields, and fixture-driven adapter/transport coverage derived from the current official docs.
 
-**Reference Check:** Research grounded in the current local official `modio-docs` REST mirror first, with `modio-sdk` and `modio-unity` used only as secondary sanity checks.
+**Reference Check:** Research, QA, and audit all used the current local official `modio-docs` REST mirror as the primary truth source, with `modio-sdk` and `modio-unity` used only as secondary sanity checks. Final audit confirmed the QA guide `_sort` / normalization fixes and added the remaining guide-specific karma error-ref coverage (`19045`) required by the current docs.
 
 **Commits:**
-- Pending
+- Pending final auditor commit/push for the `19045` guide-comment-karma audit fix and plan update.
 
-**Lessons Learned:** The closest comment-adjacent REST surface is not automatically the best next seam slice. Collections are comment-adjacent in the API, but guides are the cleaner next batch because the repo already exposes guide-related game capability bits and collections pull harder on downloader/install/orchestration policy.
+**Lessons Learned:** The closest comment-adjacent REST surface is not automatically the best next seam slice. Collections are comment-adjacent in the API, but guides are the cleaner next batch because the repo already exposes guide-related game capability bits and collections pull harder on downloader/install/orchestration policy. The audit also showed that mod-vs-guide comment endpoints can differ in small but meaningful error-ref details even when their payload shapes are otherwise shared.
 
 ---
 

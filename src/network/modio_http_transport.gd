@@ -379,7 +379,7 @@ func _categorize_error(status_code: int, error_ref: int) -> String:
 		return "auth"
 	if error_ref in [15090, 15028, 15043, 15059]:
 		return "conflict"
-	if status_code == 403 or error_ref in [15042, 15055, 15095, 29611]:
+	if status_code == 403 or error_ref in [15042, 15055, 15095, 19045, 29611]:
 		return "forbidden"
 	if status_code == 404 or error_ref in [14000, 14001, 15010, 15022, 15023]:
 		return "not_found"

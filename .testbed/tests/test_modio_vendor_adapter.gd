@@ -613,6 +613,11 @@ func test_normalizes_guides_and_guide_comment_fixture_payloads() -> void:
 	assert_eq(karma_updated_guide_comment.karma, 0)
 	assert_true(karma_updated_guide_comment.is_locked)
 
+	var guide_karma_downvote_disabled = adapter.normalize_transport_response(403, {}, _fixture("guide_comment_karma_downvote_disabled_error.json"))
+	assert_false(guide_karma_downvote_disabled.ok)
+	assert_eq(guide_karma_downvote_disabled.error.category, "forbidden")
+	assert_eq(guide_karma_downvote_disabled.error.error_ref, 19045)
+
 func test_resolves_download_requests_from_modfile_metadata_not_download_endpoint() -> void:
 	var adapter := _build_adapter_with_token()
 	var modfile_payload: Dictionary = _fixture("modfiles.json").data[0]
