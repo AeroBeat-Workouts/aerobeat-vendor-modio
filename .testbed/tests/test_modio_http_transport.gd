@@ -390,7 +390,7 @@ func test_executes_collection_requests_with_documented_urls_filters_and_form_bod
 	_queue_json_response(200, _fixture("mods.json"))
 	var collection_mods_response := transport.execute(public_adapter.build_collection_mods_request("3001", collection_mods_query), public_config)
 	assert_true(collection_mods_response.ok)
-	assert_eq(_recorded_requests[3].url, "https://api.mod.io/v1/games/777/collections/3001/mods?_limit=5&_offset=10&_sort=-downloads_total&api_key=demo-key&maturity_option=8&show_hidden_mods=true")
+	assert_eq(_recorded_requests[3].url, "https://api.mod.io/v1/games/777/collections/3001/mods?_limit=5&_offset=10&_sort=-downloads_total&api_key=demo-key")
 
 	var invalid_collection_mod_sort_query := ModioListingQuery.new()
 	invalid_collection_mod_sort_query.sort = "-ratings_weighted_aggregate"

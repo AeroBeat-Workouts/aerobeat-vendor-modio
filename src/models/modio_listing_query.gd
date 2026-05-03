@@ -202,9 +202,7 @@ func _get_capabilities(endpoint: String) -> PackedStringArray:
 			])
 		ENDPOINT_COLLECTION_MODS:
 			return PackedStringArray([
-				"sort",
-				"maturity_option",
-				"show_hidden_mods"
+				"sort"
 			])
 		ENDPOINT_COLLECTION_COMMENTS:
 			return PackedStringArray([
