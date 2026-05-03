@@ -139,12 +139,14 @@ The recommendation stays inside the vendor boundary: it adds raw mod.io comment 
 - `.plans/`
 
 **Files Created/Deleted/Modified:**
-- implementation/tests/docs as needed
+- `src/models/modio_listing_query.gd`
+- `.testbed/tests/test_modio_vendor_adapter.gd`
+- `.testbed/tests/test_modio_http_transport.gd`
 - `.plans/2026-05-02-aerobeat-vendor-modio-comments-and-discussion-coverage.md`
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** Independently re-verified the threaded mod comment batch against the current local official `modio-docs` REST mirror first, then cross-checked the comment request surface against the pinned `modio-sdk` and `modio-unity` refs. Confirmed list/detail/create/update/delete/karma request builders still match the current docs, comment normalization still preserves the raw provider fields while adding only the light repo-local helpers (`is_reply`, `thread_depth`, `is_pinned`, `is_locked`, `option_flags`, `resource_type`), and the `PUT` transport path remains correct and consistent with the documented `application/x-www-form-urlencoded` update body used elsewhere in this repo. Found one concrete docs mismatch in the comment query gating: `GET /games/{game-id}/mods/{mod-id}/comments` still documents the deprecated-but-supported `mod_id` filter, but `ModioListingQuery` was suppressing it for comment requests and the request/transport tests were locking that omission in. Applied the minimum fix by allowing `mod_id` for `ENDPOINT_MOD_COMMENTS` and extending the request/transport assertions to require it. Re-ran repo-local validation successfully with `godot --headless --path .testbed --script res://tests/validate_scaffold.gd` and `godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit` (24/24 tests passed, 573 asserts, 3 pre-existing float/int warnings). Vendor-specific behavior remains local to this repo and no cross-repo policy/orchestration concerns were introduced.
 
 ---
 

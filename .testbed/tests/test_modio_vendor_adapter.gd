@@ -211,7 +211,7 @@ func test_builds_mod_comment_requests_with_doc_gated_filters_and_auth_modes() ->
 		1,
 		"77",
 		"",
-		"",
+		"1001",
 		0,
 		"",
 		1777801300,
@@ -228,6 +228,7 @@ func test_builds_mod_comment_requests_with_doc_gated_filters_and_auth_modes() ->
 	assert_eq(comments_request.auth_mode, "api_key_query")
 	assert_eq(comments_request.query.api_key, "demo-key")
 	assert_eq(comments_request.query.id, "9002")
+	assert_eq(comments_request.query.mod_id, "1001")
 	assert_eq(comments_request.query.resource_id, "1001")
 	assert_eq(comments_request.query.submitted_by, "77")
 	assert_eq(comments_request.query.date_added, "1777801300")

@@ -223,7 +223,7 @@ func test_executes_mod_comment_requests_with_documented_urls_and_form_bodies() -
 		1,
 		"77",
 		"",
-		"",
+		"1001",
 		0,
 		"",
 		1777801300,
@@ -237,7 +237,7 @@ func test_executes_mod_comment_requests_with_documented_urls_and_form_bodies() -
 	_queue_json_response(200, _fixture("comments_list.json"))
 	var comments_response := transport.execute(public_adapter.build_mod_comments_request("1001", comment_query), public_config)
 	assert_true(comments_response.ok)
-	assert_eq(_recorded_requests[0].url, "https://api.mod.io/v1/games/777/mods/1001/comments?_limit=15&_offset=30&api_key=demo-key&content=Second-level%20reply&date_added=1777801300&id=9002&karma=-1&reply_id=9001&resource_id=1001&submitted_by=77&thread_position=01.01")
+	assert_eq(_recorded_requests[0].url, "https://api.mod.io/v1/games/777/mods/1001/comments?_limit=15&_offset=30&api_key=demo-key&content=Second-level%20reply&date_added=1777801300&id=9002&karma=-1&mod_id=1001&reply_id=9001&resource_id=1001&submitted_by=77&thread_position=01.01")
 
 	_queue_json_response(200, _fixture("comment_detail.json"))
 	var comment_response := transport.execute(public_adapter.build_mod_comment_request("1001", "9002"), public_config)

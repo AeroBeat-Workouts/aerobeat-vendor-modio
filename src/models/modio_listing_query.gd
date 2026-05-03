@@ -146,6 +146,7 @@ func _get_capabilities(endpoint: String) -> PackedStringArray:
 		ENDPOINT_MOD_COMMENTS:
 			return PackedStringArray([
 				"id",
+				"mod_id",
 				"resource_id",
 				"submitted_by",
 				"date_added",
