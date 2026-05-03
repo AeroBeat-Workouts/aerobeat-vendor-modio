@@ -988,6 +988,114 @@ func test_executes_catalog_game_meta_and_taxonomy_reads_with_doc_corrected_urls(
 	assert_true(ping_response.ok)
 	assert_eq(_recorded_requests[7].url, "https://api.mod.io/v1/ping")
 
+func test_executes_guide_authoring_requests_with_documented_multipart_and_validation() -> void:
+	var auth_config := ModioClientConfig.new("777", "demo-key", "", "user-token", "en-US", "steam", "WINDOWS", ModioClientConfig.HOST_GAME)
+	var transport := ModioHttpTransport.new(Callable(self, "_transport_double"))
+	var auth_adapter := ModioVendorAdapter.new(auth_config, transport)
+
+	_queue_json_response(201, _fixture("guide_detail.json"), {"Location": "/games/777/guides/7001"})
+	var create_response := transport.execute(auth_adapter.build_add_guide_request({
+		"name": "Getting Started",
+		"summary": "A practical intro guide for your first AeroBeat routine.",
+		"description": "<h2>Warm up</h2><p>Keep moving.</p>",
+		"logo": "@/tmp/guide.png",
+		"status": 1,
+		"community_options": 2048,
+		"tags": ["Instructions", "Beginner"]
+	}), auth_config, {"multipart_boundary": "TEST-BOUNDARY"})
+	assert_true(create_response.ok)
+	assert_eq(_recorded_requests[0].method, "POST")
+	assert_eq(_recorded_requests[0].url, "https://g-777.modapi.io/v1/games/777/guides")
+	assert_eq(_recorded_requests[0].headers.Authorization, "Bearer user-token")
+	assert_eq(_recorded_requests[0].headers["Content-Type"], "multipart/form-data; boundary=TEST-BOUNDARY")
+	assert_string_contains(_recorded_requests[0].body_string, 'name="name"')
+	assert_string_contains(_recorded_requests[0].body_string, "Getting Started")
+	assert_string_contains(_recorded_requests[0].body_string, 'name="tags[]"')
+	assert_string_contains(_recorded_requests[0].body_string, "Instructions")
+	assert_string_contains(_recorded_requests[0].body_string, "Beginner")
+	assert_string_contains(_recorded_requests[0].body_string, "@/tmp/guide.png")
+
+	_queue_json_response(200, _fixture("guide_detail.json"))
+	var update_response := transport.execute(auth_adapter.build_update_guide_request("7001", {
+		"status": 1,
+		"name_id": "guide-v2",
+		"url": "https://guides.example.com/aerobeat",
+		"tags": []
+	}), auth_config, {"multipart_boundary": "TEST-BOUNDARY"})
+	assert_true(update_response.ok)
+	assert_eq(_recorded_requests[1].url, "https://g-777.modapi.io/v1/games/777/guides/7001")
+	assert_string_contains(_recorded_requests[1].body_string, 'name="url"')
+	assert_string_contains(_recorded_requests[1].body_string, 'name="tags[]"')
+
+	_queue_response({"status_code": 204, "headers": {}, "body": ""})
+	var delete_response := transport.execute(auth_adapter.build_delete_guide_request("7001"), auth_config)
+	assert_true(delete_response.ok)
+	assert_eq(_recorded_requests[2].method, "DELETE")
+	assert_eq(_recorded_requests[2].url, "https://g-777.modapi.io/v1/games/777/guides/7001")
+	assert_eq(_recorded_requests[2].body_string, "")
+
+	var invalid_response := transport.execute(auth_adapter.build_add_guide_request({
+		"name": "Tiny",
+		"summary": "short",
+		"description": "desc",
+		"logo": "logo.png",
+		"tags": ["repeat", "repeat"]
+	}), auth_config)
+	assert_false(invalid_response.ok)
+	assert_eq(invalid_response.error.category, "transport")
+	assert_string_contains(invalid_response.error.message, "summary must be at least 20 characters")
+
+func test_executes_collection_authoring_requests_with_documented_multipart_and_delete_form_body() -> void:
+	var auth_config := ModioClientConfig.new("777", "demo-key", "", "user-token", "en-US", "steam", "WINDOWS", ModioClientConfig.HOST_GAME)
+	var transport := ModioHttpTransport.new(Callable(self, "_transport_double"))
+	var auth_adapter := ModioVendorAdapter.new(auth_config, transport)
+
+	_queue_json_response(201, _fixture("collection_detail.json"), {"Location": "/games/777/collections/3001"})
+	var create_response := transport.execute(auth_adapter.build_add_collection_request({
+		"name": "Starter Bundle",
+		"summary": "A bundle of cardio-friendly starter mods.",
+		"category": 2,
+		"description": "All the essentials.",
+		"logo": "@/tmp/collection.png",
+		"status": 1,
+		"visible": 1,
+		"tags": ["GAMEPLAY", "AUDIO"],
+		"mod_ids": [1001, 1002]
+	}), auth_config, {"multipart_boundary": "TEST-BOUNDARY"})
+	assert_true(create_response.ok)
+	assert_eq(_recorded_requests[0].url, "https://g-777.modapi.io/v1/games/777/collections")
+	assert_eq(_recorded_requests[0].headers["Content-Type"], "multipart/form-data; boundary=TEST-BOUNDARY")
+	assert_string_contains(_recorded_requests[0].body_string, 'name="mod_ids[]"')
+	assert_string_contains(_recorded_requests[0].body_string, "1001")
+	assert_string_contains(_recorded_requests[0].body_string, "1002")
+
+	_queue_json_response(200, _fixture("collection_detail.json"))
+	var update_response := transport.execute(auth_adapter.build_update_collection_request("3001", {
+		"sync": true,
+		"mod_ids": [],
+		"tags": ["UI"]
+	}), auth_config, {"multipart_boundary": "TEST-BOUNDARY"})
+	assert_true(update_response.ok)
+	assert_eq(_recorded_requests[1].url, "https://g-777.modapi.io/v1/games/777/collections/3001")
+	assert_string_contains(_recorded_requests[1].body_string, 'name="sync"')
+	assert_string_contains(_recorded_requests[1].body_string, "true")
+	assert_string_contains(_recorded_requests[1].body_string, 'name="mod_ids[]"')
+
+	_queue_response({"status_code": 204, "headers": {}, "body": ""})
+	var delete_response := transport.execute(auth_adapter.build_delete_collection_request("3001", {"permanent": true, "reason": "Stolen Content"}), auth_config)
+	assert_true(delete_response.ok)
+	assert_eq(_recorded_requests[2].method, "DELETE")
+	assert_eq(_recorded_requests[2].url, "https://g-777.modapi.io/v1/games/777/collections/3001")
+	assert_eq(_recorded_requests[2].body_string, "permanent=true&reason=Stolen%20Content")
+
+	var invalid_response := transport.execute(auth_adapter.build_update_collection_request("3001", {
+		"tags": ["BAD"],
+		"sync": "maybe"
+	}), auth_config)
+	assert_false(invalid_response.ok)
+	assert_eq(invalid_response.error.category, "transport")
+	assert_string_contains(invalid_response.error.message, "sync must be a boolean")
+
 func _transport_double(final_request: Dictionary, _options: Dictionary) -> Dictionary:
 	_recorded_requests.append(final_request.duplicate(true))
 	assert_true(_queued_responses.size() > 0, "No queued transport response for request %s" % final_request.url)

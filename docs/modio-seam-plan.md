@@ -15,7 +15,7 @@ Keep **provider-native** concerns in this repo while allowing `aerobeat-tool-api
 - provider listing/search/detail/dependency query mapping
 - endpoint-aware filter serialization per wrapped endpoint
 - provider subscription/user-state mapping via `GET /me/games`, `GET /me/mods`, `GET /me/files`, `GET /me/subscribed`, `GET /me/ratings`, `GET /me/followers`, `GET /me/users/muted`, `GET /me/collections`, and `GET /me/following/collections`
-- provider mod + guide + collection community transport/query/normalization via `GET/POST/PUT/DELETE /games/{game-id}/mods/{mod-id}/comments...`, `GET /games/{game-id}/guides...`, `GET /games/{game-id}/collections...`, read-only `GET /users/{user-id}/followers|following|collections`, and bearer-only social mutation writes for user follow/unfollow, mute/unmute, and collection follow/unfollow
+- provider mod + guide + collection community transport/query/normalization via `GET/POST/PUT/DELETE /games/{game-id}/mods/{mod-id}/comments...`, `GET /games/{game-id}/guides...`, guide authoring (`POST /games/{game-id}/guides`, `POST /games/{game-id}/guides/{guide-id}`, `DELETE /games/{game-id}/guides/{guide-id}`), `GET /games/{game-id}/collections...`, collection authoring (`POST /games/{game-id}/collections`, `POST /games/{game-id}/collections/{collection-id}`, `DELETE /games/{game-id}/collections/{collection-id}`), read-only `GET /users/{user-id}/followers|following|collections`, and bearer-only social mutation writes for user follow/unfollow, mute/unmute, and collection follow/unfollow
 - provider rating/report writes via `POST /games/{game-id}/mods/{mod-id}/ratings`, `POST /games/{game-id}/mods/{mod-id}/comments/{comment-id}/karma`, `POST /games/{game-id}/guides/{guide-id}/comments/{comment-id}/karma`, `POST /games/{game-id}/collections/{collection-id}/comments/{comment-id}/karma`, `POST /games/{game-id}/collections/{collection-id}/compatibility`, and `POST /report`
 - provider download metadata resolution from `modfile.download`
 - canonical artifact/cache metadata resolution derived from `provider + game_id + mod_id + modfile.id`
@@ -69,6 +69,9 @@ The current slice now exposes a larger request-builder and normalization seam:
     - `build_mod_team_request(...)`
     - `build_collections_request(...)`
     - `build_collection_request(...)`
+    - `build_add_collection_request(...)`
+    - `build_update_collection_request(...)`
+    - `build_delete_collection_request(...)`
     - `build_collection_mods_request(...)`
     - `build_user_games_request(...)`
     - `build_user_mods_request(...)`
@@ -82,6 +85,9 @@ The current slice now exposes a larger request-builder and normalization seam:
     - `build_followed_collections_request(...)`
     - `build_guides_request(...)`
     - `build_guide_detail_request(...)`
+    - `build_add_guide_request(...)`
+    - `build_update_guide_request(...)`
+    - `build_delete_guide_request(...)`
     - `build_dependencies_request(...)`
   - subscription/user-rating/report/comment/social-mutation request builders
     - `build_user_subscriptions_request(...)`
@@ -171,6 +177,9 @@ That keeps transient CDN delivery behavior local to the vendor seam and out of A
 - `DELETE /users/{user-id}/following/{target-user-id}`, `POST /users/{user-id}/mute`, `DELETE /users/{user-id}/mute`, and `DELETE /games/{game-id}/collections/{collection-id}/followers` all normalize as `204 No Content` writes with empty `data`
 - `POST /games/{game-id}/collections/{collection-id}/followers` keeps the returned `Mod Collection Object`, preserves `location`, and exposes `already_followed` when the provider returns `200 OK`
 - `POST /games/{game-id}/collections/{collection-id}/subscriptions` and `DELETE /games/{game-id}/collections/{collection-id}/subscriptions` stay bodyless bearer-only writes, normalize the returned `Mod Collection Object`, and intentionally do not import SDK-local install/update/uninstall orchestration or undocumented `include_dependencies` behavior into this vendor seam
+- guide add/edit now validate the documented multipart-only field contract (`name`, `summary`, `description`, `logo`, `tags` required on create; documented optional edit fields including `status`, `name_id`, `url`, `tags`) and return normalized `Guide Object` writes for `201`/`200`
+- collection add/update now validate only the documented multipart fields without inventing required fields, preserve `sync=true` semantics including empty `mod_ids` meaning remove all, and return normalized `Mod Collection Object` writes for `201`/`200`
+- collection delete remains a bearer-authenticated `application/x-www-form-urlencoded` delete with optional `permanent` / `reason`, normalizing `204 No Content` as an empty-data delete response
 - platform-targeted `GET /me/subscribed` requests must include `game_id`, so this repo injects it when platform targeting is configured
 - `GET /me/ratings` defaults the seam to `resource_type=mods` plus the configured `game_id`, while preserving raw provider rating integers (`1` / `-1`) instead of re-inventing the contract
 - token request expiry values are sanitized per documented flow instead of blindly forwarding stale/oversized values
@@ -193,7 +202,7 @@ Repo-local tests intentionally use simulated payloads derived from the documente
 
 ### 1. Multipart/upload and richer write coverage
 
-If AeroBeat needs creation/update surfaces later, extend the transport only far enough to support documented multipart and other write-specific content types.
+The transport seam now supports documented multipart authoring bodies for the guide + collection CMS slice while deliberately keeping binary/media helper behavior out of scope.
 
 ### 2. Richer filtering and platform targeting
 

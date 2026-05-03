@@ -2,6 +2,7 @@ class_name ModioHttpTransport
 extends RefCounted
 
 const CONTENT_TYPE_FORM := "application/x-www-form-urlencoded"
+const CONTENT_TYPE_MULTIPART := "multipart/form-data"
 const DEFAULT_TIMEOUT_SECONDS := 30.0
 const DEFAULT_RETRY_AFTER_SECONDS := 60
 
@@ -26,7 +27,10 @@ func build_request(
 		"headers": extra_headers.duplicate(true),
 		"content_type": meta.get("content_type", ""),
 		"auth_mode": meta.get("auth_mode", "none"),
-		"expects": meta.get("expects", "json")
+		"expects": meta.get("expects", "json"),
+		"multipart_boundary": meta.get("multipart_boundary", ""),
+		"validation_error": meta.get("validation_error", ""),
+		"validation_errors": meta.get("validation_errors", [])
 	}
 
 func execute(request: Dictionary, config: ModioClientConfig = null, options: Dictionary = {}) -> Dictionary:
@@ -62,15 +66,40 @@ func prepare_request(request: Dictionary, config: ModioClientConfig = null, opti
 	var expects := str(final_request.get("expects", "json"))
 	var explicit_base_url := str(options.get("base_url", ""))
 	var base_url := effective_config.resolve_base_url(explicit_base_url)
+	var validation_errors: Array = final_request.get("validation_errors", [])
+	var validation_error := str(final_request.get("validation_error", ""))
+
+	if validation_errors.size() > 0 or not validation_error.is_empty():
+		if validation_error.is_empty():
+			validation_error = "Invalid mod.io request: %s" % "; ".join(PackedStringArray(validation_errors))
+		return _build_transport_error_result(validation_error, {
+			"method": method,
+			"path": path,
+			"query": query,
+			"body": body,
+			"headers": headers,
+			"content_type": content_type,
+			"auth_mode": auth_mode,
+			"expects": expects,
+			"validation_errors": validation_errors
+		}, ERR_INVALID_PARAMETER)
 
 	var auth_error := _apply_auth_mode(method, auth_mode, query, headers, effective_config)
 	if not auth_error.is_empty():
 		return _build_transport_error_result(auth_error, {"method": method, "path": path}, ERR_INVALID_PARAMETER)
 
 	var encoded_query := _encode_parameters(query)
-	var encoded_body := _encode_form_body(body, content_type)
-	if content_type != "" and not headers.has("Content-Type"):
-		headers["Content-Type"] = content_type
+	var requested_multipart_boundary := str(final_request.get("multipart_boundary", "")).strip_edges()
+	if requested_multipart_boundary.is_empty():
+		requested_multipart_boundary = str(options.get("multipart_boundary", "")).strip_edges()
+	var encoded_body_result := _encode_request_body(body, content_type, requested_multipart_boundary)
+	if not bool(encoded_body_result.get("ok", false)):
+		return _build_transport_error_result(str(encoded_body_result.get("error", "Failed to encode request body.")), {"method": method, "path": path}, ERR_INVALID_PARAMETER)
+	var encoded_body := str(encoded_body_result.get("body_string", ""))
+	var final_content_type := str(encoded_body_result.get("content_type", content_type))
+	var multipart_boundary := str(encoded_body_result.get("boundary", ""))
+	if final_content_type != "" and not headers.has("Content-Type"):
+		headers["Content-Type"] = final_content_type
 	if encoded_body != "" and not headers.has("Content-Length"):
 		headers["Content-Length"] = str(encoded_body.to_utf8_buffer().size())
 
@@ -83,7 +112,8 @@ func prepare_request(request: Dictionary, config: ModioClientConfig = null, opti
 		"headers": headers,
 		"body": body,
 		"body_string": encoded_body,
-		"content_type": content_type,
+		"content_type": final_content_type,
+		"multipart_boundary": multipart_boundary,
 		"auth_mode": auth_mode,
 		"expects": expects,
 		"base_url": base_url
@@ -262,12 +292,65 @@ func _encode_parameters(values: Dictionary) -> String:
 		parts.append("%s=%s" % [str(key).uri_encode(), _parameter_to_string(values[key]).uri_encode()])
 	return "&".join(parts)
 
-func _encode_form_body(values: Dictionary, content_type: String) -> String:
+func _encode_request_body(values: Dictionary, content_type: String, multipart_boundary: String = "") -> Dictionary:
 	if values.is_empty():
-		return ""
+		if _is_multipart_content_type(content_type):
+			var empty_boundary := multipart_boundary.strip_edges()
+			if empty_boundary.is_empty():
+				empty_boundary = _generate_multipart_boundary()
+			return {
+				"ok": true,
+				"body_string": "",
+				"content_type": "%s; boundary=%s" % [CONTENT_TYPE_MULTIPART, empty_boundary],
+				"boundary": empty_boundary
+			}
+		return {"ok": true, "body_string": "", "content_type": content_type, "boundary": ""}
+	if _is_multipart_content_type(content_type):
+		var boundary := multipart_boundary.strip_edges()
+		if boundary.is_empty():
+			boundary = _generate_multipart_boundary()
+		return {
+			"ok": true,
+			"body_string": _encode_multipart_body(values, boundary),
+			"content_type": "%s; boundary=%s" % [CONTENT_TYPE_MULTIPART, boundary],
+			"boundary": boundary
+		}
 	if content_type == "" or content_type == CONTENT_TYPE_FORM:
-		return _encode_parameters(values)
-	return JSON.stringify(values)
+		return {"ok": true, "body_string": _encode_parameters(values), "content_type": content_type, "boundary": ""}
+	return {"ok": true, "body_string": JSON.stringify(values), "content_type": content_type, "boundary": ""}
+
+func _is_multipart_content_type(content_type: String) -> bool:
+	return content_type.strip_edges().begins_with(CONTENT_TYPE_MULTIPART)
+
+func _generate_multipart_boundary() -> String:
+	return "OpenClawModioBoundary%s" % str(Time.get_ticks_usec())
+
+func _encode_multipart_body(values: Dictionary, boundary: String) -> String:
+	var keys: Array = values.keys()
+	keys.sort_custom(func(a, b): return str(a) < str(b))
+	var parts: PackedStringArray = []
+	for key in keys:
+		_append_multipart_field(parts, boundary, str(key), values[key])
+	parts.append("--%s--" % boundary)
+	parts.append("")
+	return "\r\n".join(parts)
+
+func _append_multipart_field(parts: PackedStringArray, boundary: String, key: String, value: Variant) -> void:
+	if value is Array:
+		var array_field_name := key if key.ends_with("[]") else "%s[]" % key
+		if value.is_empty():
+			_append_single_multipart_part(parts, boundary, array_field_name, "")
+			return
+		for item in value:
+			_append_single_multipart_part(parts, boundary, array_field_name, _parameter_to_string(item))
+		return
+	_append_single_multipart_part(parts, boundary, key, _parameter_to_string(value))
+
+func _append_single_multipart_part(parts: PackedStringArray, boundary: String, key: String, value: String) -> void:
+	parts.append("--%s" % boundary)
+	parts.append('Content-Disposition: form-data; name="%s"' % key.replace('"', '\"'))
+	parts.append("")
+	parts.append(value)
 
 func _decode_payload(raw_body: String, expects: String) -> Variant:
 	var body := raw_body.strip_edges()

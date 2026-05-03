@@ -35,6 +35,12 @@ const DEPENDENCY_POLICY_IMMEDIATE_ONLY := "immediate_only"
 const DEPENDENCY_POLICY_RECURSIVE := "recursive"
 const DEPENDENCY_POLICY_SUBSCRIPTION_INCLUDE := "subscription_include_dependencies"
 
+const GUIDE_STATUS_VALUES := [0, 1, 3]
+const GUIDE_COMMUNITY_OPTION_VALUES := [0, 2048]
+const COLLECTION_STATUS_VALUES := [0, 1]
+const COLLECTION_VISIBILITY_VALUES := [0, 1]
+const COLLECTION_TAG_VALUES := ["ANIMATION", "AUDIO", "BUGFIXES", "CHEATING", "ENVIRONMENT", "GAMEPLAY", "QUALITY_OF_LIFE", "UI", "VISUAL"]
+
 var _config: ModioClientConfig
 var _transport: ModioHttpTransport
 
@@ -629,6 +635,42 @@ func build_collection_mods_request(collection_id: String, query: ModioListingQue
 		{"auth_mode": _resolve_read_auth_mode(false)}
 	)
 
+func build_add_collection_request(fields: Dictionary) -> Dictionary:
+	var normalized := _normalize_collection_authoring_fields(fields, false)
+	return _build_validated_request(
+		"POST",
+		"/games/%s/collections" % _config.game_id,
+		{},
+		normalized.body,
+		_build_multipart_headers(true),
+		{"content_type": ModioHttpTransport.CONTENT_TYPE_MULTIPART, "auth_mode": "bearer"},
+		normalized.errors
+	)
+
+func build_update_collection_request(collection_id: String, fields: Dictionary) -> Dictionary:
+	var normalized := _normalize_collection_authoring_fields(fields, true)
+	return _build_validated_request(
+		"POST",
+		"/games/%s/collections/%s" % [_config.game_id, collection_id.strip_edges()],
+		{},
+		normalized.body,
+		_build_multipart_headers(true),
+		{"content_type": ModioHttpTransport.CONTENT_TYPE_MULTIPART, "auth_mode": "bearer"},
+		normalized.errors
+	)
+
+func build_delete_collection_request(collection_id: String, fields: Dictionary = {}) -> Dictionary:
+	var normalized := _normalize_collection_delete_fields(fields)
+	return _build_validated_request(
+		"DELETE",
+		"/games/%s/collections/%s" % [_config.game_id, collection_id.strip_edges()],
+		{},
+		normalized.body,
+		_build_form_headers(true),
+		{"content_type": ModioHttpTransport.CONTENT_TYPE_FORM, "auth_mode": "bearer"},
+		normalized.errors
+	)
+
 func build_collection_comments_request(collection_id: String, query: ModioListingQuery = ModioListingQuery.new()) -> Dictionary:
 	var full_query := _build_public_query()
 	full_query.merge(query.to_query_dict(ModioListingQuery.ENDPOINT_COLLECTION_COMMENTS), true)
@@ -736,6 +778,40 @@ func build_guide_comments_request(guide_id: String, query: ModioListingQuery = M
 		{},
 		_build_read_headers(false),
 		{"auth_mode": _resolve_read_auth_mode(false)}
+	)
+
+func build_add_guide_request(fields: Dictionary) -> Dictionary:
+	var normalized := _normalize_guide_authoring_fields(fields, true)
+	return _build_validated_request(
+		"POST",
+		"/games/%s/guides" % _config.game_id,
+		{},
+		normalized.body,
+		_build_multipart_headers(true),
+		{"content_type": ModioHttpTransport.CONTENT_TYPE_MULTIPART, "auth_mode": "bearer"},
+		normalized.errors
+	)
+
+func build_update_guide_request(guide_id: String, fields: Dictionary) -> Dictionary:
+	var normalized := _normalize_guide_authoring_fields(fields, false)
+	return _build_validated_request(
+		"POST",
+		"/games/%s/guides/%s" % [_config.game_id, guide_id.strip_edges()],
+		{},
+		normalized.body,
+		_build_multipart_headers(true),
+		{"content_type": ModioHttpTransport.CONTENT_TYPE_MULTIPART, "auth_mode": "bearer"},
+		normalized.errors
+	)
+
+func build_delete_guide_request(guide_id: String) -> Dictionary:
+	return _transport.build_request(
+		"DELETE",
+		"/games/%s/guides/%s" % [_config.game_id, guide_id.strip_edges()],
+		{},
+		{},
+		_build_form_headers(true),
+		{"content_type": ModioHttpTransport.CONTENT_TYPE_FORM, "auth_mode": "bearer"}
 	)
 
 func build_guide_comment_request(guide_id: String, comment_id: String) -> Dictionary:
@@ -1166,6 +1242,25 @@ func normalize_collection_comment_response(payload: Dictionary) -> Dictionary:
 func normalize_collection_comment_write_response(payload: Dictionary) -> Dictionary:
 	return _normalize_collection_comment_object(payload)
 
+func normalize_add_collection_response(status_code: int, headers: Dictionary, payload: Dictionary) -> Dictionary:
+	var response := _normalize_collection_write_response(status_code, headers, payload)
+	if not response.ok:
+		return response
+	response["created"] = status_code == 201
+	return response
+
+func normalize_update_collection_response(status_code: int, headers: Dictionary, payload: Dictionary) -> Dictionary:
+	var response := _normalize_collection_write_response(status_code, headers, payload)
+	if not response.ok:
+		return response
+	response["updated"] = status_code == 200
+	return response
+
+func normalize_delete_collection_response(status_code: int, headers: Dictionary = {}) -> Dictionary:
+	var response := _normalize_no_content_write_response(status_code, headers)
+	response["deleted"] = response.ok and status_code == 204
+	return response
+
 func normalize_guides_response(payload: Dictionary) -> Dictionary:
 	return _normalize_list_payload(payload, Callable(self, "_normalize_guide_object"))
 
@@ -1180,6 +1275,25 @@ func normalize_guide_comment_response(payload: Dictionary) -> Dictionary:
 
 func normalize_guide_comment_write_response(payload: Dictionary) -> Dictionary:
 	return _normalize_guide_comment_object(payload)
+
+func normalize_add_guide_response(status_code: int, headers: Dictionary, payload: Dictionary) -> Dictionary:
+	var response := _normalize_guide_write_response(status_code, headers, payload)
+	if not response.ok:
+		return response
+	response["created"] = status_code == 201
+	return response
+
+func normalize_update_guide_response(status_code: int, headers: Dictionary, payload: Dictionary) -> Dictionary:
+	var response := _normalize_guide_write_response(status_code, headers, payload)
+	if not response.ok:
+		return response
+	response["updated"] = status_code == 200
+	return response
+
+func normalize_delete_guide_response(status_code: int, headers: Dictionary = {}) -> Dictionary:
+	var response := _normalize_no_content_write_response(status_code, headers)
+	response["deleted"] = response.ok and status_code == 204
+	return response
 
 func normalize_mod_comments_response(payload: Dictionary) -> Dictionary:
 	return _normalize_list_payload(payload, Callable(self, "_normalize_comment_object"))
@@ -1310,6 +1424,14 @@ func _normalize_collection_write_response(status_code: int, headers: Dictionary,
 	if not response.ok:
 		return response
 	response["data"] = _normalize_collection_object(payload)
+	response["location"] = response.headers.get("location", "")
+	return response
+
+func _normalize_guide_write_response(status_code: int, headers: Dictionary, payload: Dictionary) -> Dictionary:
+	var response := _transport.normalize_response(status_code, headers, payload)
+	if not response.ok:
+		return response
+	response["data"] = _normalize_guide_object(payload)
 	response["location"] = response.headers.get("location", "")
 	return response
 
@@ -1997,6 +2119,232 @@ func _append_optional_date_expires(body: Dictionary, date_expires: int, max_life
 	if sanitized_date_expires > 0:
 		body["date_expires"] = sanitized_date_expires
 
+func _normalize_guide_authoring_fields(fields: Dictionary, is_create: bool) -> Dictionary:
+	var body := {}
+	var errors: Array = []
+	var allowed_fields := ["name", "summary", "description", "logo", "date_live", "status", "community_options", "tags", "name_id"]
+	if not is_create:
+		allowed_fields.append("url")
+	_validate_allowed_fields(fields, allowed_fields, errors, "guide")
+	_append_validated_string_field(fields, body, "name", 70, errors, is_create)
+	_append_validated_string_field(fields, body, "summary", 250, errors, is_create, 20)
+	_append_validated_string_field(fields, body, "description", 150000, errors, is_create)
+	_append_raw_multipart_field(fields, body, "logo", errors, is_create)
+	_append_optional_non_negative_int_field(fields, body, "date_live", errors)
+	_append_optional_enum_int_field(fields, body, "status", GUIDE_STATUS_VALUES, errors)
+	_append_optional_enum_int_field(fields, body, "community_options", GUIDE_COMMUNITY_OPTION_VALUES, errors)
+	_append_validated_string_field(fields, body, "name_id", 50, errors, false)
+	if not is_create:
+		_append_validated_url_field(fields, body, "url", errors)
+	_append_guide_tags_field(fields, body, errors, is_create)
+	return {"body": body, "errors": errors}
+
+func _normalize_collection_authoring_fields(fields: Dictionary, is_update: bool) -> Dictionary:
+	var body := {}
+	var errors: Array = []
+	var allowed_fields := ["name", "name_id", "summary", "category", "description", "logo", "status", "visible", "tags", "mod_ids"]
+	if is_update:
+		allowed_fields.append("sync")
+	_validate_allowed_fields(fields, allowed_fields, errors, "collection")
+	_append_validated_string_field(fields, body, "name", 50, errors, false)
+	_append_validated_string_field(fields, body, "name_id", 50, errors, false)
+	_append_validated_string_field(fields, body, "summary", 250, errors, false)
+	_append_validated_string_field(fields, body, "description", 50000, errors, false)
+	_append_raw_multipart_field(fields, body, "logo", errors, false)
+	_append_optional_int_like_field(fields, body, "category", errors)
+	_append_optional_enum_int_field(fields, body, "status", COLLECTION_STATUS_VALUES, errors)
+	_append_optional_enum_int_field(fields, body, "visible", COLLECTION_VISIBILITY_VALUES, errors)
+	_append_collection_tags_field(fields, body, errors)
+	_append_int_array_field(fields, body, "mod_ids", errors)
+	if is_update:
+		_append_optional_boolean_field(fields, body, "sync", errors)
+	return {"body": body, "errors": errors}
+
+func _normalize_collection_delete_fields(fields: Dictionary) -> Dictionary:
+	var body := {}
+	var errors: Array = []
+	_validate_allowed_fields(fields, ["permanent", "reason"], errors, "delete collection")
+	_append_optional_boolean_field(fields, body, "permanent", errors)
+	_append_validated_string_field(fields, body, "reason", 1000, errors, false)
+	return {"body": body, "errors": errors}
+
+func _validate_allowed_fields(fields: Dictionary, allowed_fields: Array, errors: Array, label: String) -> void:
+	for key in fields.keys():
+		if not allowed_fields.has(str(key)):
+			errors.append("%s field '%s' is not documented" % [label.capitalize(), str(key)])
+
+func _append_validated_string_field(fields: Dictionary, body: Dictionary, field_name: String, max_length: int, errors: Array, required: bool, min_length: int = 0) -> void:
+	if not fields.has(field_name):
+		if required:
+			errors.append("%s is required" % field_name)
+		return
+	var value = fields[field_name]
+	if value == null:
+		errors.append("%s must be a string" % field_name)
+		return
+	var sanitized := str(value).strip_edges()
+	if required and sanitized.is_empty():
+		errors.append("%s is required" % field_name)
+		return
+	if min_length > 0 and sanitized.length() < min_length:
+		errors.append("%s must be at least %d characters" % [field_name, min_length])
+	if max_length > 0 and sanitized.length() > max_length:
+		errors.append("%s must be at most %d characters" % [field_name, max_length])
+	body[field_name] = sanitized
+
+func _append_validated_url_field(fields: Dictionary, body: Dictionary, field_name: String, errors: Array) -> void:
+	if not fields.has(field_name):
+		return
+	var value = fields[field_name]
+	if value == null:
+		errors.append("%s must be a valid URL string" % field_name)
+		return
+	var sanitized := str(value).strip_edges()
+	if sanitized.is_empty() or not (sanitized.begins_with("http://") or sanitized.begins_with("https://")):
+		errors.append("%s must be a valid URL string" % field_name)
+		return
+	body[field_name] = sanitized
+
+func _append_raw_multipart_field(fields: Dictionary, body: Dictionary, field_name: String, errors: Array, required: bool) -> void:
+	if not fields.has(field_name):
+		if required:
+			errors.append("%s is required" % field_name)
+		return
+	var value = fields[field_name]
+	if value == null:
+		errors.append("%s must be a non-empty raw multipart value" % field_name)
+		return
+	if value is String and str(value).strip_edges().is_empty():
+		errors.append("%s must be a non-empty raw multipart value" % field_name)
+		return
+	body[field_name] = str(value).strip_edges() if value is String else value
+
+func _append_optional_enum_int_field(fields: Dictionary, body: Dictionary, field_name: String, allowed_values: Array, errors: Array) -> void:
+	if not fields.has(field_name):
+		return
+	var parsed = _parse_int_like(fields[field_name])
+	if parsed == null:
+		errors.append("%s must be an integer" % field_name)
+		return
+	if not allowed_values.has(parsed):
+		errors.append("%s must be one of %s" % [field_name, str(allowed_values)])
+		return
+	body[field_name] = parsed
+
+func _append_optional_non_negative_int_field(fields: Dictionary, body: Dictionary, field_name: String, errors: Array) -> void:
+	if not fields.has(field_name):
+		return
+	var parsed = _parse_int_like(fields[field_name])
+	if parsed == null:
+		errors.append("%s must be an integer" % field_name)
+		return
+	if parsed < 0:
+		errors.append("%s must be greater than or equal to 0" % field_name)
+		return
+	body[field_name] = parsed
+
+func _append_optional_int_like_field(fields: Dictionary, body: Dictionary, field_name: String, errors: Array) -> void:
+	if not fields.has(field_name):
+		return
+	var parsed = _parse_int_like(fields[field_name])
+	if parsed == null:
+		errors.append("%s must be an integer" % field_name)
+		return
+	body[field_name] = parsed
+
+func _append_optional_boolean_field(fields: Dictionary, body: Dictionary, field_name: String, errors: Array) -> void:
+	if not fields.has(field_name):
+		return
+	var value = fields[field_name]
+	if value is bool:
+		body[field_name] = value
+		return
+	if value is int and int(value) in [0, 1]:
+		body[field_name] = int(value) == 1
+		return
+	if value is String:
+		var normalized := str(value).strip_edges().to_lower()
+		if normalized in ["true", "1"]:
+			body[field_name] = true
+			return
+		if normalized in ["false", "0"]:
+			body[field_name] = false
+			return
+	errors.append("%s must be a boolean" % field_name)
+
+func _append_guide_tags_field(fields: Dictionary, body: Dictionary, errors: Array, required: bool) -> void:
+	if not fields.has("tags"):
+		if required:
+			errors.append("tags is required")
+		return
+	var normalized_tags = _normalize_string_array_field(fields["tags"], "tags", errors, 30, 7, true)
+	if normalized_tags == null:
+		return
+	if required and normalized_tags.is_empty():
+		errors.append("tags must contain at least one tag")
+	body["tags"] = normalized_tags
+
+func _append_collection_tags_field(fields: Dictionary, body: Dictionary, errors: Array) -> void:
+	if not fields.has("tags"):
+		return
+	var normalized_tags = _normalize_string_array_field(fields["tags"], "tags", errors, 64, -1, false)
+	if normalized_tags == null:
+		return
+	for tag in normalized_tags:
+		if not COLLECTION_TAG_VALUES.has(tag):
+			errors.append("tags contains undocumented collection tag '%s'" % tag)
+	body["tags"] = normalized_tags
+
+func _append_int_array_field(fields: Dictionary, body: Dictionary, field_name: String, errors: Array) -> void:
+	if not fields.has(field_name):
+		return
+	var value = fields[field_name]
+	if not (value is Array):
+		errors.append("%s must be an array of integers" % field_name)
+		return
+	var normalized: Array = []
+	for item in value:
+		var parsed = _parse_int_like(item)
+		if parsed == null:
+			errors.append("%s must contain only integers" % field_name)
+			return
+		normalized.append(parsed)
+	body[field_name] = normalized
+
+func _normalize_string_array_field(value: Variant, field_name: String, errors: Array, max_item_length: int, max_items: int, distinct_required: bool):
+	if not (value is Array):
+		errors.append("%s must be an array" % field_name)
+		return null
+	var normalized: Array = []
+	var seen := {}
+	for item in value:
+		if item == null:
+			errors.append("%s must contain only strings" % field_name)
+			return null
+		var sanitized := str(item).strip_edges()
+		if sanitized.is_empty():
+			errors.append("%s must not contain empty items" % field_name)
+			return null
+		if max_item_length > 0 and sanitized.length() > max_item_length:
+			errors.append("%s items must be at most %d characters" % [field_name, max_item_length])
+		if distinct_required and seen.has(sanitized):
+			errors.append("%s must contain distinct values" % field_name)
+		seen[sanitized] = true
+		normalized.append(sanitized)
+	if max_items > -1 and normalized.size() > max_items:
+		errors.append("%s must contain at most %d items" % [field_name, max_items])
+	return normalized
+
+func _parse_int_like(value: Variant) -> Variant:
+	if value is int:
+		return int(value)
+	if value is float and floor(value) == value:
+		return int(value)
+	var as_string := str(value).strip_edges()
+	if as_string.is_empty() or not as_string.is_valid_int():
+		return null
+	return int(as_string)
+
 func _build_public_query() -> Dictionary:
 	var query := {}
 	if not _config.api_key.is_empty():
@@ -2018,6 +2366,16 @@ func _build_form_headers(requires_bearer: bool) -> Dictionary:
 	var headers := _build_read_headers(requires_bearer)
 	headers["Content-Type"] = ModioHttpTransport.CONTENT_TYPE_FORM
 	return headers
+
+func _build_multipart_headers(requires_bearer: bool) -> Dictionary:
+	return _build_read_headers(requires_bearer)
+
+func _build_validated_request(method: String, path: String, query: Dictionary, body: Dictionary, headers: Dictionary, meta: Dictionary, validation_errors: Array) -> Dictionary:
+	var effective_meta := meta.duplicate(true)
+	if validation_errors.size() > 0:
+		effective_meta["validation_errors"] = validation_errors
+		effective_meta["validation_error"] = "Invalid mod.io request: %s" % "; ".join(PackedStringArray(validation_errors))
+	return _transport.build_request(method, path, query, body, headers, effective_meta)
 
 func _resolve_read_auth_mode(requires_bearer: bool) -> String:
 	if requires_bearer:

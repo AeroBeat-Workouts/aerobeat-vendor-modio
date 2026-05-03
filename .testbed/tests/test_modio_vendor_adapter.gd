@@ -1620,6 +1620,130 @@ func test_builds_catalog_game_meta_and_taxonomy_requests_with_doc_corrected_path
 	assert_eq(ping_request.auth_mode, "none")
 	assert_eq(ping_request.query, {})
 
+func test_builds_guide_and_collection_authoring_requests_with_documented_validation() -> void:
+	var auth_adapter := _build_adapter_with_token()
+
+	var add_guide_request = auth_adapter.build_add_guide_request({
+		"name": "  Getting Started  ",
+		"summary": "A practical intro guide for your first AeroBeat routine.",
+		"description": "<h2>Warm up</h2><p>Keep moving.</p>",
+		"logo": "  @/tmp/guide.png  ",
+		"date_live": 1777807200,
+		"status": 1,
+		"community_options": 2048,
+		"tags": ["Instructions", "Beginner"],
+		"name_id": "getting-started"
+	})
+	assert_eq(add_guide_request.method, "POST")
+	assert_eq(add_guide_request.path, "/games/777/guides")
+	assert_eq(add_guide_request.content_type, ModioHttpTransport.CONTENT_TYPE_MULTIPART)
+	assert_eq(add_guide_request.auth_mode, "bearer")
+	assert_eq(add_guide_request.body.name, "Getting Started")
+	assert_eq(add_guide_request.body.logo, "@/tmp/guide.png")
+	assert_eq(add_guide_request.body.tags, ["Instructions", "Beginner"])
+
+	var update_guide_request = auth_adapter.build_update_guide_request("7001", {
+		"status": 1,
+		"name_id": "guide-v2",
+		"url": "https://guides.example.com/aerobeat",
+		"tags": ["Instructions"]
+	})
+	assert_eq(update_guide_request.method, "POST")
+	assert_eq(update_guide_request.path, "/games/777/guides/7001")
+	assert_eq(update_guide_request.body.url, "https://guides.example.com/aerobeat")
+	assert_eq(update_guide_request.body.tags, ["Instructions"])
+
+	var delete_guide_request = auth_adapter.build_delete_guide_request("7001")
+	assert_eq(delete_guide_request.method, "DELETE")
+	assert_eq(delete_guide_request.path, "/games/777/guides/7001")
+	assert_eq(delete_guide_request.content_type, ModioHttpTransport.CONTENT_TYPE_FORM)
+
+	var add_collection_request = auth_adapter.build_add_collection_request({
+		"name": "  Starter Bundle  ",
+		"name_id": "starter-bundle",
+		"summary": "A bundle of cardio-friendly starter mods.",
+		"category": 2,
+		"description": "All the essentials.",
+		"logo": "  @/tmp/collection.png  ",
+		"status": 1,
+		"visible": 1,
+		"tags": ["GAMEPLAY", "AUDIO"],
+		"mod_ids": [1001, "1002"]
+	})
+	assert_eq(add_collection_request.method, "POST")
+	assert_eq(add_collection_request.path, "/games/777/collections")
+	assert_eq(add_collection_request.content_type, ModioHttpTransport.CONTENT_TYPE_MULTIPART)
+	assert_eq(add_collection_request.body.logo, "@/tmp/collection.png")
+	assert_eq(add_collection_request.body.mod_ids, [1001, 1002])
+
+	var update_collection_request = auth_adapter.build_update_collection_request("3001", {
+		"sync": true,
+		"mod_ids": [],
+		"tags": ["UI"],
+		"visible": 0
+	})
+	assert_eq(update_collection_request.method, "POST")
+	assert_eq(update_collection_request.path, "/games/777/collections/3001")
+	assert_true(update_collection_request.body.sync)
+	assert_eq(update_collection_request.body.mod_ids, [])
+
+	var delete_collection_request = auth_adapter.build_delete_collection_request("3001", {"permanent": true, "reason": " Stolen Content "})
+	assert_eq(delete_collection_request.method, "DELETE")
+	assert_eq(delete_collection_request.path, "/games/777/collections/3001")
+	assert_true(delete_collection_request.body.permanent)
+	assert_eq(delete_collection_request.body.reason, "Stolen Content")
+
+	var invalid_guide_request = auth_adapter.build_add_guide_request({
+		"name": "Tiny",
+		"summary": "too short",
+		"description": "desc",
+		"logo": "logo.png",
+		"tags": ["repeat", "repeat"],
+		"extra": "nope"
+	})
+	assert_true(invalid_guide_request.validation_errors.size() >= 3)
+
+	var invalid_collection_request = auth_adapter.build_update_collection_request("3001", {
+		"tags": ["NOT_A_REAL_TAG"],
+		"sync": "maybe"
+	})
+	assert_true(invalid_collection_request.validation_errors.size() >= 2)
+
+func test_normalizes_guide_and_collection_authoring_write_responses() -> void:
+	var adapter := _build_adapter_with_token()
+
+	var created_guide = adapter.normalize_add_guide_response(201, {"Location": "/games/777/guides/7001"}, _fixture("guide_detail.json"))
+	assert_true(created_guide.ok)
+	assert_true(created_guide.created)
+	assert_eq(created_guide.location, "/games/777/guides/7001")
+	assert_eq(created_guide.data.id, 7001)
+
+	var updated_guide = adapter.normalize_update_guide_response(200, {}, _fixture("guide_detail.json"))
+	assert_true(updated_guide.ok)
+	assert_true(updated_guide.updated)
+	assert_eq(updated_guide.data.name_id, "building-your-first-routine")
+
+	var deleted_guide = adapter.normalize_delete_guide_response(204)
+	assert_true(deleted_guide.ok)
+	assert_true(deleted_guide.deleted)
+	assert_eq(deleted_guide.data, {})
+
+	var created_collection = adapter.normalize_add_collection_response(201, {"Location": "/games/777/collections/3001"}, _fixture("collection_detail.json"))
+	assert_true(created_collection.ok)
+	assert_true(created_collection.created)
+	assert_eq(created_collection.location, "/games/777/collections/3001")
+	assert_eq(created_collection.data.id, 3001)
+
+	var updated_collection = adapter.normalize_update_collection_response(200, {}, _fixture("collection_detail.json"))
+	assert_true(updated_collection.ok)
+	assert_true(updated_collection.updated)
+	assert_eq(updated_collection.data.name_id, "starter-bundle")
+
+	var deleted_collection = adapter.normalize_delete_collection_response(204)
+	assert_true(deleted_collection.ok)
+	assert_true(deleted_collection.deleted)
+	assert_eq(deleted_collection.data, {})
+
 func _build_adapter() -> ModioVendorAdapter:
 	return ModioVendorAdapter.new(
 		ModioClientConfig.new("777", "demo-key", ModioClientConfig.DEFAULT_BASE_URL, "", "en-US", "steam", "WINDOWS"),
