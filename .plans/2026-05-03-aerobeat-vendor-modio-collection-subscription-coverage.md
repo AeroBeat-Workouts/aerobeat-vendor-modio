@@ -181,9 +181,28 @@ Validation rerun succeeded:
 - implementation/tests/docs as needed
 - `.plans/2026-05-03-aerobeat-vendor-modio-collection-subscription-coverage.md`
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** Independent audit truth-check against `REF-05` through `REF-07` passed with no implementation drift found, so no code changes were required beyond recording the audit result in this plan.
+
+Exact audit findings:
+- **PASS — request paths/methods/auth mode:** `src/modio_vendor_adapter.gd` builds bearer-authenticated `POST /games/{game-id}/collections/{collection-id}/subscriptions` and `DELETE /games/{game-id}/collections/{collection-id}/subscriptions`, matching the refreshed REST docs in `REF-05` and generated Unity endpoints in `REF-07`. The local C++ corpus in `REF-06` uses the same routes and authenticated-user requirement.
+- **PASS — no documented body / no query params:** both builders pass empty query/body dictionaries; `.testbed/tests/test_modio_http_transport.gd` confirms the final encoded URLs contain no query string and the final request bodies are empty strings for both collection subscription writes.
+- **PASS — response handling as `200 OK` + `Mod Collection Object`:** `normalize_subscribe_collection_response` and `normalize_unsubscribe_collection_response` both route through `_normalize_collection_write_response`, which preserves the provider response envelope and normalizes the returned payload as a `Mod Collection Object`, matching the `200 OK` REST contract in `REF-05`.
+- **PASS — `Location` header preservation:** `_normalize_collection_write_response` copies `response.headers.location` into the top-level normalized response. Existing tests explicitly assert this on unsubscribe, and the shared helper means the same preservation applies to subscribe if the provider emits the header.
+- **PASS — README/docs truthfulness:** `README.md` and `docs/modio-seam-plan.md` correctly describe these routes as bodyless bearer-only writes returning normalized collection data, and they explicitly avoid claiming undocumented dependency or install-management behavior.
+- **PASS — vendor-local boundary discipline:** the implementation stays a thin REST seam. It does **not** import the C++ SDK's higher-level install/update/uninstall orchestration guidance (`FetchExternalUpdatesAsync`, local uninstall side effects, temp/user collection processing) and does **not** expose the undocumented `include_dependencies` query behavior observed in the C++ SDK internals. That boundary remains correct because the refreshed REST docs and generated Unity endpoints do not document those semantics as part of the route contract.
+
+Residual corpus drift observed but not repo drift:
+- `REF-06` still contains SDK-local orchestration notes around collection subscribe/unsubscribe and appends undocumented `include_dependencies` behavior on subscribe.
+- `REF-05` and `REF-07` remain aligned on the narrower documented contract used by this repo.
+- Therefore the repo is accurate as implemented; no minimum-fix patch was needed.
+
+Validation rerun succeeded exactly as required:
+- `godot --headless --path .testbed --import`
+- `godot --headless --path .testbed --script res://tests/validate_scaffold.gd`
+- `godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit`
+- Result: **44/44 tests passing**.
 
 ---
 
