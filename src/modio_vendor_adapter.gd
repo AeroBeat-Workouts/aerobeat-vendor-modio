@@ -177,6 +177,18 @@ func build_games_request(query: ModioListingQuery = ModioListingQuery.new()) -> 
 		{"auth_mode": "api_key_query"}
 	)
 
+func build_user_games_request(query: ModioListingQuery = ModioListingQuery.new()) -> Dictionary:
+	var full_query := _build_authenticated_query()
+	full_query.merge(query.to_query_dict(ModioListingQuery.ENDPOINT_USER_GAMES), true)
+	return _transport.build_request(
+		"GET",
+		"/me/games",
+		full_query,
+		{},
+		_build_read_headers(true),
+		{"auth_mode": "bearer"}
+	)
+
 func build_game_stats_request(game_id: String = "") -> Dictionary:
 	return _transport.build_request(
 		"GET",
@@ -294,6 +306,30 @@ func build_mod_stats_request(mod_id: String) -> Dictionary:
 		{},
 		_build_read_headers(false),
 		{"auth_mode": _resolve_read_auth_mode(false)}
+	)
+
+func build_user_mods_request(query: ModioListingQuery = ModioListingQuery.new()) -> Dictionary:
+	var full_query := _build_authenticated_query()
+	full_query.merge(query.to_query_dict(ModioListingQuery.ENDPOINT_USER_MODS), true)
+	return _transport.build_request(
+		"GET",
+		"/me/mods",
+		full_query,
+		{},
+		_build_read_headers(true),
+		{"auth_mode": "bearer"}
+	)
+
+func build_user_modfiles_request(query: ModioListingQuery = ModioListingQuery.new()) -> Dictionary:
+	var full_query := _build_authenticated_query()
+	full_query.merge(query.to_query_dict(ModioListingQuery.ENDPOINT_USER_MODFILES), true)
+	return _transport.build_request(
+		"GET",
+		"/me/files",
+		full_query,
+		{},
+		_build_read_headers(true),
+		{"auth_mode": "bearer"}
 	)
 
 func build_collections_request(query: ModioListingQuery = ModioListingQuery.new()) -> Dictionary:
@@ -869,6 +905,9 @@ func normalize_game_response(payload: Dictionary) -> Dictionary:
 func normalize_games_response(payload: Dictionary) -> Dictionary:
 	return _normalize_list_payload(payload, Callable(self, "_normalize_game_object"))
 
+func normalize_user_games_response(payload: Dictionary) -> Dictionary:
+	return normalize_games_response(payload)
+
 func normalize_game_stats_response(payload: Dictionary) -> Dictionary:
 	return _normalize_game_stats_object(payload)
 
@@ -890,11 +929,17 @@ func normalize_ping_response(payload: Dictionary) -> Dictionary:
 func normalize_mod_list_response(payload: Dictionary) -> Dictionary:
 	return _normalize_list_payload(payload, Callable(self, "_normalize_mod_object"))
 
+func normalize_user_mods_response(payload: Dictionary) -> Dictionary:
+	return normalize_mod_list_response(payload)
+
 func normalize_mod_detail_response(payload: Dictionary) -> Dictionary:
 	return _normalize_mod_object(payload)
 
 func normalize_modfiles_response(payload: Dictionary) -> Dictionary:
 	return _normalize_list_payload(payload, Callable(self, "_normalize_modfile_object"))
+
+func normalize_user_modfiles_response(payload: Dictionary) -> Dictionary:
+	return normalize_modfiles_response(payload)
 
 func normalize_modfile_response(payload: Dictionary) -> Dictionary:
 	return _normalize_modfile_object(payload)

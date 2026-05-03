@@ -490,6 +490,92 @@ func test_executes_collection_requests_with_documented_urls_filters_and_form_bod
 	assert_eq(_recorded_requests[11].url, "https://g-777.modapi.io/v1/games/777/collections/3001/compatibility")
 	assert_eq(_recorded_requests[11].body_string, "rating=1")
 
+func test_executes_user_inventory_requests_with_documented_authenticated_urls() -> void:
+	var auth_config := ModioClientConfig.new("777", "demo-key", "", "user-token", "en-US", "steam", "WINDOWS", ModioClientConfig.HOST_GAME)
+	var transport := ModioHttpTransport.new(Callable(self, "_transport_double"))
+	var auth_adapter := ModioVendorAdapter.new(auth_config, transport)
+
+	var games_query := ModioListingQuery.new()
+	games_query.limit = 6
+	games_query.offset = 12
+	games_query.sort = "-date_updated"
+	games_query.name = "AeroBeat"
+	games_query.summary = "Rhythm workouts"
+	games_query.instructions_url = "https://docs.aerobeat.example/mods"
+	games_query.ugc_name = "mods"
+	games_query.presentation_option = 0
+	games_query.submission_option = 1
+	games_query.curation_option = 2
+	games_query.profanity_option = 3
+	games_query.dependency_option = 2
+	games_query.community_options = 258
+	games_query.monetization_options = 1
+	games_query.api_access_options = 7
+	games_query.maturity_option = 0
+	games_query.show_hidden_mods = true
+	games_query.status = 1
+	games_query.submitted_by = "42"
+
+	_queue_json_response(200, _fixture("games.json"))
+	var user_games_response := transport.execute(auth_adapter.build_user_games_request(games_query), auth_config)
+	assert_true(user_games_response.ok)
+	assert_eq(_recorded_requests[0].url, "https://g-777.modapi.io/v1/me/games?_limit=6&_offset=12&_sort=-date_updated&api_access_options=7&community_options=258&curation_option=2&dependency_option=2&instructions_url=https%3A%2F%2Fdocs.aerobeat.example%2Fmods&maturity_options=0&monetization_options=1&name=AeroBeat&presentation_option=0&profanity_option=3&show_hidden_tags=true&status=1&submission_option=1&submitted_by=42&summary=Rhythm%20workouts&ugc_name=mods")
+	assert_eq(_recorded_requests[0].headers.Authorization, "Bearer user-token")
+	assert_false(_recorded_requests[0].url.contains("api_key="))
+
+	var user_mods_query := ModioListingQuery.new()
+	user_mods_query.limit = 15
+	user_mods_query.offset = 45
+	user_mods_query.sort = "-downloads_total"
+	user_mods_query.id = "1001"
+	user_mods_query.game_id = "777"
+	user_mods_query.status = 1
+	user_mods_query.visible = 1
+	user_mods_query.submitted_by = "55"
+	user_mods_query.date_added = 1777800001
+	user_mods_query.date_updated = 1777803600
+	user_mods_query.date_live = 1777807200
+	user_mods_query.name = "Cardio Blaster"
+	user_mods_query.name_id = "cardio-blaster"
+	user_mods_query.modfile = "5002"
+	user_mods_query.metadata_blob = "{\"intensity\":\"high\"}"
+	user_mods_query.metadata_kvp = {"difficulty": "expert", "workout_type": "cardio"}
+	user_mods_query.tags_all = PackedStringArray(["Featured", "Cardio"])
+	user_mods_query.maturity_option = 4
+	user_mods_query.monetization_options = 1
+	user_mods_query.platform_status = "live_and_pending"
+
+	_queue_json_response(200, _fixture("mods.json"))
+	var user_mods_response := transport.execute(auth_adapter.build_user_mods_request(user_mods_query), auth_config)
+	assert_true(user_mods_response.ok)
+	assert_eq(_recorded_requests[1].url, "https://g-777.modapi.io/v1/me/mods?_limit=15&_offset=45&_sort=-downloads_total&date_added=1777800001&date_live=1777807200&date_updated=1777803600&game_id=777&id=1001&maturity_option=4&metadata_blob=%7B%22intensity%22%3A%22high%22%7D&metadata_kvp=difficulty%3Aexpert%2Cworkout_type%3Acardio&modfile=5002&monetization_options=1&name=Cardio%20Blaster&name_id=cardio-blaster&platform_status=live_and_pending&status=1&submitted_by=55&tags=Featured%2CCardio&visible=1")
+	assert_eq(_recorded_requests[1].headers.Authorization, "Bearer user-token")
+	assert_false(_recorded_requests[1].url.contains("api_key="))
+
+	var user_modfiles_query := ModioListingQuery.new()
+	user_modfiles_query.limit = 9
+	user_modfiles_query.offset = 18
+	user_modfiles_query.id = "5002"
+	user_modfiles_query.mod_id = "1001"
+	user_modfiles_query.date_added = 1777800001
+	user_modfiles_query.date_scanned = 1777801800
+	user_modfiles_query.virus_status = 1
+	user_modfiles_query.virus_positive = 0
+	user_modfiles_query.filesize = 15181
+	user_modfiles_query.filehash = "2d4a0e2d7273db6b0a94b0740a88ad0d"
+	user_modfiles_query.filename = "cardio-blaster-v1.zip"
+	user_modfiles_query.version = "1.3"
+	user_modfiles_query.changelog = "Fixed stamina desync"
+	user_modfiles_query.metadata_blob = "cardio,featured"
+	user_modfiles_query.platform_status = "approved_only"
+
+	_queue_json_response(200, _fixture("modfiles.json"))
+	var user_modfiles_response := transport.execute(auth_adapter.build_user_modfiles_request(user_modfiles_query), auth_config)
+	assert_true(user_modfiles_response.ok)
+	assert_eq(_recorded_requests[2].url, "https://g-777.modapi.io/v1/me/files?_limit=9&_offset=18&changelog=Fixed%20stamina%20desync&date_added=1777800001&date_scanned=1777801800&filehash=2d4a0e2d7273db6b0a94b0740a88ad0d&filename=cardio-blaster-v1.zip&filesize=15181&id=5002&metadata_blob=cardio%2Cfeatured&mod_id=1001&platform_status=approved_only&version=1.3&virus_positive=0&virus_status=1")
+	assert_eq(_recorded_requests[2].headers.Authorization, "Bearer user-token")
+	assert_false(_recorded_requests[2].url.contains("api_key="))
+
 func test_executes_user_social_and_account_state_requests_with_documented_urls() -> void:
 	var public_config := ModioClientConfig.new("777", "demo-key", "https://api.mod.io/v1/", "", "en-US", "steam", "WINDOWS")
 	var auth_config := ModioClientConfig.new("777", "demo-key", "", "user-token", "en-US", "steam", "WINDOWS", ModioClientConfig.HOST_GAME)

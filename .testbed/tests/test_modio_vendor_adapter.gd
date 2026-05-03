@@ -470,6 +470,130 @@ func test_builds_collection_requests_with_documented_filter_and_sort_support() -
 	assert_eq(compatibility_request.headers.Authorization, "Bearer user-token")
 	assert_eq(compatibility_request.body.rating, "1")
 
+func test_builds_user_inventory_requests_with_documented_authenticated_query_shapes() -> void:
+	var auth_adapter := _build_adapter_with_token()
+
+	var games_query := ModioListingQuery.new()
+	games_query.limit = 6
+	games_query.offset = 12
+	games_query.sort = "-date_updated"
+	games_query.name = "AeroBeat"
+	games_query.summary = "Rhythm workouts"
+	games_query.instructions_url = "https://docs.aerobeat.example/mods"
+	games_query.ugc_name = "mods"
+	games_query.presentation_option = 0
+	games_query.submission_option = 1
+	games_query.curation_option = 2
+	games_query.profanity_option = 3
+	games_query.dependency_option = 2
+	games_query.community_options = 258
+	games_query.monetization_options = 1
+	games_query.api_access_options = 7
+	games_query.maturity_option = 0
+	games_query.show_hidden_mods = true
+	games_query.status = 1
+	games_query.submitted_by = "42"
+
+	var user_games_request = auth_adapter.build_user_games_request(games_query)
+	assert_eq(user_games_request.method, "GET")
+	assert_eq(user_games_request.path, "/me/games")
+	assert_eq(user_games_request.auth_mode, "bearer")
+	assert_eq(user_games_request.headers.Authorization, "Bearer user-token")
+	assert_eq(user_games_request.query._limit, "6")
+	assert_eq(user_games_request.query._offset, "12")
+	assert_eq(user_games_request.query._sort, "-date_updated")
+	assert_eq(user_games_request.query.name, "AeroBeat")
+	assert_eq(user_games_request.query.summary, "Rhythm workouts")
+	assert_eq(user_games_request.query.instructions_url, "https://docs.aerobeat.example/mods")
+	assert_eq(user_games_request.query.ugc_name, "mods")
+	assert_eq(user_games_request.query.presentation_option, "0")
+	assert_eq(user_games_request.query.submission_option, "1")
+	assert_eq(user_games_request.query.curation_option, "2")
+	assert_eq(user_games_request.query.profanity_option, "3")
+	assert_eq(user_games_request.query.dependency_option, "2")
+	assert_eq(user_games_request.query.community_options, "258")
+	assert_eq(user_games_request.query.monetization_options, "1")
+	assert_eq(user_games_request.query.api_access_options, "7")
+	assert_eq(user_games_request.query.maturity_options, "0")
+	assert_true(user_games_request.query.show_hidden_tags)
+	assert_false(user_games_request.query.has("api_key"))
+	assert_false(user_games_request.query.has("_q"))
+
+	var user_mods_query := ModioListingQuery.new()
+	user_mods_query.limit = 15
+	user_mods_query.offset = 45
+	user_mods_query.sort = "-downloads_total"
+	user_mods_query.id = "1001"
+	user_mods_query.game_id = "777"
+	user_mods_query.status = 1
+	user_mods_query.visible = 1
+	user_mods_query.submitted_by = "55"
+	user_mods_query.date_added = 1777800001
+	user_mods_query.date_updated = 1777803600
+	user_mods_query.date_live = 1777807200
+	user_mods_query.name = "Cardio Blaster"
+	user_mods_query.name_id = "cardio-blaster"
+	user_mods_query.modfile = "5002"
+	user_mods_query.metadata_blob = "{\"intensity\":\"high\"}"
+	user_mods_query.metadata_kvp = {"difficulty": "expert", "workout_type": "cardio"}
+	user_mods_query.tags_all = PackedStringArray(["Featured", "Cardio"])
+	user_mods_query.maturity_option = 4
+	user_mods_query.monetization_options = 1
+	user_mods_query.platform_status = "live_and_pending"
+	user_mods_query.search_term = "ignored-search"
+	user_mods_query.tags_any = PackedStringArray(["ignored-tag"])
+	user_mods_query.tags_not_in = PackedStringArray(["ignored-tag"])
+
+	var user_mods_request = auth_adapter.build_user_mods_request(user_mods_query)
+	assert_eq(user_mods_request.path, "/me/mods")
+	assert_eq(user_mods_request.auth_mode, "bearer")
+	assert_eq(user_mods_request.headers.Authorization, "Bearer user-token")
+	assert_eq(user_mods_request.query.tags, "Featured,Cardio")
+	assert_eq(user_mods_request.query.metadata_kvp, "difficulty:expert,workout_type:cardio")
+	assert_eq(user_mods_request.query.modfile, "5002")
+	assert_eq(user_mods_request.query.platform_status, "live_and_pending")
+	assert_eq(user_mods_request.query._sort, "-downloads_total")
+	assert_false(user_mods_request.query.has("api_key"))
+	assert_false(user_mods_request.query.has("_q"))
+	assert_false(user_mods_request.query.has("tags-in"))
+	assert_false(user_mods_request.query.has("tags-not-in"))
+
+	var user_modfiles_query := ModioListingQuery.new()
+	user_modfiles_query.limit = 9
+	user_modfiles_query.offset = 18
+	user_modfiles_query.id = "5002"
+	user_modfiles_query.mod_id = "1001"
+	user_modfiles_query.date_added = 1777800001
+	user_modfiles_query.date_scanned = 1777801800
+	user_modfiles_query.virus_status = 1
+	user_modfiles_query.virus_positive = 0
+	user_modfiles_query.filesize = 15181
+	user_modfiles_query.filehash = "2d4a0e2d7273db6b0a94b0740a88ad0d"
+	user_modfiles_query.filename = "cardio-blaster-v1.zip"
+	user_modfiles_query.version = "1.3"
+	user_modfiles_query.changelog = "Fixed stamina desync"
+	user_modfiles_query.metadata_blob = "cardio,featured"
+	user_modfiles_query.platform_status = "approved_only"
+	user_modfiles_query.sort = "-date_updated"
+
+	var user_modfiles_request = auth_adapter.build_user_modfiles_request(user_modfiles_query)
+	assert_eq(user_modfiles_request.path, "/me/files")
+	assert_eq(user_modfiles_request.auth_mode, "bearer")
+	assert_eq(user_modfiles_request.headers.Authorization, "Bearer user-token")
+	assert_eq(user_modfiles_request.query.id, "5002")
+	assert_eq(user_modfiles_request.query.mod_id, "1001")
+	assert_eq(user_modfiles_request.query.date_scanned, "1777801800")
+	assert_eq(user_modfiles_request.query.virus_status, "1")
+	assert_eq(user_modfiles_request.query.virus_positive, "0")
+	assert_eq(user_modfiles_request.query.filesize, "15181")
+	assert_eq(user_modfiles_request.query.filehash, "2d4a0e2d7273db6b0a94b0740a88ad0d")
+	assert_eq(user_modfiles_request.query.filename, "cardio-blaster-v1.zip")
+	assert_eq(user_modfiles_request.query.version, "1.3")
+	assert_eq(user_modfiles_request.query.changelog, "Fixed stamina desync")
+	assert_eq(user_modfiles_request.query.platform_status, "approved_only")
+	assert_false(user_modfiles_request.query.has("api_key"))
+	assert_false(user_modfiles_request.query.has("_sort"))
+
 func test_builds_user_social_and_account_state_requests_with_paging_only_query_shapes() -> void:
 	var public_adapter := _build_adapter()
 	var auth_adapter := _build_adapter_with_token()
@@ -548,6 +672,24 @@ func test_builds_user_social_and_account_state_requests_with_paging_only_query_s
 	assert_eq(followed_collections_request.query._limit, "40")
 	assert_eq(followed_collections_request.query._offset, "80")
 	assert_false(followed_collections_request.query.has("submitted_by"))
+
+func test_normalizes_user_inventory_fixture_payloads() -> void:
+	var adapter := _build_adapter_with_token()
+
+	var user_games := adapter.normalize_user_games_response(_fixture("games.json"))
+	assert_eq(user_games.result_total, 2)
+	assert_eq(user_games.data[0].name, "AeroBeat")
+	assert_true(user_games.data[0].download_policy.requires_authenticated_download)
+
+	var user_mods := adapter.normalize_user_mods_response(_fixture("mods.json"))
+	assert_eq(user_mods.result_total, 13)
+	assert_eq(user_mods.data[0].name_id, "cardio-blaster")
+	assert_eq(user_mods.data[0].modfile.id, 5001)
+
+	var user_modfiles := adapter.normalize_user_modfiles_response(_fixture("modfiles.json"))
+	assert_eq(user_modfiles.result_total, 1)
+	assert_eq(user_modfiles.data[0].filename, "cardio-blaster-v1.zip")
+	assert_true(user_modfiles.data[0].download.is_expiring)
 
 func test_normalizes_user_social_and_account_state_fixture_payloads() -> void:
 	var adapter := _build_adapter_with_token()
@@ -1280,7 +1422,7 @@ func test_builds_catalog_game_meta_and_taxonomy_requests_with_doc_corrected_path
 	assert_true(games_request.query.show_hidden_tags)
 
 	var invalid_games_sort := ModioListingQuery.new()
-	invalid_games_sort.sort = "-downloads_total"
+	invalid_games_sort.sort = "-ratings_weighted_aggregate"
 	var invalid_games_request = public_adapter.build_games_request(invalid_games_sort)
 	assert_false(invalid_games_request.query.has("_sort"))
 

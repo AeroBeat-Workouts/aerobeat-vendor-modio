@@ -6,6 +6,9 @@ const ENDPOINT_MODFILES := "modfiles"
 const ENDPOINT_SUBSCRIPTIONS := "subscriptions"
 const ENDPOINT_GAMES := "games"
 const ENDPOINT_GAME_MOD_STATS := "game_mod_stats"
+const ENDPOINT_USER_GAMES := "user_games"
+const ENDPOINT_USER_MODS := "user_mods"
+const ENDPOINT_USER_MODFILES := "user_modfiles"
 const ENDPOINT_MOD_DEPENDANTS := "mod_dependants"
 const ENDPOINT_MOD_TAGS := "mod_tags"
 const ENDPOINT_MOD_TEAM := "mod_team"
@@ -41,19 +44,29 @@ var maturity_option: int
 var name: String
 var game_id: String
 var mod_id: String
+var modfile: String
 var rating: int
 var resource_type: String
 var date_added: int
 var date_updated: int
 var date_live: int
+var date_scanned: int
 var resource_id: String
 var tag: String
 var level: int
 var pending: int
+var virus_status: int
+var virus_positive: int
+var filesize: int
 var reply_id: int
 var thread_position: String
 var karma: int
 var content: String
+var filehash: String = ""
+var filename: String = ""
+var version: String = ""
+var changelog: String = ""
+var platform_status: String = ""
 var show_hidden_mods: bool
 var summary: String = ""
 var instructions_url: String = ""
@@ -103,7 +116,17 @@ func _init(
 	p_username: String = "",
 	p_tag: String = "",
 	p_level: int = -1,
-	p_pending: int = -1
+	p_pending: int = -1,
+	p_modfile: String = "",
+	p_date_scanned: int = 0,
+	p_virus_status: int = -1,
+	p_virus_positive: int = -1,
+	p_filesize: int = -1,
+	p_filehash: String = "",
+	p_filename: String = "",
+	p_version: String = "",
+	p_changelog: String = "",
+	p_platform_status: String = ""
 ) -> void:
 	search_term = p_search_term.strip_edges()
 	tags_all = p_tags_all
@@ -127,19 +150,29 @@ func _init(
 	name = p_name.strip_edges()
 	game_id = p_game_id.strip_edges()
 	mod_id = p_mod_id.strip_edges()
+	modfile = p_modfile.strip_edges()
 	rating = p_rating
 	resource_type = p_resource_type.strip_edges().to_lower()
 	date_added = maxi(0, p_date_added)
 	date_updated = maxi(0, p_date_updated)
 	date_live = maxi(0, p_date_live)
+	date_scanned = maxi(0, p_date_scanned)
 	resource_id = p_resource_id.strip_edges()
 	tag = p_tag.strip_edges()
 	level = p_level
 	pending = p_pending
+	virus_status = p_virus_status
+	virus_positive = p_virus_positive
+	filesize = p_filesize
 	reply_id = p_reply_id
 	thread_position = p_thread_position.strip_edges()
 	karma = p_karma
 	content = p_content.strip_edges()
+	filehash = p_filehash.strip_edges()
+	filename = p_filename.strip_edges()
+	version = p_version.strip_edges()
+	changelog = p_changelog.strip_edges()
+	platform_status = p_platform_status.strip_edges()
 	show_hidden_mods = p_show_hidden_mods
 
 func to_query_dict(endpoint: String = ENDPOINT_MODS) -> Dictionary:
@@ -184,7 +217,7 @@ func to_query_dict(endpoint: String = ENDPOINT_MODS) -> Dictionary:
 	if capabilities.has("category") and not category.is_empty():
 		query["category"] = category
 	if capabilities.has("maturity_option") and maturity_option >= 0:
-		if endpoint == ENDPOINT_GAMES:
+		if endpoint == ENDPOINT_GAMES or endpoint == ENDPOINT_USER_GAMES:
 			query["maturity_options"] = str(maturity_option)
 		else:
 			query["maturity_option"] = str(maturity_option)
@@ -216,6 +249,8 @@ func to_query_dict(endpoint: String = ENDPOINT_MODS) -> Dictionary:
 		query["game_id"] = game_id
 	if capabilities.has("mod_id") and not mod_id.is_empty():
 		query["mod_id"] = mod_id
+	if capabilities.has("modfile") and not modfile.is_empty():
+		query["modfile"] = modfile
 	if capabilities.has("rating") and rating != 0:
 		query["rating"] = str(rating)
 	if capabilities.has("resource_type") and not resource_type.is_empty():
@@ -226,6 +261,8 @@ func to_query_dict(endpoint: String = ENDPOINT_MODS) -> Dictionary:
 		query["date_updated"] = str(date_updated)
 	if capabilities.has("date_live") and date_live > 0:
 		query["date_live"] = str(date_live)
+	if capabilities.has("date_scanned") and date_scanned > 0:
+		query["date_scanned"] = str(date_scanned)
 	if capabilities.has("resource_id") and not resource_id.is_empty():
 		query["resource_id"] = resource_id
 	if capabilities.has("tag") and not tag.is_empty():
@@ -234,6 +271,12 @@ func to_query_dict(endpoint: String = ENDPOINT_MODS) -> Dictionary:
 		query["level"] = str(level)
 	if capabilities.has("pending") and pending >= 0:
 		query["pending"] = str(pending)
+	if capabilities.has("virus_status") and virus_status >= 0:
+		query["virus_status"] = str(virus_status)
+	if capabilities.has("virus_positive") and virus_positive >= 0:
+		query["virus_positive"] = str(virus_positive)
+	if capabilities.has("filesize") and filesize >= 0:
+		query["filesize"] = str(filesize)
 	if capabilities.has("reply_id") and reply_id >= 0:
 		query["reply_id"] = str(reply_id)
 	if capabilities.has("thread_position") and not thread_position.is_empty():
@@ -242,8 +285,18 @@ func to_query_dict(endpoint: String = ENDPOINT_MODS) -> Dictionary:
 		query["karma"] = str(karma)
 	if capabilities.has("content") and not content.is_empty():
 		query["content"] = content
+	if capabilities.has("filehash") and not filehash.is_empty():
+		query["filehash"] = filehash
+	if capabilities.has("filename") and not filename.is_empty():
+		query["filename"] = filename
+	if capabilities.has("version") and not version.is_empty():
+		query["version"] = version
+	if capabilities.has("changelog") and not changelog.is_empty():
+		query["changelog"] = changelog
+	if capabilities.has("platform_status") and not platform_status.is_empty():
+		query["platform_status"] = platform_status
 	if capabilities.has("show_hidden_mods") and show_hidden_mods:
-		if endpoint == ENDPOINT_GAMES:
+		if endpoint == ENDPOINT_GAMES or endpoint == ENDPOINT_USER_GAMES:
 			query["show_hidden_tags"] = true
 		else:
 			query["show_hidden_mods"] = true
@@ -252,7 +305,7 @@ func to_query_dict(endpoint: String = ENDPOINT_MODS) -> Dictionary:
 
 func _get_capabilities(endpoint: String) -> PackedStringArray:
 	match endpoint:
-		ENDPOINT_GAMES:
+		ENDPOINT_GAMES, ENDPOINT_USER_GAMES:
 			return PackedStringArray([
 				"id",
 				"status",
@@ -279,6 +332,43 @@ func _get_capabilities(endpoint: String) -> PackedStringArray:
 			])
 		ENDPOINT_GAME_MOD_STATS:
 			return PackedStringArray(["mod_id"])
+		ENDPOINT_USER_MODS:
+			return PackedStringArray([
+				"tags_all",
+				"metadata_blob",
+				"metadata_kvp",
+				"sort",
+				"id",
+				"name_id",
+				"status",
+				"visible",
+				"submitted_by",
+				"game_id",
+				"date_added",
+				"date_updated",
+				"date_live",
+				"name",
+				"modfile",
+				"maturity_option",
+				"monetization_options",
+				"platform_status"
+			])
+		ENDPOINT_USER_MODFILES:
+			return PackedStringArray([
+				"id",
+				"mod_id",
+				"date_added",
+				"date_scanned",
+				"virus_status",
+				"virus_positive",
+				"filesize",
+				"filehash",
+				"filename",
+				"version",
+				"changelog",
+				"metadata_blob",
+				"platform_status"
+			])
 		ENDPOINT_MOD_DEPENDANTS:
 			return PackedStringArray([])
 		ENDPOINT_MOD_TAGS:
@@ -401,14 +491,30 @@ func _get_capabilities(endpoint: String) -> PackedStringArray:
 
 func _get_allowed_sorts(endpoint: String) -> PackedStringArray:
 	match endpoint:
-		ENDPOINT_GAMES:
+		ENDPOINT_GAMES, ENDPOINT_USER_GAMES:
 			return PackedStringArray([
 				"name",
-				"filesize",
+				"date_live",
 				"date_updated",
-				"added_to_collection"
+				"downloads_today",
+				"downloads_total",
+				"subscribers_total",
+				"mods_count_total"
 			])
 		ENDPOINT_GAME_MOD_STATS:
+			return PackedStringArray([])
+		ENDPOINT_USER_MODS:
+			return PackedStringArray([
+				"name",
+				"date_live",
+				"date_updated",
+				"submitted_by",
+				"downloads_today",
+				"downloads_total",
+				"subscribers_total",
+				"ratings_weighted_aggregate"
+			])
+		ENDPOINT_USER_MODFILES:
 			return PackedStringArray([])
 		ENDPOINT_USER_SOCIAL:
 			return PackedStringArray([])

@@ -161,7 +161,7 @@ Net finding: after the already completed auth/session, mod browse/detail/files/s
 
 **Status:** ✅ Complete
 
-**Results:** Completed the first two execution families from the gap map.
+**Results:** Completed the first three execution families from the gap map, including this pass's user inventory/profile read batch.
 
 1. **Catalog / game-meta / taxonomy utility batch**
    - Added vendor-local request builders, transport coverage, fixtures, and normalization for `GET /games`, `GET /games/{game-id}/stats`, `GET /games/{game-id}/tags`, `GET /games/{game-id}/mods/stats`, `GET /games/{game-id}/guides/tags`, `GET /agreements/versions/{agreement-version-id}`, and `GET /ping`, plus the doc-corrected read-only token-pack surface at `GET /games/{game-id}/monetization/token-packs`.
@@ -176,9 +176,18 @@ Net finding: after the already completed auth/session, mod browse/detail/files/s
    - Reused the existing collection coverage as-is instead of inventing undocumented mod-scoped aliases: the refreshed local official corpus in `REF-08` through `REF-10` reconfirmed that collection reads remain on the already wrapped game-scoped routes `GET /games/{game-id}/collections` and `GET /games/{game-id}/collections/{collection-id}` rather than `/games/{game-id}/mods/{mod-id}/collections...`.
    - Kept the new query serialization truthful to the docs: dependants + metadata KVP are paging-only, mod tags accept only `date_added` + `tag` plus paging, and mod team accepts only `id`, `user_id`, `username`, `level`, `date_added`, and `pending` plus paging.
 
+3. **User inventory/profile read batch** ✅ completed in this pass
+   - Added vendor-local authenticated request builders, transport coverage, reuse-focused normalization wrappers, and seam-doc updates for the current documented authenticated routes:
+     - `GET /me/games`
+     - `GET /me/mods`
+     - `GET /me/files`
+   - The refreshed local official corpus in `REF-08` through `REF-10` forced a narrower correction from the stale gap wording: this batch intentionally did **not** add undocumented public aliases such as `/users/{user-id}/games`, `/users/{user-id}/mods`, or `/users/{user-id}/modfiles`; it followed the current docs/SDK/Unity surfaces at `/me/games`, `/me/mods`, and `/me/files`.
+   - Kept the new query serialization truthful to the docs: `/me/games` reuses the documented game filters and sort keys, `/me/mods` accepts only the documented authenticated user-mod fields (`tags`, metadata, ids, status/visibility, game/date/name/modfile, maturity/monetization, platform status, paging, sort), and `/me/files` accepts only the documented authenticated user-modfile fields (`id`, `mod_id`, `date_added`, `date_scanned`, virus/file metadata, metadata blob, platform status, paging).
+   - Reused existing game/mod/modfile list fixtures and normalizers where truthful, adding only thin user-inventory normalization wrappers plus the extra `ModioListingQuery` fields needed to serialize the documented user-mod and user-modfile filters. This pass also corrected the shared game sort allowlist to the current documented keys so the new authenticated user-game surface matches the refreshed corpus.
+
 Validation evidence:
 - `godot --headless --path .testbed --script res://tests/validate_scaffold.gd` ✅
-- `godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit` ✅ (`38/38` tests passed, `1164` asserts)
+- `godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit` ✅ (`41/41` tests passed, `1245` asserts)
 
 Scope notes:
 - Kept vendor-local boundaries intact: no write-side mod tags/metadata/dependency/team management, authoring/CMS, uploads, install orchestration, monetization purchase/intents, or legacy event work were added.
