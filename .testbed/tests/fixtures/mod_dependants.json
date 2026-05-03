@@ -1,0 +1,40 @@
+{
+  "data": [
+    {
+      "mod_id": 2101,
+      "name": "Cardio Remix Pack",
+      "name_id": "cardio-remix-pack",
+      "status": 1,
+      "visible": 1,
+      "date_added": 1777900000,
+      "date_updated": 1777903600,
+      "logo": {
+        "filename": "cardio-remix.png",
+        "original": "https://assets.modcdn.io/images/mods/cardio-remix.png",
+        "thumb_320x180": "https://assets.modcdn.io/images/mods/cardio-remix_320x180.png",
+        "thumb_640x360": "https://assets.modcdn.io/images/mods/cardio-remix_640x360.png",
+        "thumb_1280x720": "https://assets.modcdn.io/images/mods/cardio-remix_1280x720.png"
+      }
+    },
+    {
+      "mod_id": 2102,
+      "name": "Recovery Booster",
+      "name_id": "recovery-booster",
+      "status": 0,
+      "visible": 0,
+      "date_added": 1777907200,
+      "date_updated": 1777910800,
+      "logo": {
+        "filename": "recovery-booster.png",
+        "original": "https://assets.modcdn.io/images/mods/recovery-booster.png",
+        "thumb_320x180": "https://assets.modcdn.io/images/mods/recovery-booster_320x180.png",
+        "thumb_640x360": "https://assets.modcdn.io/images/mods/recovery-booster_640x360.png",
+        "thumb_1280x720": "https://assets.modcdn.io/images/mods/recovery-booster_1280x720.png"
+      }
+    }
+  ],
+  "result_count": 2,
+  "result_offset": 1,
+  "result_limit": 2,
+  "result_total": 4
+}

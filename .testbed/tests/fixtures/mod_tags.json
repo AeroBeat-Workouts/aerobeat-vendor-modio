@@ -1,0 +1,18 @@
+{
+  "data": [
+    {
+      "name": "Featured",
+      "name_localized": "Featured",
+      "date_added": 1777800001
+    },
+    {
+      "name": "Beginner",
+      "name_localized": "Debutant",
+      "date_added": 1777803600
+    }
+  ],
+  "result_count": 2,
+  "result_offset": 0,
+  "result_limit": 100,
+  "result_total": 2
+}

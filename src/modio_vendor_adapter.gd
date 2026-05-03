@@ -656,6 +656,54 @@ func build_dependencies_request(mod_id: String, recursive: bool = false) -> Dict
 		{"auth_mode": _resolve_read_auth_mode(false)}
 	)
 
+func build_dependants_request(mod_id: String, query: ModioListingQuery = ModioListingQuery.new()) -> Dictionary:
+	var full_query := _build_public_query()
+	full_query.merge(query.to_query_dict(ModioListingQuery.ENDPOINT_MOD_DEPENDANTS), true)
+	return _transport.build_request(
+		"GET",
+		"/games/%s/mods/%s/dependants" % [_config.game_id, mod_id.strip_edges()],
+		full_query,
+		{},
+		_build_read_headers(false),
+		{"auth_mode": _resolve_read_auth_mode(false)}
+	)
+
+func build_mod_tags_request(mod_id: String, query: ModioListingQuery = ModioListingQuery.new()) -> Dictionary:
+	var full_query := _build_public_query()
+	full_query.merge(query.to_query_dict(ModioListingQuery.ENDPOINT_MOD_TAGS), true)
+	return _transport.build_request(
+		"GET",
+		"/games/%s/mods/%s/tags" % [_config.game_id, mod_id.strip_edges()],
+		full_query,
+		{},
+		_build_read_headers(false),
+		{"auth_mode": _resolve_read_auth_mode(false)}
+	)
+
+func build_mod_metadata_kvp_request(mod_id: String, query: ModioListingQuery = ModioListingQuery.new()) -> Dictionary:
+	var full_query := _build_public_query()
+	full_query.merge(query.to_query_dict(ModioListingQuery.ENDPOINT_MOD_DEPENDANTS), true)
+	return _transport.build_request(
+		"GET",
+		"/games/%s/mods/%s/metadatakvp" % [_config.game_id, mod_id.strip_edges()],
+		full_query,
+		{},
+		_build_read_headers(false),
+		{"auth_mode": _resolve_read_auth_mode(false)}
+	)
+
+func build_mod_team_request(mod_id: String, query: ModioListingQuery = ModioListingQuery.new()) -> Dictionary:
+	var full_query := _build_public_query()
+	full_query.merge(query.to_query_dict(ModioListingQuery.ENDPOINT_MOD_TEAM), true)
+	return _transport.build_request(
+		"GET",
+		"/games/%s/mods/%s/team" % [_config.game_id, mod_id.strip_edges()],
+		full_query,
+		{},
+		_build_read_headers(false),
+		{"auth_mode": _resolve_read_auth_mode(false)}
+	)
+
 func build_user_subscriptions_request(query: ModioListingQuery = ModioListingQuery.new()) -> Dictionary:
 	var full_query := _build_authenticated_query()
 	full_query.merge(query.to_query_dict(ModioListingQuery.ENDPOINT_SUBSCRIPTIONS), true)
@@ -957,6 +1005,18 @@ func normalize_dependencies_response(payload: Dictionary, recursive_requested: b
 	}
 	return normalized
 
+func normalize_dependants_response(payload: Dictionary) -> Dictionary:
+	return _normalize_list_payload(payload, Callable(self, "_normalize_dependant_object"))
+
+func normalize_mod_tags_response(payload: Dictionary) -> Dictionary:
+	return _normalize_list_payload(payload, Callable(self, "_normalize_mod_tag_object"))
+
+func normalize_mod_metadata_kvp_response(payload: Dictionary) -> Dictionary:
+	return _normalize_list_payload(payload, Callable(self, "_normalize_metadata_kvp_object"))
+
+func normalize_mod_team_response(payload: Dictionary) -> Dictionary:
+	return _normalize_list_payload(payload, Callable(self, "_normalize_team_member_object"))
+
 func normalize_subscriptions_response(payload: Dictionary) -> Dictionary:
 	return normalize_mod_list_response(payload)
 
@@ -1197,6 +1257,18 @@ func _normalize_dependency_object(payload: Dictionary) -> Dictionary:
 	var normalized := _normalize_mod_object(payload)
 	normalized["dependency_depth"] = int(payload.get("dependency_depth", 0))
 	return normalized
+
+func _normalize_dependant_object(payload: Dictionary) -> Dictionary:
+	return {
+		"mod_id": int(payload.get("mod_id", 0)),
+		"name": str(payload.get("name", "")),
+		"name_id": str(payload.get("name_id", "")),
+		"status": int(payload.get("status", 0)),
+		"visible": int(payload.get("visible", 0)),
+		"date_added": int(payload.get("date_added", 0)),
+		"date_updated": int(payload.get("date_updated", 0)),
+		"logo": _normalize_dictionary(payload.get("logo", {}))
+	}
 
 func _normalize_collection_object(payload: Dictionary) -> Dictionary:
 	var normalized_stats := _normalize_collection_stats(payload.get("stats", {}))
@@ -1474,22 +1546,28 @@ func _normalize_metadata_kvp(payload: Array) -> Array:
 	var normalized: Array = []
 	for item in payload:
 		if item is Dictionary:
-			normalized.append({
-				"metakey": str(item.get("metakey", "")),
-				"metavalue": str(item.get("metavalue", ""))
-			})
+			normalized.append(_normalize_metadata_kvp_object(item))
 	return normalized
+
+func _normalize_metadata_kvp_object(payload: Dictionary) -> Dictionary:
+	return {
+		"metakey": str(payload.get("metakey", "")),
+		"metavalue": str(payload.get("metavalue", ""))
+	}
 
 func _normalize_tags(payload: Array) -> Array:
 	var normalized: Array = []
 	for item in payload:
 		if item is Dictionary:
-			normalized.append({
-				"name": str(item.get("name", "")),
-				"name_localized": str(item.get("name_localized", "")),
-				"date_added": int(item.get("date_added", 0))
-			})
+			normalized.append(_normalize_mod_tag_object(item))
 	return normalized
+
+func _normalize_mod_tag_object(payload: Dictionary) -> Dictionary:
+	return {
+		"name": str(payload.get("name", "")),
+		"name_localized": str(payload.get("name_localized", "")),
+		"date_added": int(payload.get("date_added", 0))
+	}
 
 func _normalize_guide_tag_object(payload: Dictionary) -> Dictionary:
 	return {
@@ -1528,6 +1606,19 @@ func _normalize_tag_localizations(payload: Array) -> Array:
 				"translations": _normalize_dictionary(item.get("translations", {}))
 			})
 	return normalized
+
+func _normalize_team_member_object(payload: Dictionary) -> Dictionary:
+	var level := int(payload.get("level", 0))
+	var invite_pending := int(payload.get("invite_pending", 0))
+	return {
+		"id": int(payload.get("id", 0)),
+		"user": _normalize_user_object(payload.get("user", {})),
+		"level": level,
+		"date_added": int(payload.get("date_added", 0)),
+		"position": str(payload.get("position", "")),
+		"invite_pending": invite_pending,
+		"is_pending": invite_pending != 0
+	}
 
 func _normalize_game_token_pack_object(payload: Dictionary) -> Dictionary:
 	return {

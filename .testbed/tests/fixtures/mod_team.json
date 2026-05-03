@@ -1,0 +1,56 @@
+{
+  "data": [
+    {
+      "id": 457,
+      "user": {
+        "id": 42,
+        "name_id": "coach-chip",
+        "username": "Coach Chip",
+        "display_name_portal": null,
+        "date_online": 1777920000,
+        "date_joined": 1777000000,
+        "avatar": {
+          "filename": "coach-chip.png",
+          "original": "https://assets.modcdn.io/images/users/coach-chip.png",
+          "thumb_50x50": "https://assets.modcdn.io/images/users/coach-chip_50x50.png",
+          "thumb_100x100": "https://assets.modcdn.io/images/users/coach-chip_100x100.png"
+        },
+        "timezone": "",
+        "language": "en-US",
+        "profile_url": "https://mod.io/u/coach-chip"
+      },
+      "level": 8,
+      "date_added": 1777801000,
+      "position": "Lead Curator",
+      "invite_pending": 0
+    },
+    {
+      "id": 458,
+      "user": {
+        "id": 77,
+        "name_id": "guest-builder",
+        "username": "Guest Builder",
+        "display_name_portal": null,
+        "date_online": 1777910000,
+        "date_joined": 1777100000,
+        "avatar": {
+          "filename": "guest-builder.png",
+          "original": "https://assets.modcdn.io/images/users/guest-builder.png",
+          "thumb_50x50": "https://assets.modcdn.io/images/users/guest-builder_50x50.png",
+          "thumb_100x100": "https://assets.modcdn.io/images/users/guest-builder_100x100.png"
+        },
+        "timezone": "",
+        "language": "en-US",
+        "profile_url": "https://mod.io/u/guest-builder"
+      },
+      "level": 1,
+      "date_added": 1777804600,
+      "position": "Moderator",
+      "invite_pending": 1
+    }
+  ],
+  "result_count": 2,
+  "result_offset": 0,
+  "result_limit": 100,
+  "result_total": 2
+}

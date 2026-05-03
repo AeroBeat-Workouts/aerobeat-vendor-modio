@@ -689,6 +689,97 @@ func test_builds_dependency_requests_and_normalizes_recursive_dependency_payload
 	assert_eq(artifact_resolution.artifacts[1].dependency.dependency_depth, 1)
 	assert_true(artifact_resolution.artifacts[0].game_policy.requires_authenticated_download)
 
+func test_builds_mod_adjacent_read_enrichment_requests_with_documented_filter_support() -> void:
+	var adapter := _build_adapter()
+
+	var dependant_query := ModioListingQuery.new()
+	dependant_query.limit = 12
+	dependant_query.offset = 24
+	dependant_query.search_term = "ignored-search"
+	var dependants_request = adapter.build_dependants_request("1001", dependant_query)
+	assert_eq(dependants_request.path, "/games/777/mods/1001/dependants")
+	assert_eq(dependants_request.query.api_key, "demo-key")
+	assert_eq(dependants_request.query._limit, "12")
+	assert_eq(dependants_request.query._offset, "24")
+	assert_false(dependants_request.query.has("_q"))
+	assert_false(dependants_request.query.has("tags"))
+
+	var tags_query := ModioListingQuery.new()
+	tags_query.limit = 15
+	tags_query.offset = 30
+	tags_query.tag = "Featured"
+	tags_query.date_added = 1777800001
+	tags_query.sort = "-date_updated"
+	tags_query.tags_all = PackedStringArray(["ignored-tag"])
+	var tags_request = adapter.build_mod_tags_request("1001", tags_query)
+	assert_eq(tags_request.path, "/games/777/mods/1001/tags")
+	assert_eq(tags_request.query.tag, "Featured")
+	assert_eq(tags_request.query.date_added, "1777800001")
+	assert_eq(tags_request.query._limit, "15")
+	assert_eq(tags_request.query._offset, "30")
+	assert_false(tags_request.query.has("_sort"))
+	assert_false(tags_request.query.has("tags"))
+
+	var metadata_query := ModioListingQuery.new()
+	metadata_query.limit = 8
+	metadata_query.offset = 16
+	metadata_query.metadata_kvp = {"ignored": "pair"}
+	metadata_query.search_term = "ignored-search"
+	var metadata_request = adapter.build_mod_metadata_kvp_request("1001", metadata_query)
+	assert_eq(metadata_request.path, "/games/777/mods/1001/metadatakvp")
+	assert_eq(metadata_request.query._limit, "8")
+	assert_eq(metadata_request.query._offset, "16")
+	assert_false(metadata_request.query.has("metadata_kvp"))
+	assert_false(metadata_request.query.has("_q"))
+
+	var team_query := ModioListingQuery.new()
+	team_query.limit = 20
+	team_query.offset = 40
+	team_query.id = "457"
+	team_query.user_id = "42"
+	team_query.username = "Coach Chip"
+	team_query.level = 8
+	team_query.date_added = 1777801000
+	team_query.pending = 1
+	team_query.submitted_by = "ignored-user"
+	var team_request = adapter.build_mod_team_request("1001", team_query)
+	assert_eq(team_request.path, "/games/777/mods/1001/team")
+	assert_eq(team_request.query.id, "457")
+	assert_eq(team_request.query.user_id, "42")
+	assert_eq(team_request.query.username, "Coach Chip")
+	assert_eq(team_request.query.level, "8")
+	assert_eq(team_request.query.date_added, "1777801000")
+	assert_eq(team_request.query.pending, "1")
+	assert_eq(team_request.query._limit, "20")
+	assert_eq(team_request.query._offset, "40")
+	assert_false(team_request.query.has("submitted_by"))
+
+func test_normalizes_mod_adjacent_read_enrichment_fixture_payloads() -> void:
+	var adapter := _build_adapter()
+
+	var dependants = adapter.normalize_dependants_response(_fixture("mod_dependants.json"))
+	assert_eq(dependants.result_total, 4)
+	assert_true(dependants.page.has_next)
+	assert_eq(dependants.data[0].mod_id, 2101)
+	assert_eq(dependants.data[1].visible, 0)
+	assert_eq(dependants.data[0].logo.thumb_320x180, "https://assets.modcdn.io/images/mods/cardio-remix_320x180.png")
+
+	var mod_tags = adapter.normalize_mod_tags_response(_fixture("mod_tags.json"))
+	assert_eq(mod_tags.data[0].name, "Featured")
+	assert_eq(mod_tags.data[1].name_localized, "Debutant")
+	assert_eq(mod_tags.page.page_count, 1)
+
+	var metadata = adapter.normalize_mod_metadata_kvp_response(_fixture("mod_metadata_kvp.json"))
+	assert_eq(metadata.data[0].metakey, "difficulty")
+	assert_eq(metadata.data[1].metavalue, "cardio")
+
+	var team = adapter.normalize_mod_team_response(_fixture("mod_team.json"))
+	assert_eq(team.data[0].level, 8)
+	assert_eq(team.data[0].user.username, "Coach Chip")
+	assert_false(team.data[0].is_pending)
+	assert_true(team.data[1].is_pending)
+	assert_eq(team.data[1].position, "Moderator")
+
 func test_normalizes_fixture_payloads_for_richer_slice() -> void:
 	var adapter := _build_adapter_with_token()
 

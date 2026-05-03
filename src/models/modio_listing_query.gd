@@ -6,6 +6,9 @@ const ENDPOINT_MODFILES := "modfiles"
 const ENDPOINT_SUBSCRIPTIONS := "subscriptions"
 const ENDPOINT_GAMES := "games"
 const ENDPOINT_GAME_MOD_STATS := "game_mod_stats"
+const ENDPOINT_MOD_DEPENDANTS := "mod_dependants"
+const ENDPOINT_MOD_TAGS := "mod_tags"
+const ENDPOINT_MOD_TEAM := "mod_team"
 const ENDPOINT_USER_RATINGS := "user_ratings"
 const ENDPOINT_MOD_COMMENTS := "mod_comments"
 const ENDPOINT_GUIDES := "guides"
@@ -30,6 +33,8 @@ var name_id: String
 var status: int
 var visible: int
 var submitted_by: String
+var user_id: String
+var username: String
 var submitted_by_display_name: String
 var category: String
 var maturity_option: int
@@ -42,6 +47,9 @@ var date_added: int
 var date_updated: int
 var date_live: int
 var resource_id: String
+var tag: String
+var level: int
+var pending: int
 var reply_id: int
 var thread_position: String
 var karma: int
@@ -90,7 +98,12 @@ func _init(
 	p_category: String = "",
 	p_maturity_option: int = -1,
 	p_name: String = "",
-	p_show_hidden_mods: bool = false
+	p_show_hidden_mods: bool = false,
+	p_user_id: String = "",
+	p_username: String = "",
+	p_tag: String = "",
+	p_level: int = -1,
+	p_pending: int = -1
 ) -> void:
 	search_term = p_search_term.strip_edges()
 	tags_all = p_tags_all
@@ -106,6 +119,8 @@ func _init(
 	status = p_status
 	visible = p_visible
 	submitted_by = p_submitted_by.strip_edges()
+	user_id = p_user_id.strip_edges()
+	username = p_username.strip_edges()
 	submitted_by_display_name = p_submitted_by_display_name.strip_edges()
 	category = p_category.strip_edges()
 	maturity_option = p_maturity_option
@@ -118,6 +133,9 @@ func _init(
 	date_updated = maxi(0, p_date_updated)
 	date_live = maxi(0, p_date_live)
 	resource_id = p_resource_id.strip_edges()
+	tag = p_tag.strip_edges()
+	level = p_level
+	pending = p_pending
 	reply_id = p_reply_id
 	thread_position = p_thread_position.strip_edges()
 	karma = p_karma
@@ -157,6 +175,10 @@ func to_query_dict(endpoint: String = ENDPOINT_MODS) -> Dictionary:
 		query["visible"] = str(visible)
 	if capabilities.has("submitted_by") and not submitted_by.is_empty():
 		query["submitted_by"] = submitted_by
+	if capabilities.has("user_id") and not user_id.is_empty():
+		query["user_id"] = user_id
+	if capabilities.has("username") and not username.is_empty():
+		query["username"] = username
 	if capabilities.has("submitted_by_display_name") and not submitted_by_display_name.is_empty():
 		query["submitted_by_display_name"] = submitted_by_display_name
 	if capabilities.has("category") and not category.is_empty():
@@ -206,6 +228,12 @@ func to_query_dict(endpoint: String = ENDPOINT_MODS) -> Dictionary:
 		query["date_live"] = str(date_live)
 	if capabilities.has("resource_id") and not resource_id.is_empty():
 		query["resource_id"] = resource_id
+	if capabilities.has("tag") and not tag.is_empty():
+		query["tag"] = tag
+	if capabilities.has("level") and level >= 0:
+		query["level"] = str(level)
+	if capabilities.has("pending") and pending >= 0:
+		query["pending"] = str(pending)
 	if capabilities.has("reply_id") and reply_id >= 0:
 		query["reply_id"] = str(reply_id)
 	if capabilities.has("thread_position") and not thread_position.is_empty():
@@ -251,6 +279,12 @@ func _get_capabilities(endpoint: String) -> PackedStringArray:
 			])
 		ENDPOINT_GAME_MOD_STATS:
 			return PackedStringArray(["mod_id"])
+		ENDPOINT_MOD_DEPENDANTS:
+			return PackedStringArray([])
+		ENDPOINT_MOD_TAGS:
+			return PackedStringArray(["date_added", "tag"])
+		ENDPOINT_MOD_TEAM:
+			return PackedStringArray(["id", "user_id", "username", "level", "date_added", "pending"])
 		ENDPOINT_USER_SOCIAL:
 			return PackedStringArray([])
 		ENDPOINT_USER_COLLECTIONS:

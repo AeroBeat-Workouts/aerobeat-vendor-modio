@@ -22,6 +22,7 @@ Keep **provider-native** concerns in this repo while allowing `aerobeat-tool-api
 - provider DTO parsing, page-state helpers, and error normalization
 - thin HTTP transport execution for mod.io-specific endpoints
 - read-only catalog/game-meta/taxonomy utility coverage for game listing, game stats, game tag options, guide tags, ping, agreement version lookup, and read-only token-pack discovery
+- mod-adjacent read enrichment coverage for mod dependants, mod tags, mod metadata KVP, and mod team reads
 
 ### This repo should not own
 
@@ -51,6 +52,10 @@ The current slice now exposes a larger request-builder and normalization seam:
     - `build_modfiles_request(...)`
     - `build_modfile_request(...)`
     - `build_mod_stats_request(...)`
+    - `build_dependants_request(...)`
+    - `build_mod_tags_request(...)`
+    - `build_mod_metadata_kvp_request(...)`
+    - `build_mod_team_request(...)`
     - `build_collections_request(...)`
     - `build_collection_request(...)`
     - `build_collection_mods_request(...)`
@@ -91,7 +96,7 @@ The current slice now exposes a larger request-builder and normalization seam:
     - `build_subscribe_request(...)`
     - `build_unsubscribe_request(...)`
   - normalization helpers
-    - auth/logout/message/user/game/games/game-stats/game-tags/game-token-packs/game-mod-stats/guide-tags/mod/modfile/mod-stats/mod-comment/guide/guide-comment/collection/collection-comment/user-social list/user-collection list/user-ratings/subscription/dependency/report/collection-compatibility responses
+    - auth/logout/message/user/game/games/game-stats/game-tags/game-token-packs/game-mod-stats/guide-tags/mod/modfile/mod-stats/mod-dependants/mod-tags/mod-metadata-kvp/mod-team/mod-comment/guide/guide-comment/collection/collection-comment/user-social list/user-collection list/user-ratings/subscription/dependency/report/collection-compatibility responses
     - page-state helpers derived from `result_count`, `result_offset`, `result_limit`, and `result_total`
     - subscription write responses
     - download metadata resolution helpers
@@ -127,6 +132,9 @@ That keeps transient CDN delivery behavior local to the vendor seam and out of A
 - endpoint query serialization is intentionally capability-gated so unsupported filters do not leak onto the wrong wrapped endpoint
 - `GET /games` now serializes only the current documented game listing filters (`id`, `status`, `submitted_by`, `date_added`, `date_updated`, `date_live`, `name`, `name_id`, `summary`, `instructions_url`, `ugc_name`, `presentation_option`, `submission_option`, `curation_option`, `profanity_option`, `dependency_option`, `community_options`, `monetization_options`, `api_access_options`, `maturity_options`, `show_hidden_tags`) plus paging and the current documented game sort keys
 - `GET /games/{game-id}/mods/stats` now serializes only paging plus the documented optional `mod_id` filter
+- `GET /games/{game-id}/mods/{mod-id}/dependants` and `GET /games/{game-id}/mods/{mod-id}/metadatakvp` now serialize paging only (`_limit`, `_offset`)
+- `GET /games/{game-id}/mods/{mod-id}/tags` now serializes only the documented `date_added` and `tag` filters plus paging
+- `GET /games/{game-id}/mods/{mod-id}/team` now serializes only the documented `id`, `user_id`, `username`, `level`, `date_added`, and `pending` filters plus paging
 - `GET /games/{game-id}/guides` now serializes only the current documented guide filters (`id`, `game_id`, `status`, `submitted_by`, `submitted_by_display_name`, `date_added`, `date_updated`, `date_live`, `name_id`, `tags`, `tags-in`, `tags-not-in`) plus paging and documented sort keys
 - `GET /games/{game-id}/guides/{guide-id}/comments` now serializes only the current documented guide-comment filters (`id`, `resource_id`, `submitted_by`, `date_added`, `reply_id`, `thread_position`, `karma`, `content`) plus paging
 - `GET /games/{game-id}/collections` now serializes only the current documented collection filters (`id`, `status`, `mod_id`, `category`, `submitted_by`, `submitted_by_display_name`, `date_added`, `date_updated`, `date_live`, `name`, `name_id`, `maturity_option`, `tags`, `tags-in`, `tags-not-in`) plus paging and documented sort keys
@@ -149,7 +157,7 @@ The current validation layer is fixture-driven and based on current official API
 - `/home/derrick/.openclaw/workspace/projects/modio/modio-sdk`
 - `/home/derrick/.openclaw/workspace/projects/modio/modio-unity`
 
-Repo-local tests intentionally use simulated payloads derived from the documented shapes instead of live network calls, but they now validate the transport seam at the executed-request level: final encoded URL, final headers, form body encoding, and normalized HTTP/error outcomes.
+Repo-local tests intentionally use simulated payloads derived from the documented shapes instead of live network calls, but they now validate the transport seam at the executed-request level: final encoded URL, final headers, form body encoding, and normalized HTTP/error outcomes. The refreshed local corpus also reconfirmed that collection reads stay on the existing game-scoped routes (`GET /games/{game-id}/collections...` and `GET /games/{game-id}/collections/{collection-id}`), so this seam deliberately does not add undocumented mod-scoped collection aliases.
 
 ## Next implementation slices
 

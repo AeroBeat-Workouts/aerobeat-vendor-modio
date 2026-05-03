@@ -161,14 +161,27 @@ Net finding: after the already completed auth/session, mod browse/detail/files/s
 
 **Status:** ✅ Complete
 
-**Results:** Completed the first execution family from the gap map: the **catalog / game-meta / taxonomy utility batch**. Added vendor-local request builders, transport coverage, fixtures, and normalization for `GET /games`, `GET /games/{game-id}/stats`, `GET /games/{game-id}/tags`, `GET /games/{game-id}/mods/stats`, `GET /games/{game-id}/guides/tags`, `GET /agreements/versions/{agreement-version-id}`, and `GET /ping`, plus the doc-corrected read-only token-pack surface at `GET /games/{game-id}/monetization/token-packs`. The refreshed local corpus corrected two paths from the earlier gap wording (`/games/{game-id}/tokenpacks` -> `/games/{game-id}/monetization/token-packs`, `/agreements/types/{agreement-type-id}/versions/{version}` -> `/agreements/versions/{agreement-version-id}`), and the implementation followed the local official docs/SDK/Unity refs instead of the stale gap-map phrasing.
+**Results:** Completed the first two execution families from the gap map.
+
+1. **Catalog / game-meta / taxonomy utility batch**
+   - Added vendor-local request builders, transport coverage, fixtures, and normalization for `GET /games`, `GET /games/{game-id}/stats`, `GET /games/{game-id}/tags`, `GET /games/{game-id}/mods/stats`, `GET /games/{game-id}/guides/tags`, `GET /agreements/versions/{agreement-version-id}`, and `GET /ping`, plus the doc-corrected read-only token-pack surface at `GET /games/{game-id}/monetization/token-packs`.
+   - The refreshed local corpus corrected two paths from the earlier gap wording (`/games/{game-id}/tokenpacks` -> `/games/{game-id}/monetization/token-packs`, `/agreements/types/{agreement-type-id}/versions/{version}` -> `/agreements/versions/{agreement-version-id}`), and the implementation followed the local official docs/SDK/Unity refs instead of the stale gap-map phrasing.
+
+2. **Mod-adjacent read enrichment batch** ✅ completed in this pass
+   - Added vendor-local request builders, transport coverage, fixtures, normalization helpers, and seam-doc updates for:
+     - `GET /games/{game-id}/mods/{mod-id}/dependants`
+     - `GET /games/{game-id}/mods/{mod-id}/tags`
+     - `GET /games/{game-id}/mods/{mod-id}/metadatakvp`
+     - `GET /games/{game-id}/mods/{mod-id}/team`
+   - Reused the existing collection coverage as-is instead of inventing undocumented mod-scoped aliases: the refreshed local official corpus in `REF-08` through `REF-10` reconfirmed that collection reads remain on the already wrapped game-scoped routes `GET /games/{game-id}/collections` and `GET /games/{game-id}/collections/{collection-id}` rather than `/games/{game-id}/mods/{mod-id}/collections...`.
+   - Kept the new query serialization truthful to the docs: dependants + metadata KVP are paging-only, mod tags accept only `date_added` + `tag` plus paging, and mod team accepts only `id`, `user_id`, `username`, `level`, `date_added`, and `pending` plus paging.
 
 Validation evidence:
 - `godot --headless --path .testbed --script res://tests/validate_scaffold.gd` ✅
-- `godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit` ✅ (`35/35` tests passed, `1100` asserts)
+- `godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit` ✅ (`38/38` tests passed, `1164` asserts)
 
 Scope notes:
-- Kept vendor-local boundaries intact: no writes, admin/media management, authoring/CMS, install orchestration, or legacy event work were added.
+- Kept vendor-local boundaries intact: no write-side mod tags/metadata/dependency/team management, authoring/CMS, uploads, install orchestration, monetization purchase/intents, or legacy event work were added.
 - Kept monetization handling narrowly read-only: token-pack discovery only, no purchase/intents/wallet flows.
 
 ---

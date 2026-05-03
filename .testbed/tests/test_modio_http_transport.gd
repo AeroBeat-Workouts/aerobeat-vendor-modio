@@ -173,6 +173,52 @@ func test_executes_dependency_requests_with_explicit_recursive_semantics() -> vo
 	assert_eq(_recorded_requests[1].url, "https://api.mod.io/v1/games/777/mods/1001/dependencies?api_key=demo-key&recursive=true")
 	assert_eq(int(recursive_response.payload.result_total), 2)
 
+func test_executes_mod_adjacent_read_enrichment_requests_with_documented_urls() -> void:
+	var config := ModioClientConfig.new("777", "demo-key", "https://api.mod.io/v1/", "", "en-US", "steam", "WINDOWS")
+	var transport := ModioHttpTransport.new(Callable(self, "_transport_double"))
+	var adapter := ModioVendorAdapter.new(config, transport)
+
+	var dependants_query := ModioListingQuery.new()
+	dependants_query.limit = 12
+	dependants_query.offset = 24
+	_queue_json_response(200, _fixture("mod_dependants.json"))
+	var dependants_response := transport.execute(adapter.build_dependants_request("1001", dependants_query), config)
+	assert_true(dependants_response.ok)
+	assert_eq(_recorded_requests[0].url, "https://api.mod.io/v1/games/777/mods/1001/dependants?_limit=12&_offset=24&api_key=demo-key")
+
+	var tags_query := ModioListingQuery.new()
+	tags_query.limit = 15
+	tags_query.offset = 30
+	tags_query.tag = "Featured"
+	tags_query.date_added = 1777800001
+	_queue_json_response(200, _fixture("mod_tags.json"))
+	var tags_response := transport.execute(adapter.build_mod_tags_request("1001", tags_query), config)
+	assert_true(tags_response.ok)
+	assert_eq(_recorded_requests[1].url, "https://api.mod.io/v1/games/777/mods/1001/tags?_limit=15&_offset=30&api_key=demo-key&date_added=1777800001&tag=Featured")
+
+	var metadata_query := ModioListingQuery.new()
+	metadata_query.limit = 8
+	metadata_query.offset = 16
+	_queue_json_response(200, _fixture("mod_metadata_kvp.json"))
+	var metadata_response := transport.execute(adapter.build_mod_metadata_kvp_request("1001", metadata_query), config)
+	assert_true(metadata_response.ok)
+	assert_eq(_recorded_requests[2].url, "https://api.mod.io/v1/games/777/mods/1001/metadatakvp?_limit=8&_offset=16&api_key=demo-key")
+
+	var team_query := ModioListingQuery.new()
+	team_query.limit = 20
+	team_query.offset = 40
+	team_query.id = "457"
+	team_query.user_id = "42"
+	team_query.username = "Coach Chip"
+	team_query.level = 8
+	team_query.date_added = 1777801000
+	team_query.pending = 1
+	_queue_json_response(200, _fixture("mod_team.json"))
+	var team_response := transport.execute(adapter.build_mod_team_request("1001", team_query), config)
+	assert_true(team_response.ok)
+	assert_eq(_recorded_requests[3].url, "https://api.mod.io/v1/games/777/mods/1001/team?_limit=20&_offset=40&api_key=demo-key&date_added=1777801000&id=457&level=8&pending=1&user_id=42&username=Coach%20Chip")
+	assert_eq(int(team_response.payload.result_total), 2)
+
 func test_executes_modfile_stats_ratings_and_report_requests_with_documented_shapes() -> void:
 	var public_config := ModioClientConfig.new("777", "demo-key", "https://api.mod.io/v1/", "", "en-US", "steam", "WINDOWS")
 	var auth_config := ModioClientConfig.new("777", "demo-key", "", "user-token", "en-US", "steam", "WINDOWS", ModioClientConfig.HOST_GAME)
