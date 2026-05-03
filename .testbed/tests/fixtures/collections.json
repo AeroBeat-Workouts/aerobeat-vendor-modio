@@ -1,0 +1,114 @@
+{
+  "data": [
+    {
+      "id": 3001,
+      "game_id": 777,
+      "status": 1,
+      "visible": true,
+      "submitted_by": {
+        "id": 42,
+        "name_id": "coach-chip",
+        "username": "Coach Chip",
+        "display_name_portal": "Coach Chip",
+        "date_online": 1777801000,
+        "date_joined": 1777701000,
+        "avatar": {
+          "filename": "coach.png",
+          "original": "https://assets.modcdn.io/avatars/coach.png",
+          "thumb_50x50": "https://assets.modcdn.io/avatars/coach_50x50.png",
+          "thumb_100x100": "https://assets.modcdn.io/avatars/coach_100x100.png"
+        },
+        "timezone": "",
+        "language": "",
+        "profile_url": "https://mod.io/u/coach-chip"
+      },
+      "category": "Cardio",
+      "date_added": 1777800001,
+      "date_updated": 1777803600,
+      "date_live": 1777807200,
+      "date_disabled": 0,
+      "limit_number_mods": 12,
+      "maturity_option": 0,
+      "filesize": 512000,
+      "filesize_uncompressed": 1024000,
+      "platforms": ["WINDOWS", "LINUX"],
+      "tags": ["GAMEPLAY", "QUALITY_OF_LIFE"],
+      "stats": {
+        "collection_id": 3001,
+        "downloads_today": 14,
+        "downloads_unique": 60,
+        "downloads_total": 400,
+        "followers_total": 120,
+        "ratings_positive_30_days": 16
+      },
+      "logo": {
+        "filename": "starter-bundle.png",
+        "original": "https://assets.modcdn.io/images/collections/starter-bundle.png",
+        "thumb_320x180": "https://assets.modcdn.io/images/collections/starter-bundle_320x180.png",
+        "thumb_640x360": "https://assets.modcdn.io/images/collections/starter-bundle_640x360.png",
+        "thumb_1280x720": "https://assets.modcdn.io/images/collections/starter-bundle_1280x720.png"
+      },
+      "name": "Starter Bundle",
+      "name_id": "starter-bundle",
+      "summary": "A curated starter set for new AeroBeat players.",
+      "description": "<p>Warmup-friendly song, chart, and coach recommendations.</p>"
+    },
+    {
+      "id": 3002,
+      "game_id": 777,
+      "status": 1,
+      "visible": false,
+      "submitted_by": {
+        "id": 77,
+        "name_id": "designer-dash",
+        "username": "Designer Dash",
+        "display_name_portal": "Designer Dash",
+        "date_online": 1777802000,
+        "date_joined": 1777600000,
+        "avatar": {
+          "filename": "dash.png",
+          "original": "https://assets.modcdn.io/avatars/dash.png",
+          "thumb_50x50": "https://assets.modcdn.io/avatars/dash_50x50.png",
+          "thumb_100x100": "https://assets.modcdn.io/avatars/dash_100x100.png"
+        },
+        "timezone": "",
+        "language": "",
+        "profile_url": "https://mod.io/u/designer-dash"
+      },
+      "category": "Advanced",
+      "date_added": 1777790000,
+      "date_updated": 1777793600,
+      "date_live": 1777797200,
+      "date_disabled": 1777890000,
+      "limit_number_mods": 8,
+      "maturity_option": 4,
+      "filesize": 768000,
+      "filesize_uncompressed": 1536000,
+      "platforms": ["WINDOWS"],
+      "tags": ["VISUAL"],
+      "stats": {
+        "collection_id": 3002,
+        "downloads_today": 3,
+        "downloads_unique": 10,
+        "downloads_total": 42,
+        "followers_total": 8,
+        "ratings_positive_30_days": 2
+      },
+      "logo": {
+        "filename": "advanced-bundle.png",
+        "original": "https://assets.modcdn.io/images/collections/advanced-bundle.png",
+        "thumb_320x180": "https://assets.modcdn.io/images/collections/advanced-bundle_320x180.png",
+        "thumb_640x360": "https://assets.modcdn.io/images/collections/advanced-bundle_640x360.png",
+        "thumb_1280x720": "https://assets.modcdn.io/images/collections/advanced-bundle_1280x720.png"
+      },
+      "name": "Advanced Bundle",
+      "name_id": "advanced-bundle",
+      "summary": "High-intensity pack for veteran players.",
+      "description": "<p>Demanding chart recommendations and visual modifiers.</p>"
+    }
+  ],
+  "result_count": 2,
+  "result_offset": 0,
+  "result_limit": 2,
+  "result_total": 5
+}

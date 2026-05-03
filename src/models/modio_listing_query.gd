@@ -8,6 +8,9 @@ const ENDPOINT_USER_RATINGS := "user_ratings"
 const ENDPOINT_MOD_COMMENTS := "mod_comments"
 const ENDPOINT_GUIDES := "guides"
 const ENDPOINT_GUIDE_COMMENTS := "guide_comments"
+const ENDPOINT_COLLECTIONS := "collections"
+const ENDPOINT_COLLECTION_MODS := "collection_mods"
+const ENDPOINT_COLLECTION_COMMENTS := "collection_comments"
 
 var search_term: String
 var tags_all: PackedStringArray
@@ -24,6 +27,9 @@ var status: int
 var visible: int
 var submitted_by: String
 var submitted_by_display_name: String
+var category: String
+var maturity_option: int
+var name: String
 var game_id: String
 var mod_id: String
 var rating: int
@@ -36,6 +42,7 @@ var reply_id: int
 var thread_position: String
 var karma: int
 var content: String
+var show_hidden_mods: bool
 
 func _init(
 	p_search_term: String = "",
@@ -64,7 +71,11 @@ func _init(
 	p_content: String = "",
 	p_submitted_by_display_name: String = "",
 	p_date_updated: int = 0,
-	p_date_live: int = 0
+	p_date_live: int = 0,
+	p_category: String = "",
+	p_maturity_option: int = -1,
+	p_name: String = "",
+	p_show_hidden_mods: bool = false
 ) -> void:
 	search_term = p_search_term.strip_edges()
 	tags_all = p_tags_all
@@ -81,6 +92,9 @@ func _init(
 	visible = p_visible
 	submitted_by = p_submitted_by.strip_edges()
 	submitted_by_display_name = p_submitted_by_display_name.strip_edges()
+	category = p_category.strip_edges()
+	maturity_option = p_maturity_option
+	name = p_name.strip_edges()
 	game_id = p_game_id.strip_edges()
 	mod_id = p_mod_id.strip_edges()
 	rating = p_rating
@@ -93,6 +107,7 @@ func _init(
 	thread_position = p_thread_position.strip_edges()
 	karma = p_karma
 	content = p_content.strip_edges()
+	show_hidden_mods = p_show_hidden_mods
 
 func to_query_dict(endpoint: String = ENDPOINT_MODS) -> Dictionary:
 	var query := {
@@ -129,6 +144,12 @@ func to_query_dict(endpoint: String = ENDPOINT_MODS) -> Dictionary:
 		query["submitted_by"] = submitted_by
 	if capabilities.has("submitted_by_display_name") and not submitted_by_display_name.is_empty():
 		query["submitted_by_display_name"] = submitted_by_display_name
+	if capabilities.has("category") and not category.is_empty():
+		query["category"] = category
+	if capabilities.has("maturity_option") and maturity_option >= 0:
+		query["maturity_option"] = str(maturity_option)
+	if capabilities.has("name") and not name.is_empty():
+		query["name"] = name
 	if capabilities.has("game_id") and not game_id.is_empty():
 		query["game_id"] = game_id
 	if capabilities.has("mod_id") and not mod_id.is_empty():
@@ -153,11 +174,49 @@ func to_query_dict(endpoint: String = ENDPOINT_MODS) -> Dictionary:
 		query["karma"] = str(karma)
 	if capabilities.has("content") and not content.is_empty():
 		query["content"] = content
+	if capabilities.has("show_hidden_mods") and show_hidden_mods:
+		query["show_hidden_mods"] = true
 
 	return query
 
 func _get_capabilities(endpoint: String) -> PackedStringArray:
 	match endpoint:
+		ENDPOINT_COLLECTIONS:
+			return PackedStringArray([
+				"id",
+				"status",
+				"mod_id",
+				"category",
+				"submitted_by",
+				"submitted_by_display_name",
+				"date_added",
+				"date_updated",
+				"date_live",
+				"name",
+				"name_id",
+				"maturity_option",
+				"tags_all",
+				"tags_any",
+				"tags_not_in",
+				"sort"
+			])
+		ENDPOINT_COLLECTION_MODS:
+			return PackedStringArray([
+				"sort",
+				"maturity_option",
+				"show_hidden_mods"
+			])
+		ENDPOINT_COLLECTION_COMMENTS:
+			return PackedStringArray([
+				"id",
+				"resource_id",
+				"submitted_by",
+				"date_added",
+				"reply_id",
+				"thread_position",
+				"karma",
+				"content"
+			])
 		ENDPOINT_MODFILES:
 			return PackedStringArray(["id"])
 		ENDPOINT_USER_RATINGS:
@@ -234,6 +293,22 @@ func _get_capabilities(endpoint: String) -> PackedStringArray:
 
 func _get_allowed_sorts(endpoint: String) -> PackedStringArray:
 	match endpoint:
+		ENDPOINT_COLLECTIONS:
+			return PackedStringArray([
+				"name",
+				"date_live",
+				"date_updated"
+			])
+		ENDPOINT_COLLECTION_MODS:
+			return PackedStringArray([
+				"name",
+				"date_live",
+				"date_updated",
+				"downloads_today",
+				"downloads_total",
+				"subscribers_total",
+				"mods_count_total"
+			])
 		ENDPOINT_MODS:
 			return PackedStringArray([
 				"name",

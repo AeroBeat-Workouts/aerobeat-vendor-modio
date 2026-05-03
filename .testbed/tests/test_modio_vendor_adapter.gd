@@ -318,6 +318,158 @@ func test_builds_guide_requests_with_documented_filter_and_sort_support() -> voi
 	assert_eq(karma_request.path, "/games/777/guides/7001/comments/9902/karma")
 	assert_eq(karma_request.body.karma, "-1")
 
+func test_builds_collection_requests_with_documented_filter_and_sort_support() -> void:
+	var public_adapter := _build_adapter()
+	var auth_adapter := _build_adapter_with_token()
+	var collection_query := ModioListingQuery.new()
+	collection_query.search_term = "ignored-search"
+	collection_query.tags_all = PackedStringArray(["GAMEPLAY", "QUALITY_OF_LIFE"])
+	collection_query.tags_any = PackedStringArray(["VISUAL"])
+	collection_query.tags_not_in = PackedStringArray(["BUGFIXES"])
+	collection_query.limit = 12
+	collection_query.offset = 24
+	collection_query.sort = "-date_updated"
+	collection_query.id = "3001"
+	collection_query.status = 1
+	collection_query.mod_id = "1001"
+	collection_query.category = "Cardio"
+	collection_query.submitted_by = "42"
+	collection_query.submitted_by_display_name = "Coach Chip"
+	collection_query.date_added = 1777800001
+	collection_query.date_updated = 1777803600
+	collection_query.date_live = 1777807200
+	collection_query.name = "Starter Bundle"
+	collection_query.name_id = "starter-bundle"
+	collection_query.maturity_option = 4
+	collection_query.metadata_blob = "ignored-metadata"
+	collection_query.metadata_kvp = {"ignored": "pair"}
+	collection_query.visible = 1
+
+	var collections_request = public_adapter.build_collections_request(collection_query)
+	assert_eq(collections_request.method, "GET")
+	assert_eq(collections_request.path, "/games/777/collections")
+	assert_eq(collections_request.query.api_key, "demo-key")
+	assert_eq(collections_request.query.id, "3001")
+	assert_eq(collections_request.query.status, "1")
+	assert_eq(collections_request.query.mod_id, "1001")
+	assert_eq(collections_request.query.category, "Cardio")
+	assert_eq(collections_request.query.submitted_by, "42")
+	assert_eq(collections_request.query.submitted_by_display_name, "Coach Chip")
+	assert_eq(collections_request.query.date_added, "1777800001")
+	assert_eq(collections_request.query.date_updated, "1777803600")
+	assert_eq(collections_request.query.date_live, "1777807200")
+	assert_eq(collections_request.query.name, "Starter Bundle")
+	assert_eq(collections_request.query.name_id, "starter-bundle")
+	assert_eq(collections_request.query.maturity_option, "4")
+	assert_eq(collections_request.query.tags, "GAMEPLAY,QUALITY_OF_LIFE")
+	assert_eq(collections_request.query["tags-in"], "VISUAL")
+	assert_eq(collections_request.query["tags-not-in"], "BUGFIXES")
+	assert_eq(collections_request.query._sort, "-date_updated")
+	assert_eq(collections_request.query._limit, "12")
+	assert_eq(collections_request.query._offset, "24")
+	assert_false(collections_request.query.has("_q"))
+	assert_false(collections_request.query.has("metadata_blob"))
+	assert_false(collections_request.query.has("metadata_kvp"))
+	assert_false(collections_request.query.has("visible"))
+
+	var invalid_collection_sort_query := ModioListingQuery.new()
+	invalid_collection_sort_query.sort = "-downloads_total"
+	var invalid_collection_sort_request = public_adapter.build_collections_request(invalid_collection_sort_query)
+	assert_false(invalid_collection_sort_request.query.has("_sort"))
+
+	var collection_detail_request = public_adapter.build_collection_request("3001")
+	assert_eq(collection_detail_request.path, "/games/777/collections/3001")
+	assert_eq(collection_detail_request.query.api_key, "demo-key")
+
+	var collection_mods_query := ModioListingQuery.new()
+	collection_mods_query.search_term = "ignored-search"
+	collection_mods_query.tags_all = PackedStringArray(["ignored-tag"])
+	collection_mods_query.limit = 5
+	collection_mods_query.offset = 10
+	collection_mods_query.sort = "-downloads_total"
+	collection_mods_query.maturity_option = 8
+	collection_mods_query.show_hidden_mods = true
+	collection_mods_query.status = 1
+	var collection_mods_request = public_adapter.build_collection_mods_request("3001", collection_mods_query)
+	assert_eq(collection_mods_request.path, "/games/777/collections/3001/mods")
+	assert_eq(collection_mods_request.query._limit, "5")
+	assert_eq(collection_mods_request.query._offset, "10")
+	assert_eq(collection_mods_request.query._sort, "-downloads_total")
+	assert_eq(collection_mods_request.query.maturity_option, "8")
+	assert_true(collection_mods_request.query.show_hidden_mods)
+	assert_false(collection_mods_request.query.has("_q"))
+	assert_false(collection_mods_request.query.has("tags"))
+	assert_false(collection_mods_request.query.has("status"))
+
+	var invalid_collection_mod_sort_query := ModioListingQuery.new()
+	invalid_collection_mod_sort_query.sort = "-ratings_weighted_aggregate"
+	var invalid_collection_mod_sort_request = public_adapter.build_collection_mods_request("3001", invalid_collection_mod_sort_query)
+	assert_false(invalid_collection_mod_sort_request.query.has("_sort"))
+
+	var collection_comment_query := ModioListingQuery.new()
+	collection_comment_query.search_term = "ignored-search"
+	collection_comment_query.tags_all = PackedStringArray(["ignored-tag"])
+	collection_comment_query.limit = 15
+	collection_comment_query.offset = 30
+	collection_comment_query.sort = "ignored-sort"
+	collection_comment_query.id = "9902"
+	collection_comment_query.resource_id = "3001"
+	collection_comment_query.submitted_by = "77"
+	collection_comment_query.date_added = 1777801600
+	collection_comment_query.reply_id = 9901
+	collection_comment_query.thread_position = "01.01"
+	collection_comment_query.karma = -1
+	collection_comment_query.content = "Collection reply"
+	collection_comment_query.submitted_by_display_name = "ignored-display-name"
+	collection_comment_query.category = "ignored-category"
+	var collection_comments_request = public_adapter.build_collection_comments_request("3001", collection_comment_query)
+	assert_eq(collection_comments_request.path, "/games/777/collections/3001/comments")
+	assert_eq(collection_comments_request.query.id, "9902")
+	assert_eq(collection_comments_request.query.resource_id, "3001")
+	assert_eq(collection_comments_request.query.submitted_by, "77")
+	assert_eq(collection_comments_request.query.date_added, "1777801600")
+	assert_eq(collection_comments_request.query.reply_id, "9901")
+	assert_eq(collection_comments_request.query.thread_position, "01.01")
+	assert_eq(collection_comments_request.query.karma, "-1")
+	assert_eq(collection_comments_request.query.content, "Collection reply")
+	assert_eq(collection_comments_request.query._limit, "15")
+	assert_eq(collection_comments_request.query._offset, "30")
+	assert_false(collection_comments_request.query.has("_q"))
+	assert_false(collection_comments_request.query.has("tags"))
+	assert_false(collection_comments_request.query.has("_sort"))
+	assert_false(collection_comments_request.query.has("submitted_by_display_name"))
+	assert_false(collection_comments_request.query.has("category"))
+
+	var collection_comment_detail_request = public_adapter.build_collection_comment_request("3001", "9902")
+	assert_eq(collection_comment_detail_request.path, "/games/777/collections/3001/comments/9902")
+
+	var create_request = auth_adapter.build_add_collection_comment_request("3001", "  Fresh collection reply  ", 9901)
+	assert_eq(create_request.method, "POST")
+	assert_eq(create_request.path, "/games/777/collections/3001/comments")
+	assert_eq(create_request.headers.Authorization, "Bearer user-token")
+	assert_eq(create_request.body.content, "Fresh collection reply")
+	assert_eq(create_request.body.reply_id, "9901")
+
+	var update_request = auth_adapter.build_update_collection_comment_request("3001", "9902", "  Collection reply edited for clarity  ")
+	assert_eq(update_request.method, "PUT")
+	assert_eq(update_request.path, "/games/777/collections/3001/comments/9902")
+	assert_eq(update_request.body.content, "Collection reply edited for clarity")
+
+	var delete_request = auth_adapter.build_delete_collection_comment_request("3001", "9902")
+	assert_eq(delete_request.method, "DELETE")
+	assert_eq(delete_request.path, "/games/777/collections/3001/comments/9902")
+
+	var karma_request = auth_adapter.build_add_collection_comment_karma_request("3001", "9902", -999)
+	assert_eq(karma_request.method, "POST")
+	assert_eq(karma_request.path, "/games/777/collections/3001/comments/9902/karma")
+	assert_eq(karma_request.body.karma, "-1")
+
+	var compatibility_request = auth_adapter.build_add_collection_compatibility_request("3001", 99)
+	assert_eq(compatibility_request.method, "POST")
+	assert_eq(compatibility_request.path, "/games/777/collections/3001/compatibility")
+	assert_eq(compatibility_request.headers.Authorization, "Bearer user-token")
+	assert_eq(compatibility_request.body.rating, "1")
+
 func test_builds_mod_comment_requests_with_doc_gated_filters_and_auth_modes() -> void:
 	var public_adapter := _build_adapter()
 	var auth_adapter := _build_adapter_with_token()
@@ -573,6 +725,56 @@ func test_normalizes_fixture_payloads_for_richer_slice() -> void:
 	var logout = adapter.normalize_logout_response(_fixture("logout_success.json"))
 	assert_true(logout.success)
 	assert_string_contains(logout.message, "logged out")
+
+func test_normalizes_collection_and_collection_comment_fixture_payloads() -> void:
+	var adapter := _build_adapter()
+
+	var collections = adapter.normalize_collections_response(_fixture("collections.json"))
+	assert_eq(collections.result_total, 5)
+	assert_true(collections.page.has_next)
+	assert_eq(collections.data[0].name, "Starter Bundle")
+	assert_true(collections.data[0].visible)
+	assert_eq(collections.data[0].platforms[0], "WINDOWS")
+	assert_eq(collections.data[0].tags[1], "QUALITY_OF_LIFE")
+	assert_eq(collections.data[0].stats.downloads_unique, 60)
+	assert_eq(collections.data[1].date_disabled, 1777890000)
+
+	var collection_detail = adapter.normalize_collection_response(_fixture("collection_detail.json"))
+	assert_eq(collection_detail.id, 3001)
+	assert_eq(collection_detail.submitted_by.username, "Coach Chip")
+	assert_eq(collection_detail.logo.thumb_320x180, "https://assets.modcdn.io/images/collections/starter-bundle_320x180.png")
+
+	var collection_comments = adapter.normalize_collection_comments_response(_fixture("collection_comments_list.json"))
+	assert_eq(collection_comments.data.size(), 2)
+	assert_true(collection_comments.page.has_next)
+	assert_eq(collection_comments.page.previous_offset, 0)
+	assert_eq(collection_comments.data[0].resource_type, "collection_comment")
+	assert_true(collection_comments.data[0].is_pinned)
+	assert_true(collection_comments.data[1].is_reply)
+	assert_true(collection_comments.data[1].is_locked)
+	assert_eq(collection_comments.data[1].thread_depth, 2)
+
+	var collection_comment_detail = adapter.normalize_collection_comment_response(_fixture("collection_comment_detail.json"))
+	assert_eq(collection_comment_detail.id, 9902)
+	assert_eq(collection_comment_detail.reply_id, 9901)
+	assert_eq(collection_comment_detail.resource_type, "collection_comment")
+
+	var created_collection_comment = adapter.normalize_collection_comment_write_response(_fixture("collection_comment_created.json"))
+	assert_eq(created_collection_comment.thread_position, "01.02")
+	assert_true(created_collection_comment.is_reply)
+
+	var updated_collection_comment = adapter.normalize_collection_comment_write_response(_fixture("collection_comment_updated.json"))
+	assert_eq(updated_collection_comment.karma, 0)
+	assert_eq(updated_collection_comment.content, "Collection reply edited for clarity")
+
+	var karma_updated_collection_comment = adapter.normalize_collection_comment_write_response(_fixture("collection_comment_karma_updated.json"))
+	assert_eq(karma_updated_collection_comment.karma, 1)
+	assert_true(karma_updated_collection_comment.is_locked)
+
+	var compatibility_response = adapter.normalize_add_collection_compatibility_response(_fixture("add_collection_compatibility_success.json"))
+	assert_eq(compatibility_response.code, 201)
+	assert_eq(compatibility_response.message, "response_collection_rating_add")
+	assert_true(compatibility_response.success)
 
 func test_normalizes_guides_and_guide_comment_fixture_payloads() -> void:
 	var adapter := _build_adapter_with_token()

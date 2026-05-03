@@ -327,6 +327,123 @@ func test_executes_guide_requests_with_documented_urls_filters_and_form_bodies()
 	assert_eq(guide_karma_forbidden_response.error.category, "forbidden")
 	assert_eq(guide_karma_forbidden_response.error.error_ref, 19045)
 
+func test_executes_collection_requests_with_documented_urls_filters_and_form_bodies() -> void:
+	var public_config := ModioClientConfig.new("777", "demo-key", "https://api.mod.io/v1/", "", "en-US", "steam", "WINDOWS")
+	var auth_config := ModioClientConfig.new("777", "demo-key", "", "user-token", "en-US", "steam", "WINDOWS", ModioClientConfig.HOST_GAME)
+	var transport := ModioHttpTransport.new(Callable(self, "_transport_double"))
+	var public_adapter := ModioVendorAdapter.new(public_config, transport)
+	var auth_adapter := ModioVendorAdapter.new(auth_config, transport)
+	var collection_query := ModioListingQuery.new()
+	collection_query.tags_all = PackedStringArray(["GAMEPLAY", "QUALITY_OF_LIFE"])
+	collection_query.tags_any = PackedStringArray(["VISUAL"])
+	collection_query.tags_not_in = PackedStringArray(["BUGFIXES"])
+	collection_query.limit = 12
+	collection_query.offset = 24
+	collection_query.sort = "-date_updated"
+	collection_query.id = "3001"
+	collection_query.status = 1
+	collection_query.mod_id = "1001"
+	collection_query.category = "Cardio"
+	collection_query.submitted_by = "42"
+	collection_query.submitted_by_display_name = "Coach Chip"
+	collection_query.date_added = 1777800001
+	collection_query.date_updated = 1777803600
+	collection_query.date_live = 1777807200
+	collection_query.name = "Starter Bundle"
+	collection_query.name_id = "starter-bundle"
+	collection_query.maturity_option = 4
+	var collection_mods_query := ModioListingQuery.new()
+	collection_mods_query.limit = 5
+	collection_mods_query.offset = 10
+	collection_mods_query.sort = "-downloads_total"
+	collection_mods_query.maturity_option = 8
+	collection_mods_query.show_hidden_mods = true
+	var collection_comment_query := ModioListingQuery.new()
+	collection_comment_query.limit = 15
+	collection_comment_query.offset = 30
+	collection_comment_query.id = "9902"
+	collection_comment_query.resource_id = "3001"
+	collection_comment_query.submitted_by = "77"
+	collection_comment_query.date_added = 1777801600
+	collection_comment_query.reply_id = 9901
+	collection_comment_query.thread_position = "01.01"
+	collection_comment_query.karma = -1
+	collection_comment_query.content = "Collection reply"
+
+	_queue_json_response(200, _fixture("collections.json"))
+	var collections_response := transport.execute(public_adapter.build_collections_request(collection_query), public_config)
+	assert_true(collections_response.ok)
+	assert_eq(_recorded_requests[0].url, "https://api.mod.io/v1/games/777/collections?_limit=12&_offset=24&_sort=-date_updated&api_key=demo-key&category=Cardio&date_added=1777800001&date_live=1777807200&date_updated=1777803600&id=3001&maturity_option=4&mod_id=1001&name=Starter%20Bundle&name_id=starter-bundle&status=1&submitted_by=42&submitted_by_display_name=Coach%20Chip&tags=GAMEPLAY%2CQUALITY_OF_LIFE&tags-in=VISUAL&tags-not-in=BUGFIXES")
+
+	var invalid_collection_sort_query := ModioListingQuery.new()
+	invalid_collection_sort_query.sort = "-downloads_total"
+	_queue_json_response(200, _fixture("collections.json"))
+	var invalid_collection_sort_response := transport.execute(public_adapter.build_collections_request(invalid_collection_sort_query), public_config)
+	assert_true(invalid_collection_sort_response.ok)
+	assert_eq(_recorded_requests[1].url, "https://api.mod.io/v1/games/777/collections?_limit=25&_offset=0&api_key=demo-key")
+
+	_queue_json_response(200, _fixture("collection_detail.json"))
+	var collection_response := transport.execute(public_adapter.build_collection_request("3001"), public_config)
+	assert_true(collection_response.ok)
+	assert_eq(_recorded_requests[2].url, "https://api.mod.io/v1/games/777/collections/3001?api_key=demo-key")
+
+	_queue_json_response(200, _fixture("mods.json"))
+	var collection_mods_response := transport.execute(public_adapter.build_collection_mods_request("3001", collection_mods_query), public_config)
+	assert_true(collection_mods_response.ok)
+	assert_eq(_recorded_requests[3].url, "https://api.mod.io/v1/games/777/collections/3001/mods?_limit=5&_offset=10&_sort=-downloads_total&api_key=demo-key&maturity_option=8&show_hidden_mods=true")
+
+	var invalid_collection_mod_sort_query := ModioListingQuery.new()
+	invalid_collection_mod_sort_query.sort = "-ratings_weighted_aggregate"
+	_queue_json_response(200, _fixture("mods.json"))
+	var invalid_collection_mod_sort_response := transport.execute(public_adapter.build_collection_mods_request("3001", invalid_collection_mod_sort_query), public_config)
+	assert_true(invalid_collection_mod_sort_response.ok)
+	assert_eq(_recorded_requests[4].url, "https://api.mod.io/v1/games/777/collections/3001/mods?_limit=25&_offset=0&api_key=demo-key")
+
+	_queue_json_response(200, _fixture("collection_comments_list.json"))
+	var collection_comments_response := transport.execute(public_adapter.build_collection_comments_request("3001", collection_comment_query), public_config)
+	assert_true(collection_comments_response.ok)
+	assert_eq(_recorded_requests[5].url, "https://api.mod.io/v1/games/777/collections/3001/comments?_limit=15&_offset=30&api_key=demo-key&content=Collection%20reply&date_added=1777801600&id=9902&karma=-1&reply_id=9901&resource_id=3001&submitted_by=77&thread_position=01.01")
+
+	_queue_json_response(200, _fixture("collection_comment_detail.json"))
+	var collection_comment_response := transport.execute(public_adapter.build_collection_comment_request("3001", "9902"), public_config)
+	assert_true(collection_comment_response.ok)
+	assert_eq(_recorded_requests[6].url, "https://api.mod.io/v1/games/777/collections/3001/comments/9902?api_key=demo-key")
+
+	_queue_json_response(201, _fixture("collection_comment_created.json"), {"Location": "/games/777/collections/3001/comments/9910"})
+	var create_response := transport.execute(auth_adapter.build_add_collection_comment_request("3001", "Fresh collection reply", 9901), auth_config)
+	assert_true(create_response.ok)
+	assert_eq(_recorded_requests[7].method, "POST")
+	assert_eq(_recorded_requests[7].url, "https://g-777.modapi.io/v1/games/777/collections/3001/comments")
+	assert_eq(_recorded_requests[7].body_string, "content=Fresh%20collection%20reply&reply_id=9901")
+	assert_eq(_recorded_requests[7].headers.Authorization, "Bearer user-token")
+
+	_queue_json_response(200, _fixture("collection_comment_updated.json"))
+	var update_response := transport.execute(auth_adapter.build_update_collection_comment_request("3001", "9902", "Collection reply edited for clarity"), auth_config)
+	assert_true(update_response.ok)
+	assert_eq(_recorded_requests[8].method, "PUT")
+	assert_eq(_recorded_requests[8].url, "https://g-777.modapi.io/v1/games/777/collections/3001/comments/9902")
+	assert_eq(_recorded_requests[8].body_string, "content=Collection%20reply%20edited%20for%20clarity")
+
+	_queue_response({"status_code": 204, "headers": {}, "body": ""})
+	var delete_response := transport.execute(auth_adapter.build_delete_collection_comment_request("3001", "9902"), auth_config)
+	assert_true(delete_response.ok)
+	assert_eq(_recorded_requests[9].method, "DELETE")
+	assert_eq(_recorded_requests[9].url, "https://g-777.modapi.io/v1/games/777/collections/3001/comments/9902")
+
+	_queue_json_response(200, _fixture("collection_comment_karma_updated.json"))
+	var karma_response := transport.execute(auth_adapter.build_add_collection_comment_karma_request("3001", "9902", -1), auth_config)
+	assert_true(karma_response.ok)
+	assert_eq(_recorded_requests[10].method, "POST")
+	assert_eq(_recorded_requests[10].url, "https://g-777.modapi.io/v1/games/777/collections/3001/comments/9902/karma")
+	assert_eq(_recorded_requests[10].body_string, "karma=-1")
+
+	_queue_json_response(201, _fixture("add_collection_compatibility_success.json"))
+	var compatibility_response := transport.execute(auth_adapter.build_add_collection_compatibility_request("3001", 1), auth_config)
+	assert_true(compatibility_response.ok)
+	assert_eq(_recorded_requests[11].method, "POST")
+	assert_eq(_recorded_requests[11].url, "https://g-777.modapi.io/v1/games/777/collections/3001/compatibility")
+	assert_eq(_recorded_requests[11].body_string, "rating=1")
+
 func test_executes_mod_comment_requests_with_documented_urls_and_form_bodies() -> void:
 	var public_config := ModioClientConfig.new("777", "demo-key", "https://api.mod.io/v1/", "", "en-US", "steam", "WINDOWS")
 	var auth_config := ModioClientConfig.new("777", "demo-key", "", "user-token", "en-US", "steam", "WINDOWS", ModioClientConfig.HOST_GAME)

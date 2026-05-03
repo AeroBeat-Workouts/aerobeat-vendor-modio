@@ -1,0 +1,31 @@
+{
+  "id": 9910,
+  "game_id": 777,
+  "mod_id": 3001,
+  "resource_id": 3001,
+  "resource_ownership": 2,
+  "user": {
+    "id": 42,
+    "name_id": "coach-chip",
+    "username": "Coach Chip",
+    "display_name_portal": "Coach Chip",
+    "date_online": 1777801000,
+    "date_joined": 1777701000,
+    "avatar": {
+      "filename": "coach.png",
+      "original": "https://assets.modcdn.io/avatars/coach.png",
+      "thumb_50x50": "https://assets.modcdn.io/avatars/coach_50x50.png",
+      "thumb_100x100": "https://assets.modcdn.io/avatars/coach_100x100.png"
+    },
+    "timezone": "",
+    "language": "",
+    "profile_url": "https://mod.io/u/coach-chip"
+  },
+  "date_added": 1777802600,
+  "reply_id": 9901,
+  "thread_position": "01.02",
+  "karma": 0,
+  "karma_guest": 0,
+  "content": "Fresh collection reply",
+  "options": 0
+}

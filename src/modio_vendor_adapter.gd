@@ -209,6 +209,115 @@ func build_mod_stats_request(mod_id: String) -> Dictionary:
 		{"auth_mode": _resolve_read_auth_mode(false)}
 	)
 
+func build_collections_request(query: ModioListingQuery = ModioListingQuery.new()) -> Dictionary:
+	var full_query := _build_public_query()
+	full_query.merge(query.to_query_dict(ModioListingQuery.ENDPOINT_COLLECTIONS), true)
+	return _transport.build_request(
+		"GET",
+		"/games/%s/collections" % _config.game_id,
+		full_query,
+		{},
+		_build_read_headers(false),
+		{"auth_mode": _resolve_read_auth_mode(false)}
+	)
+
+func build_collection_request(collection_id: String) -> Dictionary:
+	return _transport.build_request(
+		"GET",
+		"/games/%s/collections/%s" % [_config.game_id, collection_id.strip_edges()],
+		_build_public_query(),
+		{},
+		_build_read_headers(false),
+		{"auth_mode": _resolve_read_auth_mode(false)}
+	)
+
+func build_collection_mods_request(collection_id: String, query: ModioListingQuery = ModioListingQuery.new()) -> Dictionary:
+	var full_query := _build_public_query()
+	full_query.merge(query.to_query_dict(ModioListingQuery.ENDPOINT_COLLECTION_MODS), true)
+	return _transport.build_request(
+		"GET",
+		"/games/%s/collections/%s/mods" % [_config.game_id, collection_id.strip_edges()],
+		full_query,
+		{},
+		_build_read_headers(false),
+		{"auth_mode": _resolve_read_auth_mode(false)}
+	)
+
+func build_collection_comments_request(collection_id: String, query: ModioListingQuery = ModioListingQuery.new()) -> Dictionary:
+	var full_query := _build_public_query()
+	full_query.merge(query.to_query_dict(ModioListingQuery.ENDPOINT_COLLECTION_COMMENTS), true)
+	return _transport.build_request(
+		"GET",
+		"/games/%s/collections/%s/comments" % [_config.game_id, collection_id.strip_edges()],
+		full_query,
+		{},
+		_build_read_headers(false),
+		{"auth_mode": _resolve_read_auth_mode(false)}
+	)
+
+func build_collection_comment_request(collection_id: String, comment_id: String) -> Dictionary:
+	return _transport.build_request(
+		"GET",
+		"/games/%s/collections/%s/comments/%s" % [_config.game_id, collection_id.strip_edges(), comment_id.strip_edges()],
+		_build_public_query(),
+		{},
+		_build_read_headers(false),
+		{"auth_mode": _resolve_read_auth_mode(false)}
+	)
+
+func build_add_collection_comment_request(collection_id: String, content: String, reply_id: int = 0) -> Dictionary:
+	var body := {"content": content.strip_edges()}
+	if reply_id > 0:
+		body["reply_id"] = reply_id
+	return _transport.build_request(
+		"POST",
+		"/games/%s/collections/%s/comments" % [_config.game_id, collection_id.strip_edges()],
+		{},
+		body,
+		_build_form_headers(true),
+		{"content_type": ModioHttpTransport.CONTENT_TYPE_FORM, "auth_mode": "bearer"}
+	)
+
+func build_update_collection_comment_request(collection_id: String, comment_id: String, content: String) -> Dictionary:
+	return _transport.build_request(
+		"PUT",
+		"/games/%s/collections/%s/comments/%s" % [_config.game_id, collection_id.strip_edges(), comment_id.strip_edges()],
+		{},
+		{"content": content.strip_edges()},
+		_build_form_headers(true),
+		{"content_type": ModioHttpTransport.CONTENT_TYPE_FORM, "auth_mode": "bearer"}
+	)
+
+func build_delete_collection_comment_request(collection_id: String, comment_id: String) -> Dictionary:
+	return _transport.build_request(
+		"DELETE",
+		"/games/%s/collections/%s/comments/%s" % [_config.game_id, collection_id.strip_edges(), comment_id.strip_edges()],
+		{},
+		{},
+		_build_form_headers(true),
+		{"content_type": ModioHttpTransport.CONTENT_TYPE_FORM, "auth_mode": "bearer"}
+	)
+
+func build_add_collection_comment_karma_request(collection_id: String, comment_id: String, karma: int) -> Dictionary:
+	return _transport.build_request(
+		"POST",
+		"/games/%s/collections/%s/comments/%s/karma" % [_config.game_id, collection_id.strip_edges(), comment_id.strip_edges()],
+		{},
+		{"karma": 1 if karma >= 0 else -1},
+		_build_form_headers(true),
+		{"content_type": ModioHttpTransport.CONTENT_TYPE_FORM, "auth_mode": "bearer"}
+	)
+
+func build_add_collection_compatibility_request(collection_id: String, rating: int) -> Dictionary:
+	return _transport.build_request(
+		"POST",
+		"/games/%s/collections/%s/compatibility" % [_config.game_id, collection_id.strip_edges()],
+		{},
+		{"rating": clampi(rating, -1, 1)},
+		_build_form_headers(true),
+		{"content_type": ModioHttpTransport.CONTENT_TYPE_FORM, "auth_mode": "bearer"}
+	)
+
 func build_guides_request(query: ModioListingQuery = ModioListingQuery.new()) -> Dictionary:
 	var full_query := _build_public_query()
 	full_query.merge(query.to_query_dict(ModioListingQuery.ENDPOINT_GUIDES), true)
@@ -551,6 +660,24 @@ func normalize_mod_stats_response(payload: Dictionary) -> Dictionary:
 	normalized["is_stale"] = normalized.date_expires > 0 and normalized.date_expires <= now
 	return normalized
 
+func normalize_collections_response(payload: Dictionary) -> Dictionary:
+	return _normalize_list_payload(payload, Callable(self, "_normalize_collection_object"))
+
+func normalize_collection_response(payload: Dictionary) -> Dictionary:
+	return _normalize_collection_object(payload)
+
+func normalize_collection_mods_response(payload: Dictionary) -> Dictionary:
+	return _normalize_list_payload(payload, Callable(self, "_normalize_mod_object"))
+
+func normalize_collection_comments_response(payload: Dictionary) -> Dictionary:
+	return _normalize_list_payload(payload, Callable(self, "_normalize_collection_comment_object"))
+
+func normalize_collection_comment_response(payload: Dictionary) -> Dictionary:
+	return _normalize_collection_comment_object(payload)
+
+func normalize_collection_comment_write_response(payload: Dictionary) -> Dictionary:
+	return _normalize_collection_comment_object(payload)
+
 func normalize_guides_response(payload: Dictionary) -> Dictionary:
 	return _normalize_list_payload(payload, Callable(self, "_normalize_guide_object"))
 
@@ -594,6 +721,9 @@ func normalize_message_response(payload: Dictionary) -> Dictionary:
 	}
 
 func normalize_add_mod_rating_response(payload: Dictionary) -> Dictionary:
+	return normalize_message_response(payload)
+
+func normalize_add_collection_compatibility_response(payload: Dictionary) -> Dictionary:
 	return normalize_message_response(payload)
 
 func normalize_report_response(payload: Dictionary) -> Dictionary:
@@ -849,6 +979,33 @@ func _normalize_dependency_object(payload: Dictionary) -> Dictionary:
 	normalized["dependency_depth"] = int(payload.get("dependency_depth", 0))
 	return normalized
 
+func _normalize_collection_object(payload: Dictionary) -> Dictionary:
+	var normalized_stats := _normalize_collection_stats(payload.get("stats", {}))
+	return {
+		"id": int(payload.get("id", 0)),
+		"game_id": int(payload.get("game_id", 0)),
+		"status": int(payload.get("status", 0)),
+		"visible": bool(payload.get("visible", false)),
+		"submitted_by": _normalize_user_object(payload.get("submitted_by", {})),
+		"category": str(payload.get("category", "")),
+		"date_added": int(payload.get("date_added", 0)),
+		"date_updated": int(payload.get("date_updated", 0)),
+		"date_live": int(payload.get("date_live", 0)),
+		"date_disabled": int(payload.get("date_disabled", 0)),
+		"limit_number_mods": int(payload.get("limit_number_mods", 0)),
+		"maturity_option": int(payload.get("maturity_option", 0)),
+		"filesize": int(payload.get("filesize", 0)),
+		"filesize_uncompressed": int(payload.get("filesize_uncompressed", 0)),
+		"platforms": _normalize_string_array(payload.get("platforms", [])),
+		"tags": _normalize_string_array(payload.get("tags", [])),
+		"stats": normalized_stats,
+		"logo": _normalize_dictionary(payload.get("logo", {})),
+		"name": str(payload.get("name", "")),
+		"name_id": str(payload.get("name_id", "")),
+		"summary": str(payload.get("summary", "")),
+		"description": str(payload.get("description", ""))
+	}
+
 func _normalize_guide_object(payload: Dictionary) -> Dictionary:
 	var raw_community_options := int(payload.get("community_options", 0))
 	var allows_comments := (raw_community_options & COMMUNITY_OPTION_ALLOW_GUIDE_COMMENTS) != 0
@@ -945,6 +1102,11 @@ func _normalize_modfile_object(payload: Dictionary) -> Dictionary:
 func _normalize_guide_comment_object(payload: Dictionary) -> Dictionary:
 	var normalized := _normalize_comment_object(payload)
 	normalized["resource_type"] = "guide_comment"
+	return normalized
+
+func _normalize_collection_comment_object(payload: Dictionary) -> Dictionary:
+	var normalized := _normalize_comment_object(payload)
+	normalized["resource_type"] = "collection_comment"
 	return normalized
 
 func _normalize_comment_object(payload: Dictionary) -> Dictionary:
@@ -1109,6 +1271,28 @@ func _normalize_guide_stats(payload: Variant) -> Dictionary:
 		"visits_total": int(source.get("visits_total", 0)),
 		"comments_total": int(source.get("comments_total", 0))
 	}
+
+func _normalize_collection_stats(payload: Variant) -> Dictionary:
+	var source: Dictionary = {}
+	if payload is Array:
+		if payload.size() > 0 and payload[0] is Dictionary:
+			source = payload[0]
+	elif payload is Dictionary:
+		source = payload
+	return {
+		"collection_id": int(source.get("collection_id", 0)),
+		"downloads_today": int(source.get("downloads_today", 0)),
+		"downloads_unique": int(source.get("downloads_unique", 0)),
+		"downloads_total": int(source.get("downloads_total", 0)),
+		"followers_total": int(source.get("followers_total", 0)),
+		"ratings_positive_30_days": int(source.get("ratings_positive_30_days", 0))
+	}
+
+func _normalize_string_array(payload: Array) -> Array:
+	var normalized: Array = []
+	for item in payload:
+		normalized.append(str(item))
+	return normalized
 
 func _normalize_media_object(payload: Dictionary) -> Dictionary:
 	var images: Array = []

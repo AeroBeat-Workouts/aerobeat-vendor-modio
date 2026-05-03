@@ -1,0 +1,31 @@
+{
+  "id": 9902,
+  "game_id": 777,
+  "mod_id": 3001,
+  "resource_id": 3001,
+  "resource_ownership": 2,
+  "user": {
+    "id": 77,
+    "name_id": "thread-friend",
+    "username": "ThreadFriend",
+    "display_name_portal": "ThreadFriend",
+    "date_online": 1777802200,
+    "date_joined": 1777600000,
+    "avatar": {
+      "filename": "friend.png",
+      "original": "https://assets.modcdn.io/images/users/friend.png",
+      "thumb_50x50": "https://assets.modcdn.io/images/users/friend_50x50.png",
+      "thumb_100x100": "https://assets.modcdn.io/images/users/friend_100x100.png"
+    },
+    "timezone": "",
+    "language": "",
+    "profile_url": "https://mod.io/u/thread-friend"
+  },
+  "date_added": 1777801600,
+  "reply_id": 9901,
+  "thread_position": "01.01",
+  "karma": -1,
+  "karma_guest": 0,
+  "content": "Collection reply",
+  "options": 2
+}

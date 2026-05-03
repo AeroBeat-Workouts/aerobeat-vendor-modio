@@ -15,8 +15,8 @@ Keep **provider-native** concerns in this repo while allowing `aerobeat-tool-api
 - provider listing/search/detail/dependency query mapping
 - endpoint-aware filter serialization per wrapped endpoint
 - provider subscription/user-state mapping via `GET /me/subscribed` and `GET /me/ratings`
-- provider mod + guide community transport/query/normalization via `GET/POST/PUT/DELETE /games/{game-id}/mods/{mod-id}/comments...` and `GET /games/{game-id}/guides...`
-- provider rating/report writes via `POST /games/{game-id}/mods/{mod-id}/ratings`, `POST /games/{game-id}/mods/{mod-id}/comments/{comment-id}/karma`, `POST /games/{game-id}/guides/{guide-id}/comments/{comment-id}/karma`, and `POST /report`
+- provider mod + guide + collection community transport/query/normalization via `GET/POST/PUT/DELETE /games/{game-id}/mods/{mod-id}/comments...`, `GET /games/{game-id}/guides...`, and `GET /games/{game-id}/collections...`
+- provider rating/report writes via `POST /games/{game-id}/mods/{mod-id}/ratings`, `POST /games/{game-id}/mods/{mod-id}/comments/{comment-id}/karma`, `POST /games/{game-id}/guides/{guide-id}/comments/{comment-id}/karma`, `POST /games/{game-id}/collections/{collection-id}/comments/{comment-id}/karma`, `POST /games/{game-id}/collections/{collection-id}/compatibility`, and `POST /report`
 - provider download metadata resolution from `modfile.download`
 - canonical artifact/cache metadata resolution derived from `provider + game_id + mod_id + modfile.id`
 - provider DTO parsing, page-state helpers, and error normalization
@@ -50,6 +50,9 @@ The current slice now exposes a larger request-builder and normalization seam:
     - `build_modfiles_request(...)`
     - `build_modfile_request(...)`
     - `build_mod_stats_request(...)`
+    - `build_collections_request(...)`
+    - `build_collection_request(...)`
+    - `build_collection_mods_request(...)`
     - `build_guides_request(...)`
     - `build_guide_detail_request(...)`
     - `build_dependencies_request(...)`
@@ -69,11 +72,18 @@ The current slice now exposes a larger request-builder and normalization seam:
     - `build_update_guide_comment_request(...)`
     - `build_delete_guide_comment_request(...)`
     - `build_add_guide_comment_karma_request(...)`
+    - `build_collection_comments_request(...)`
+    - `build_collection_comment_request(...)`
+    - `build_add_collection_comment_request(...)`
+    - `build_update_collection_comment_request(...)`
+    - `build_delete_collection_comment_request(...)`
+    - `build_add_collection_comment_karma_request(...)`
+    - `build_add_collection_compatibility_request(...)`
     - `build_submit_report_request(...)`
     - `build_subscribe_request(...)`
     - `build_unsubscribe_request(...)`
   - normalization helpers
-    - auth/logout/message/user/game/mod/modfile/mod-stats/mod-comment/guide/guide-comment/user-ratings/subscription/dependency/report responses
+    - auth/logout/message/user/game/mod/modfile/mod-stats/mod-comment/guide/guide-comment/collection/collection-comment/user-ratings/subscription/dependency/report/collection-compatibility responses
     - page-state helpers derived from `result_count`, `result_offset`, `result_limit`, and `result_total`
     - subscription write responses
     - download metadata resolution helpers
@@ -109,6 +119,9 @@ That keeps transient CDN delivery behavior local to the vendor seam and out of A
 - endpoint query serialization is intentionally capability-gated so unsupported filters do not leak onto the wrong wrapped endpoint
 - `GET /games/{game-id}/guides` now serializes only the current documented guide filters (`id`, `game_id`, `status`, `submitted_by`, `submitted_by_display_name`, `date_added`, `date_updated`, `date_live`, `name_id`, `tags`, `tags-in`, `tags-not-in`) plus paging and documented sort keys
 - `GET /games/{game-id}/guides/{guide-id}/comments` now serializes only the current documented guide-comment filters (`id`, `resource_id`, `submitted_by`, `date_added`, `reply_id`, `thread_position`, `karma`, `content`) plus paging
+- `GET /games/{game-id}/collections` now serializes only the current documented collection filters (`id`, `status`, `mod_id`, `category`, `submitted_by`, `submitted_by_display_name`, `date_added`, `date_updated`, `date_live`, `name`, `name_id`, `maturity_option`, `tags`, `tags-in`, `tags-not-in`) plus paging and documented sort keys
+- `GET /games/{game-id}/collections/{collection-id}/mods` now serializes only paging plus the current documented collection-mod filters (`maturity_option`, `show_hidden_mods`) and documented sort keys
+- `GET /games/{game-id}/collections/{collection-id}/comments` now serializes only the current documented collection-comment filters (`id`, `resource_id`, `submitted_by`, `date_added`, `reply_id`, `thread_position`, `karma`, `content`) plus paging
 - platform-targeted `GET /me/subscribed` requests must include `game_id`, so this repo injects it when platform targeting is configured
 - `GET /me/ratings` defaults the seam to `resource_type=mods` plus the configured `game_id`, while preserving raw provider rating integers (`1` / `-1`) instead of re-inventing the contract
 - token request expiry values are sanitized per documented flow instead of blindly forwarding stale/oversized values

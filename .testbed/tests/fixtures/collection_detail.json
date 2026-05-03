@@ -1,0 +1,53 @@
+{
+  "id": 3001,
+  "game_id": 777,
+  "status": 1,
+  "visible": true,
+  "submitted_by": {
+    "id": 42,
+    "name_id": "coach-chip",
+    "username": "Coach Chip",
+    "display_name_portal": "Coach Chip",
+    "date_online": 1777801000,
+    "date_joined": 1777701000,
+    "avatar": {
+      "filename": "coach.png",
+      "original": "https://assets.modcdn.io/avatars/coach.png",
+      "thumb_50x50": "https://assets.modcdn.io/avatars/coach_50x50.png",
+      "thumb_100x100": "https://assets.modcdn.io/avatars/coach_100x100.png"
+    },
+    "timezone": "",
+    "language": "",
+    "profile_url": "https://mod.io/u/coach-chip"
+  },
+  "category": "Cardio",
+  "date_added": 1777800001,
+  "date_updated": 1777803600,
+  "date_live": 1777807200,
+  "date_disabled": 0,
+  "limit_number_mods": 12,
+  "maturity_option": 0,
+  "filesize": 512000,
+  "filesize_uncompressed": 1024000,
+  "platforms": ["WINDOWS", "LINUX"],
+  "tags": ["GAMEPLAY", "QUALITY_OF_LIFE"],
+  "stats": {
+    "collection_id": 3001,
+    "downloads_today": 14,
+    "downloads_unique": 60,
+    "downloads_total": 400,
+    "followers_total": 120,
+    "ratings_positive_30_days": 16
+  },
+  "logo": {
+    "filename": "starter-bundle.png",
+    "original": "https://assets.modcdn.io/images/collections/starter-bundle.png",
+    "thumb_320x180": "https://assets.modcdn.io/images/collections/starter-bundle_320x180.png",
+    "thumb_640x360": "https://assets.modcdn.io/images/collections/starter-bundle_640x360.png",
+    "thumb_1280x720": "https://assets.modcdn.io/images/collections/starter-bundle_1280x720.png"
+  },
+  "name": "Starter Bundle",
+  "name_id": "starter-bundle",
+  "summary": "A curated starter set for new AeroBeat players.",
+  "description": "<p>Warmup-friendly song, chart, and coach recommendations.</p>"
+}
