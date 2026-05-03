@@ -114,9 +114,14 @@ Validation evidence:
 - implementation/tests/docs as needed
 - `.plans/2026-05-03-aerobeat-vendor-modio-user-and-social-surface-coverage.md`
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** Independently re-verified the seven added routes against the refreshed local official corpus, primarily `REF-06` (mod.io docs) and `REF-08` (generated Unity endpoints), with spot checks against `REF-07`. Paths, normalization reuse, pagination-only query shaping, README/seam-plan truthfulness, and vendor-local boundaries all held. One seam drift was found in the three `/users/{user-id}/followers|following|collections` builders: they were hard-coded as API-key-only reads, while the research note for this task called for public-vs-auth header handling and the Unity-generated corpus marks the follower/following variants as authenticated reads. Fixed those builders to use bearer headers when a token is present while preserving GET-time API-key fallback for public callers, which keeps the wrapper truthful to both the docs-visible public paths and the authenticated Unity usage. Updated request-builder + transport tests accordingly and reran repo-local validation.
+
+Validation evidence:
+- Command: `/home/derrick/.local/bin/godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit`
+- Result: `33/33` tests passed, `1007` asserts, exit code `0`
+- Notes: the same `3` pre-existing float/int comparison warnings remained; no new warnings/failures were introduced.
 
 ---
 

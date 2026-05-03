@@ -485,6 +485,7 @@ func test_builds_user_social_and_account_state_requests_with_paging_only_query_s
 	var user_followers_request = public_adapter.build_user_followers_request("42", query)
 	assert_eq(user_followers_request.method, "GET")
 	assert_eq(user_followers_request.path, "/users/42/followers")
+	assert_eq(user_followers_request.auth_mode, "api_key_fallback")
 	assert_eq(user_followers_request.query.api_key, "demo-key")
 	assert_eq(user_followers_request.query._limit, "40")
 	assert_eq(user_followers_request.query._offset, "80")
@@ -493,18 +494,30 @@ func test_builds_user_social_and_account_state_requests_with_paging_only_query_s
 	assert_false(user_followers_request.query.has("tags"))
 	assert_false(user_followers_request.query.has("id"))
 
+	var auth_user_followers_request = auth_adapter.build_user_followers_request("42", query)
+	assert_eq(auth_user_followers_request.auth_mode, "api_key_fallback")
+	assert_eq(auth_user_followers_request.headers.Authorization, "Bearer user-token")
+
 	var user_following_request = public_adapter.build_user_following_request("42", query)
 	assert_eq(user_following_request.path, "/users/42/following")
+	assert_eq(user_following_request.auth_mode, "api_key_fallback")
 	assert_eq(user_following_request.query._limit, "40")
 	assert_eq(user_following_request.query._offset, "80")
 	assert_false(user_following_request.query.has("submitted_by"))
 
+	var auth_user_following_request = auth_adapter.build_user_following_request("42", query)
+	assert_eq(auth_user_following_request.headers.Authorization, "Bearer user-token")
+
 	var user_collections_request = public_adapter.build_user_collections_request("42", query)
 	assert_eq(user_collections_request.path, "/users/42/collections")
+	assert_eq(user_collections_request.auth_mode, "api_key_fallback")
 	assert_eq(user_collections_request.query._limit, "40")
 	assert_eq(user_collections_request.query._offset, "80")
 	assert_false(user_collections_request.query.has("_sort"))
 	assert_false(user_collections_request.query.has("id"))
+
+	var auth_user_collections_request = auth_adapter.build_user_collections_request("42", query)
+	assert_eq(auth_user_collections_request.headers.Authorization, "Bearer user-token")
 
 	var me_followers_request = auth_adapter.build_me_followers_request(query)
 	assert_eq(me_followers_request.path, "/me/followers")

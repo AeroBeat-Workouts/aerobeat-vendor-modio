@@ -232,6 +232,7 @@ func build_collection_request(collection_id: String) -> Dictionary:
 	)
 
 func build_user_followers_request(user_id: String, query: ModioListingQuery = ModioListingQuery.new()) -> Dictionary:
+	var has_access_token := _config.has_access_token()
 	var full_query := _build_public_query()
 	full_query.merge(query.to_query_dict(ModioListingQuery.ENDPOINT_USER_SOCIAL), true)
 	return _transport.build_request(
@@ -239,11 +240,12 @@ func build_user_followers_request(user_id: String, query: ModioListingQuery = Mo
 		"/users/%s/followers" % user_id.strip_edges(),
 		full_query,
 		{},
-		_build_read_headers(false),
-		{"auth_mode": _resolve_read_auth_mode(false)}
+		_build_read_headers(has_access_token),
+		{"auth_mode": "api_key_fallback"}
 	)
 
 func build_user_following_request(user_id: String, query: ModioListingQuery = ModioListingQuery.new()) -> Dictionary:
+	var has_access_token := _config.has_access_token()
 	var full_query := _build_public_query()
 	full_query.merge(query.to_query_dict(ModioListingQuery.ENDPOINT_USER_SOCIAL), true)
 	return _transport.build_request(
@@ -251,11 +253,12 @@ func build_user_following_request(user_id: String, query: ModioListingQuery = Mo
 		"/users/%s/following" % user_id.strip_edges(),
 		full_query,
 		{},
-		_build_read_headers(false),
-		{"auth_mode": _resolve_read_auth_mode(false)}
+		_build_read_headers(has_access_token),
+		{"auth_mode": "api_key_fallback"}
 	)
 
 func build_user_collections_request(user_id: String, query: ModioListingQuery = ModioListingQuery.new()) -> Dictionary:
+	var has_access_token := _config.has_access_token()
 	var full_query := _build_public_query()
 	full_query.merge(query.to_query_dict(ModioListingQuery.ENDPOINT_USER_COLLECTIONS), true)
 	return _transport.build_request(
@@ -263,8 +266,8 @@ func build_user_collections_request(user_id: String, query: ModioListingQuery = 
 		"/users/%s/collections" % user_id.strip_edges(),
 		full_query,
 		{},
-		_build_read_headers(false),
-		{"auth_mode": _resolve_read_auth_mode(false)}
+		_build_read_headers(has_access_token),
+		{"auth_mode": "api_key_fallback"}
 	)
 
 func build_me_followers_request(query: ModioListingQuery = ModioListingQuery.new()) -> Dictionary:
