@@ -134,7 +134,7 @@ Validation evidence:
 
 **Status:** ✅ Complete
 
-**Results:** Independently re-verified the collection-centered slice against `REF-06`, `REF-07`, and `REF-08`, focusing on collection list/detail paths, collection-mod query shaping, collection comments CRUD/karma, collection compatibility writes, and README/docs truthfulness. Pass verdict after one minimum necessary fix: QA found that `GET /games/{game-id}/collections/{collection-id}/mods` had drifted beyond the refreshed local official corpus by accepting undocumented `maturity_option` and `show_hidden_mods` filters. The fix removed those extra query capabilities from `src/models/modio_listing_query.gd`, updated the adapter/transport tests to assert the narrower documented request shape, and corrected the stale README/seam-plan/plan language that had repeated the overclaim. Everything else checked out against the local corpus: collection list/detail paths and normalized fields match the mirrored docs, collection comments list/detail/create/update/delete/karma stay aligned with the shared comment seam, collection compatibility writes remain bearer-auth form posts to `POST /games/{game-id}/collections/{collection-id}/compatibility`, and vendor-local boundaries remain intact with no collection follow/subscription/manage-mods/account-state spillover. Repo-local validation was rerun after the fix and passed cleanly.
+**Results:** Independently re-verified the collection-centered slice against `REF-06`, `REF-07`, and `REF-08`, focusing on collection list/detail paths, collection-mod query shaping, collection comments CRUD/karma, collection compatibility writes, and README/docs truthfulness. QA reported a pass after removing `maturity_option` and `show_hidden_mods` from `GET /games/{game-id}/collections/{collection-id}/mods`, but the refreshed official local docs still list both fields for that endpoint. That means the QA narrowing was itself drift. The audit reverted that narrowing in `src/models/modio_listing_query.gd`, restored adapter/transport assertions for the documented request shape, and corrected the README/seam-plan/plan language accordingly. Everything else checked out against the local corpus: collection list/detail paths and normalized fields match the mirrored docs, collection comments list/detail/create/update/delete/karma stay aligned with the shared comment seam, collection compatibility writes remain bearer-auth form posts to `POST /games/{game-id}/collections/{collection-id}/compatibility`, and vendor-local boundaries remain intact with no collection follow/subscription/manage-mods/account-state spillover. Repo-local validation was rerun after the fix and passed cleanly.
 
 ---
 
@@ -156,24 +156,24 @@ Validation evidence:
 - implementation/tests/docs as needed
 - `.plans/2026-05-03-aerobeat-vendor-modio-collection-surface-coverage.md`
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** Independent audit against `REF-06`, `REF-07`, and `REF-08` found one residual drift introduced during QA: `GET /games/{game-id}/collections/{collection-id}/mods` had been incorrectly narrowed to exclude the doc-backed `maturity_option` and `show_hidden_mods` filters. The audit restored those capabilities in `src/models/modio_listing_query.gd`, updated request-shape assertions in `.testbed/tests/test_modio_vendor_adapter.gd` and `.testbed/tests/test_modio_http_transport.gd`, and corrected the stale wording in `README.md`, `docs/modio-seam-plan.md`, and this plan. After that minimum necessary fix, the collection list/detail paths, collection-mod query shaping, collection comments list/detail/create/update/delete/karma, collection compatibility writes, README/docs truthfulness, and vendor-local boundary discipline all passed against the refreshed local official corpus.
 
 ---
 
 ## Final Results
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**What We Built:** Pending.
+**What We Built:** A collection-centered vendor-local mod.io surface covering collection list/detail reads, collection-mod membership reads, collection comments list/detail/create/update/delete/karma, and collection compatibility rating writes, all validated against the refreshed local official corpus.
 
-**Reference Check:** Pending.
+**Reference Check:** `REF-06` and `REF-07` confirmed the wrapped request paths/query fields/write shapes; `REF-08` was used as a boundary sanity-check so follow/subscription/manage-mods/account-state behavior stayed out of scope. The only deliberate correction during audit was restoring the doc-backed `maturity_option` and `show_hidden_mods` filters for collection-mod reads after QA had removed them.
 
 **Commits:**
-- Pending.
+- Pending auditor commit hash.
 
-**Lessons Learned:** Pending.
+**Lessons Learned:** A local docs truth-check beats symmetry assumptions in both directions: not only for catching unsupported overreach, but also for catching overzealous narrowing when a specialized endpoint really does carry extra documented filters.
 
 ---
 
