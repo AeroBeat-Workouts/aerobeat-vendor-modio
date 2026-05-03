@@ -190,33 +190,29 @@ Decision check:
 **Prompt:** In `aerobeat-vendor-modio`, claim the assigned bead on start. Perform an independent truth-check of the guide + collection authoring slice against the refreshed local official corpus. Confirm the added coverage is accurate, docs are truthful, request-shape validation matches the documented contract, and the seam still avoids media/upload assistance and orchestration leakage. Make only minimum necessary fixes, rerun validation/tests, update the plan, commit/push if needed, and close the bead.
 
 **Folders Created/Deleted/Modified:**
-- `src/`
-- `.testbed/tests/`
-- `docs/`
 - `.plans/`
 
 **Files Created/Deleted/Modified:**
-- implementation/tests/docs as needed
 - `.plans/2026-05-03-aerobeat-vendor-modio-guide-and-collection-authoring.md`
 
 **Status:** ✅ Complete
 
-**Results:** Implemented the six researched authoring endpoints in `src/modio_vendor_adapter.gd`, added transport-level multipart encoding plus request-validation short-circuiting in `src/network/modio_http_transport.gd`, and covered the slice with both builder/normalizer tests and execute-level transport tests in `REF-10`. The seam stays vendor-local: guide + collection create/update use bearer-authenticated `multipart/form-data`, guide delete remains bodyless, collection delete remains `application/x-www-form-urlencoded`, collection update preserves explicit empty `mod_ids` when `sync=true`, and no media/file helper behavior was introduced. Repo docs (`REF-04`, `REF-05`) were updated to reflect the new coverage and multipart transport support. Validation run: `godot --headless --path .testbed --script res://tests/validate_scaffold.gd` ✅, `godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit` ✅. Commit/push: pending final coder handoff commit.
+**Results:** Independent audit pass against `REF-06` through `REF-08` and the repo implementation/tests in `REF-09` and `REF-10`. Exact pass findings: (1) all six write routes match the refreshed REST corpus exactly — `POST /games/{game-id}/guides`, `POST /games/{game-id}/guides/{guide-id}`, `DELETE /games/{game-id}/guides/{guide-id}`, `POST /games/{game-id}/collections`, `POST /games/{game-id}/collections/{collection-id}`, `DELETE /games/{game-id}/collections/{collection-id}`; (2) auth stays bearer-only for the entire slice, matching the documented permission-gated write surfaces and upstream SDK request parameters; (3) guide add/edit and collection add/update execute as documented `multipart/form-data`, including repeated `tags[]` / `mod_ids[]` parts and the documented `sync=true` + empty `mod_ids` remove-all case; (4) collection delete remains documented bearer-authenticated `application/x-www-form-urlencoded` with optional `permanent` / `reason`, while guide delete stays bodyless at execution time (`body_string == ""`) even though the upstream SDK still models the request content type as form-encoded; (5) request-shape validation matches the refreshed docs contract, including guide-create required fields, guide-edit optional `status` / `name_id` / `url` / `tags`, collection tag enum gating, collection delete optional `permanent` / `reason`, and no invented collection-create requirements; (6) README + seam-plan docs are truthful about the newly covered slice; and (7) vendor-local boundaries remain intact — no media inspection/upload helpers, file assistance, or higher-level orchestration helpers were added. Residual drift found: none requiring code changes. Validation rerun: `godot --headless --path .testbed --script res://tests/validate_scaffold.gd` ✅, `godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit` ✅ (48/48 tests passed, 1529 asserts). Commit/push: required for this plan update only.
 
 ---
 
 ## Final Results
 
-**Status:** ⚠️ Partial
+**Status:** ✅ Complete
 
-**What We Built:** Task 2 coder implementation is complete: guide add/edit/delete plus collection add/update/delete authoring coverage, multipart transport support, request validation, tests, and seam docs.
+**What We Built:** Guide add/edit/delete plus collection add/update/delete authoring coverage, multipart transport support, documented request-shape validation, execute-level transport checks, and seam docs/README coverage for the combined guide + collection authoring slice.
 
-**Reference Check:** Task 2 implementation matches the researched scope from `REF-06` through `REF-08`, with guide/collection write semantics documented back into `REF-04` and `REF-05`. QA + auditor verification are still pending.
+**Reference Check:** Research, QA, and audit all passed against `REF-06` through `REF-08`. The implementation and docs in `REF-04`, `REF-05`, and `REF-09`/`REF-10` match the refreshed corpus, including multipart handling, collection delete body semantics, and `sync=true` + empty `mod_ids` remove-all behavior. No vendor-boundary drift was found.
 
 **Commits:**
-- Pending QA/audit loop.
+- Pending final audit-note commit.
 
-**Lessons Learned:** The current vendor seam could absorb documented multipart authoring safely once transport-level boundary encoding and validation short-circuiting were added, without importing any upload/media helper behavior.
+**Lessons Learned:** The current vendor seam could absorb documented multipart authoring safely once transport-level boundary encoding and validation short-circuiting were added, without importing any upload/media helper behavior or higher-level orchestration.
 
 ---
 
