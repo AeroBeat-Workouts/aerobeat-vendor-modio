@@ -234,9 +234,24 @@ Validation evidence after the fix:
 - implementation/tests/docs as needed
 - `.plans/2026-05-03-aerobeat-vendor-modio-remaining-coverage-and-final-audit.md`
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** Independently audited the catalog / game-meta / taxonomy utility batch against the refreshed local official corpus in `REF-08` through `REF-10`, including the Task 2 implementation notes and the QA singular/plural maturity fix.
+
+Exact audit findings:
+- ✅ Request paths/methods truth-check passed for all implemented routes in this batch: `GET /games`, `GET /games/{game-id}/stats`, `GET /games/{game-id}/tags`, `GET /games/{game-id}/mods/stats`, `GET /games/{game-id}/guides/tags`, `GET /agreements/versions/{agreement-version-id}`, `GET /games/{game-id}/monetization/token-packs`, and `GET /ping`.
+- ✅ The earlier gap-map wording drift stayed corrected in implementation/tests/docs: token packs remain on the current documented monetization route (`/games/{game-id}/monetization/token-packs`), and agreement-version reads remain on `/agreements/versions/{agreement-version-id}`.
+- ✅ The QA fix was present and truthful: `GET /games` now serializes `maturity_options` (plural) while collection and collection-mod filters correctly remain on `maturity_option` where the corpus still documents the singular field.
+- ✅ Normalization and fixtures for games, game stats, game tags, guide tags, agreement versions, token packs, and ping remained consistent with the refreshed docs/SDK/Unity corpus. The repo preserves provider fields/localization payloads and only adds the same light seam-local helper metadata already used elsewhere (`has_expiry` / `is_stale`).
+- ✅ README and seam docs stayed truthful about the added surface and its vendor-local boundaries.
+- ✅ Vendor-local boundary discipline held: no install orchestration, authoring/CMS, moderation/admin, monetization purchase/intents, or other higher-level AeroBeat policy work was pulled into this slice.
+- ✅ No residual drift found. No code/docs/test fixes were required during audit.
+
+Validation evidence:
+- `godot --headless --path .testbed --script res://tests/validate_scaffold.gd` ✅
+- `godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit` ✅ (`35/35` tests passed, `1100` asserts)
+
+Audit note: because the audit produced only plan-state documentation updates, the only tracked file changed in this pass was this umbrella plan.
 
 ---
 
