@@ -779,6 +779,16 @@ func test_builds_user_social_and_account_state_requests_with_paging_only_query_s
 	assert_eq(unfollow_collection_request.path, "/games/777/collections/3001/followers")
 	assert_eq(unfollow_collection_request.headers.Authorization, "Bearer user-token")
 
+	var subscribe_collection_request = auth_adapter.build_subscribe_collection_request("3001")
+	assert_eq(subscribe_collection_request.method, "POST")
+	assert_eq(subscribe_collection_request.path, "/games/777/collections/3001/subscriptions")
+	assert_eq(subscribe_collection_request.headers.Authorization, "Bearer user-token")
+
+	var unsubscribe_collection_request = auth_adapter.build_unsubscribe_collection_request("3001")
+	assert_eq(unsubscribe_collection_request.method, "DELETE")
+	assert_eq(unsubscribe_collection_request.path, "/games/777/collections/3001/subscriptions")
+	assert_eq(unsubscribe_collection_request.headers.Authorization, "Bearer user-token")
+
 func test_normalizes_user_inventory_fixture_payloads() -> void:
 	var adapter := _build_adapter_with_token()
 
@@ -1468,6 +1478,19 @@ func test_normalizes_social_mutation_write_success_variants() -> void:
 	assert_true(unfollowed_collection.ok)
 	assert_true(unfollowed_collection.unfollowed)
 	assert_eq(unfollowed_collection.data, {})
+
+	var subscribed_collection = adapter.normalize_subscribe_collection_response(200, {}, collection_payload)
+	assert_true(subscribed_collection.ok)
+	assert_true(subscribed_collection.subscribed)
+	assert_eq(subscribed_collection.location, "")
+	assert_eq(subscribed_collection.data.id, 3001)
+	assert_eq(subscribed_collection.data.stats.followers_total, 120)
+
+	var unsubscribed_collection = adapter.normalize_unsubscribe_collection_response(200, {"Location": "/games/777/collections/3001/subscriptions"}, collection_payload)
+	assert_true(unsubscribed_collection.ok)
+	assert_true(unsubscribed_collection.unsubscribed)
+	assert_eq(unsubscribed_collection.location, "/games/777/collections/3001/subscriptions")
+	assert_eq(unsubscribed_collection.data.name_id, "starter-bundle")
 
 func test_normalizes_rating_report_and_comment_error_variants() -> void:
 	var adapter := _build_adapter_with_token()

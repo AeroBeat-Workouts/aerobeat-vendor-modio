@@ -740,6 +740,23 @@ func test_executes_social_mutation_writes_with_documented_urls_bodies_and_bearer
 	assert_eq(_recorded_requests[5].url, "https://g-777.modapi.io/v1/games/777/collections/3001/followers")
 	assert_eq(_recorded_requests[5].body_string, "")
 
+	_queue_json_response(200, _fixture("collection_detail.json"))
+	var subscribe_collection_response := transport.execute(auth_adapter.build_subscribe_collection_request("3001"), auth_config)
+	assert_true(subscribe_collection_response.ok)
+	assert_eq(_recorded_requests[6].method, "POST")
+	assert_eq(_recorded_requests[6].url, "https://g-777.modapi.io/v1/games/777/collections/3001/subscriptions")
+	assert_eq(_recorded_requests[6].body_string, "")
+	assert_eq(_recorded_requests[6].headers.Authorization, "Bearer user-token")
+	assert_eq(int(subscribe_collection_response.payload.id), 3001)
+
+	_queue_json_response(200, _fixture("collection_detail.json"), {"Location": "/games/777/collections/3001/subscriptions"})
+	var unsubscribe_collection_response := transport.execute(auth_adapter.build_unsubscribe_collection_request("3001"), auth_config)
+	assert_true(unsubscribe_collection_response.ok)
+	assert_eq(_recorded_requests[7].method, "DELETE")
+	assert_eq(_recorded_requests[7].url, "https://g-777.modapi.io/v1/games/777/collections/3001/subscriptions")
+	assert_eq(_recorded_requests[7].body_string, "")
+	assert_eq(int(unsubscribe_collection_response.payload.id), 3001)
+
 func test_executes_mod_comment_requests_with_documented_urls_and_form_bodies() -> void:
 	var public_config := ModioClientConfig.new("777", "demo-key", "https://api.mod.io/v1/", "", "en-US", "steam", "WINDOWS")
 	var auth_config := ModioClientConfig.new("777", "demo-key", "", "user-token", "en-US", "steam", "WINDOWS", ModioClientConfig.HOST_GAME)

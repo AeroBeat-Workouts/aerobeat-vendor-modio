@@ -92,6 +92,8 @@ The current slice now exposes a larger request-builder and normalization seam:
     - `build_unmute_user_request(...)`
     - `build_follow_collection_request(...)`
     - `build_unfollow_collection_request(...)`
+    - `build_subscribe_collection_request(...)`
+    - `build_unsubscribe_collection_request(...)`
     - `build_add_mod_rating_request(...)`
     - `build_mod_comments_request(...)`
     - `build_mod_comment_request(...)`
@@ -148,7 +150,7 @@ That keeps transient CDN delivery behavior local to the vendor seam and out of A
 ## Query/auth stance
 
 - public/read flows default to query-based `api_key` injection
-- authenticated `GET /me`, `GET /me/games`, `GET /me/mods`, `GET /me/files`, `GET /me/subscribed`, `GET /games/{game-id}/monetization/token-packs`, logout, subscription writes, and the social-mutation writes (`POST/DELETE /users/{user-id}/following...`, `POST/DELETE /users/{user-id}/mute`, `POST/DELETE /games/{game-id}/collections/{collection-id}/followers`) require bearer-token headers
+- authenticated `GET /me`, `GET /me/games`, `GET /me/mods`, `GET /me/files`, `GET /me/subscribed`, `GET /games/{game-id}/monetization/token-packs`, logout, subscription writes, collection-subscription writes, and the social-mutation writes (`POST/DELETE /users/{user-id}/following...`, `POST/DELETE /users/{user-id}/mute`, `POST/DELETE /games/{game-id}/collections/{collection-id}/followers`) require bearer-token headers
 - endpoint query serialization is intentionally capability-gated so unsupported filters do not leak onto the wrong wrapped endpoint
 - `GET /games` now serializes only the current documented game listing filters (`id`, `status`, `submitted_by`, `date_added`, `date_updated`, `date_live`, `name`, `name_id`, `summary`, `instructions_url`, `ugc_name`, `presentation_option`, `submission_option`, `curation_option`, `profanity_option`, `dependency_option`, `community_options`, `monetization_options`, `api_access_options`, `maturity_options`, `show_hidden_tags`) plus paging and the current documented game sort keys
 - `GET /games/{game-id}/mods/stats` now serializes only paging plus the documented optional `mod_id` filter
@@ -168,6 +170,7 @@ That keeps transient CDN delivery behavior local to the vendor seam and out of A
 - `POST /users/{user-id}/following` sends the documented redundant form-encoded `user_id` body field for the target user while staying bearer-only
 - `DELETE /users/{user-id}/following/{target-user-id}`, `POST /users/{user-id}/mute`, `DELETE /users/{user-id}/mute`, and `DELETE /games/{game-id}/collections/{collection-id}/followers` all normalize as `204 No Content` writes with empty `data`
 - `POST /games/{game-id}/collections/{collection-id}/followers` keeps the returned `Mod Collection Object`, preserves `location`, and exposes `already_followed` when the provider returns `200 OK`
+- `POST /games/{game-id}/collections/{collection-id}/subscriptions` and `DELETE /games/{game-id}/collections/{collection-id}/subscriptions` stay bodyless bearer-only writes, normalize the returned `Mod Collection Object`, and intentionally do not import SDK-local install/update/uninstall orchestration or undocumented `include_dependencies` behavior into this vendor seam
 - platform-targeted `GET /me/subscribed` requests must include `game_id`, so this repo injects it when platform targeting is configured
 - `GET /me/ratings` defaults the seam to `resource_type=mods` plus the configured `game_id`, while preserving raw provider rating integers (`1` / `-1`) instead of re-inventing the contract
 - token request expiry values are sanitized per documented flow instead of blindly forwarding stale/oversized values

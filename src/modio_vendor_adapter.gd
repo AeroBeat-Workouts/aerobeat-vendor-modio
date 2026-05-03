@@ -597,6 +597,26 @@ func build_unfollow_collection_request(collection_id: String) -> Dictionary:
 		{"content_type": ModioHttpTransport.CONTENT_TYPE_FORM, "auth_mode": "bearer"}
 	)
 
+func build_subscribe_collection_request(collection_id: String) -> Dictionary:
+	return _transport.build_request(
+		"POST",
+		"/games/%s/collections/%s/subscriptions" % [_config.game_id, collection_id.strip_edges()],
+		{},
+		{},
+		_build_form_headers(true),
+		{"content_type": ModioHttpTransport.CONTENT_TYPE_FORM, "auth_mode": "bearer"}
+	)
+
+func build_unsubscribe_collection_request(collection_id: String) -> Dictionary:
+	return _transport.build_request(
+		"DELETE",
+		"/games/%s/collections/%s/subscriptions" % [_config.game_id, collection_id.strip_edges()],
+		{},
+		{},
+		_build_form_headers(true),
+		{"content_type": ModioHttpTransport.CONTENT_TYPE_FORM, "auth_mode": "bearer"}
+	)
+
 func build_collection_mods_request(collection_id: String, query: ModioListingQuery = ModioListingQuery.new()) -> Dictionary:
 	var full_query := _build_public_query()
 	full_query.merge(query.to_query_dict(ModioListingQuery.ENDPOINT_COLLECTION_MODS), true)
@@ -1264,11 +1284,33 @@ func normalize_subscription_write_response(status_code: int, headers: Dictionary
 	response["location"] = response.headers.get("location", "")
 	return response
 
+func normalize_subscribe_collection_response(status_code: int, headers: Dictionary, payload: Dictionary) -> Dictionary:
+	var response := _normalize_collection_write_response(status_code, headers, payload)
+	if not response.ok:
+		return response
+	response["subscribed"] = true
+	return response
+
+func normalize_unsubscribe_collection_response(status_code: int, headers: Dictionary, payload: Dictionary) -> Dictionary:
+	var response := _normalize_collection_write_response(status_code, headers, payload)
+	if not response.ok:
+		return response
+	response["unsubscribed"] = true
+	return response
+
 func _normalize_no_content_write_response(status_code: int, headers: Dictionary = {}) -> Dictionary:
 	var response := _transport.normalize_response(status_code, headers, {})
 	if not response.ok:
 		return response
 	response["data"] = {}
+	return response
+
+func _normalize_collection_write_response(status_code: int, headers: Dictionary, payload: Dictionary) -> Dictionary:
+	var response := _transport.normalize_response(status_code, headers, payload)
+	if not response.ok:
+		return response
+	response["data"] = _normalize_collection_object(payload)
+	response["location"] = response.headers.get("location", "")
 	return response
 
 func build_download_request(request: ModioDownloadRequest) -> Dictionary:
