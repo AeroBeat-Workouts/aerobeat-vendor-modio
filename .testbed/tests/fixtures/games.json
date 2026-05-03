@@ -1,0 +1,80 @@
+{
+  "data": [
+    {
+      "id": 777,
+      "name": "AeroBeat",
+      "name_id": "aerobeat",
+      "profile_url": "https://mod.io/g/aerobeat",
+      "summary": "Rhythm workouts with curated mods.",
+      "instructions": "Install from the in-game browser and warm up first.",
+      "instructions_url": "https://docs.aerobeat.example/mods",
+      "api_access_options": 7,
+      "dependency_option": 2,
+      "submission_option": 0,
+      "community_options": 5,
+      "maturity_options": 0,
+      "tag_options": [
+        {
+          "name": "Difficulty",
+          "name_localized": "Difficulty",
+          "type": "checkboxes",
+          "tags": ["Beginner", "Expert"],
+          "tags_localized": {"Beginner": "Beginner", "Expert": "Expert"},
+          "tag_count_map": {"Beginner": 12, "Expert": 4},
+          "hidden": false,
+          "locked": false
+        }
+      ],
+      "platforms": [
+        {"platform": "WINDOWS", "label": "Windows", "moderated": true, "locked": false}
+      ],
+      "theme": {
+        "primary": "#101820",
+        "dark": "#17242f",
+        "light": "#f7fbff",
+        "success": "#68D391",
+        "warning": "#d6af2e",
+        "danger": "#ff000e"
+      },
+      "stats": {
+        "game_id": 777,
+        "mods_count_total": 44,
+        "mods_downloads_today": 128,
+        "mods_downloads_total": 2048,
+        "mods_downloads_daily_average": 96,
+        "mods_subscribers_total": 2301,
+        "date_expires": 4102444800
+      }
+    },
+    {
+      "id": 778,
+      "name": "AeroBeat Trials",
+      "name_id": "aerobeat-trials",
+      "profile_url": "https://mod.io/g/aerobeat-trials",
+      "summary": "Challenge workouts for veteran players.",
+      "instructions": "Expect tighter timing windows.",
+      "instructions_url": "https://docs.aerobeat.example/trials",
+      "api_access_options": 1,
+      "dependency_option": 0,
+      "submission_option": 1,
+      "community_options": 2,
+      "maturity_options": 0,
+      "tag_options": [],
+      "platforms": [],
+      "theme": {},
+      "stats": {
+        "game_id": 778,
+        "mods_count_total": 12,
+        "mods_downloads_today": 14,
+        "mods_downloads_total": 320,
+        "mods_downloads_daily_average": 10,
+        "mods_subscribers_total": 98,
+        "date_expires": 4102444800
+      }
+    }
+  ],
+  "result_count": 2,
+  "result_offset": 0,
+  "result_limit": 2,
+  "result_total": 2
+}

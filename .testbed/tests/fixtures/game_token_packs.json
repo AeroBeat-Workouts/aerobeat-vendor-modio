@@ -1,0 +1,32 @@
+{
+  "data": [
+    {
+      "id": 1,
+      "token_pack_id": 101,
+      "price": 1000,
+      "amount": 1200,
+      "portal": "STEAM",
+      "sku": "AEROBEAT_TOKEN_PACK_A",
+      "name": "Token Pack A",
+      "description": "This pack contains 1200 workout tokens.",
+      "date_added": 1777800000,
+      "date_updated": 1777803600
+    },
+    {
+      "id": 2,
+      "token_pack_id": 102,
+      "price": 2500,
+      "amount": 3200,
+      "portal": "STEAM",
+      "sku": "AEROBEAT_TOKEN_PACK_B",
+      "name": "Token Pack B",
+      "description": "This pack contains 3200 workout tokens.",
+      "date_added": 1777800001,
+      "date_updated": 1777807200
+    }
+  ],
+  "result_count": 2,
+  "result_offset": 0,
+  "result_limit": 100,
+  "result_total": 2
+}

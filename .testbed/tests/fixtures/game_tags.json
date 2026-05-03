@@ -1,0 +1,39 @@
+{
+  "data": [
+    {
+      "name": "Difficulty",
+      "name_localization": {
+        "en": "Difficulty",
+        "fr": "Difficulte"
+      },
+      "type": "checkboxes",
+      "tags": ["Beginner", "Expert"],
+      "tags_localization": [
+        {
+          "tag": "Beginner",
+          "translations": {
+            "en": "Beginner",
+            "fr": "Debutant"
+          }
+        },
+        {
+          "tag": "Expert",
+          "translations": {
+            "en": "Expert",
+            "fr": "Expert"
+          }
+        }
+      ],
+      "tag_count_map": {
+        "Beginner": 12,
+        "Expert": 4
+      },
+      "hidden": false,
+      "locked": false
+    }
+  ],
+  "result_count": 1,
+  "result_offset": 0,
+  "result_limit": 100,
+  "result_total": 1
+}

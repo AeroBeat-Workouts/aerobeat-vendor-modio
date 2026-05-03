@@ -1,0 +1,38 @@
+{
+  "data": [
+    {
+      "mod_id": 1001,
+      "popularity_rank_position": 8,
+      "popularity_rank_total_mods": 204,
+      "downloads_today": 93,
+      "downloads_total": 2048,
+      "subscribers_total": 400,
+      "ratings_total": 72,
+      "ratings_positive": 66,
+      "ratings_negative": 6,
+      "ratings_percentage_positive": 92,
+      "ratings_weighted_aggregate": 90.6,
+      "ratings_display_text": "Very Positive",
+      "date_expires": 4102444800
+    },
+    {
+      "mod_id": 1002,
+      "popularity_rank_position": 15,
+      "popularity_rank_total_mods": 204,
+      "downloads_today": 22,
+      "downloads_total": 810,
+      "subscribers_total": 120,
+      "ratings_total": 14,
+      "ratings_positive": 12,
+      "ratings_negative": 2,
+      "ratings_percentage_positive": 86,
+      "ratings_weighted_aggregate": 81.5,
+      "ratings_display_text": "Positive",
+      "date_expires": 4102444800
+    }
+  ],
+  "result_count": 2,
+  "result_offset": 0,
+  "result_limit": 100,
+  "result_total": 2
+}

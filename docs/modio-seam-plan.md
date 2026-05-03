@@ -21,6 +21,7 @@ Keep **provider-native** concerns in this repo while allowing `aerobeat-tool-api
 - canonical artifact/cache metadata resolution derived from `provider + game_id + mod_id + modfile.id`
 - provider DTO parsing, page-state helpers, and error normalization
 - thin HTTP transport execution for mod.io-specific endpoints
+- read-only catalog/game-meta/taxonomy utility coverage for game listing, game stats, game tag options, guide tags, ping, agreement version lookup, and read-only token-pack discovery
 
 ### This repo should not own
 
@@ -90,7 +91,7 @@ The current slice now exposes a larger request-builder and normalization seam:
     - `build_subscribe_request(...)`
     - `build_unsubscribe_request(...)`
   - normalization helpers
-    - auth/logout/message/user/game/mod/modfile/mod-stats/mod-comment/guide/guide-comment/collection/collection-comment/user-social list/user-collection list/user-ratings/subscription/dependency/report/collection-compatibility responses
+    - auth/logout/message/user/game/games/game-stats/game-tags/game-token-packs/game-mod-stats/guide-tags/mod/modfile/mod-stats/mod-comment/guide/guide-comment/collection/collection-comment/user-social list/user-collection list/user-ratings/subscription/dependency/report/collection-compatibility responses
     - page-state helpers derived from `result_count`, `result_offset`, `result_limit`, and `result_total`
     - subscription write responses
     - download metadata resolution helpers
@@ -122,8 +123,10 @@ That keeps transient CDN delivery behavior local to the vendor seam and out of A
 ## Query/auth stance
 
 - public/read flows default to query-based `api_key` injection
-- authenticated `GET /me`, `GET /me/subscribed`, logout, and subscription writes require bearer-token headers
+- authenticated `GET /me`, `GET /me/subscribed`, `GET /games/{game-id}/monetization/token-packs`, logout, and subscription writes require bearer-token headers
 - endpoint query serialization is intentionally capability-gated so unsupported filters do not leak onto the wrong wrapped endpoint
+- `GET /games` now serializes only the current documented game listing filters (`id`, `status`, `submitted_by`, `date_added`, `date_updated`, `date_live`, `name`, `name_id`, `summary`, `instructions_url`, `ugc_name`, `presentation_option`, `submission_option`, `curation_option`, `profanity_option`, `dependency_option`, `community_options`, `monetization_options`, `api_access_options`, `maturity_option`, `show_hidden_tags`) plus paging and the current documented game sort keys
+- `GET /games/{game-id}/mods/stats` now serializes only paging plus the documented optional `mod_id` filter
 - `GET /games/{game-id}/guides` now serializes only the current documented guide filters (`id`, `game_id`, `status`, `submitted_by`, `submitted_by_display_name`, `date_added`, `date_updated`, `date_live`, `name_id`, `tags`, `tags-in`, `tags-not-in`) plus paging and documented sort keys
 - `GET /games/{game-id}/guides/{guide-id}/comments` now serializes only the current documented guide-comment filters (`id`, `resource_id`, `submitted_by`, `date_added`, `reply_id`, `thread_position`, `karma`, `content`) plus paging
 - `GET /games/{game-id}/collections` now serializes only the current documented collection filters (`id`, `status`, `mod_id`, `category`, `submitted_by`, `submitted_by_display_name`, `date_added`, `date_updated`, `date_live`, `name`, `name_id`, `maturity_option`, `tags`, `tags-in`, `tags-not-in`) plus paging and documented sort keys

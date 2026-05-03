@@ -1,0 +1,18 @@
+{
+  "data": [
+    {
+      "name": "Instructions",
+      "date_added": 1777800001,
+      "count": 8
+    },
+    {
+      "name": "Beginner",
+      "date_added": 1777800002,
+      "count": 3
+    }
+  ],
+  "result_count": 2,
+  "result_offset": 0,
+  "result_limit": 100,
+  "result_total": 2
+}

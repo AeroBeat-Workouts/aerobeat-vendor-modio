@@ -676,6 +676,76 @@ func test_rejects_bearer_requests_without_authorization_and_does_not_retry() -> 
 	assert_string_contains(response.error.message, "Authorization")
 	assert_eq(_recorded_requests.size(), 0)
 
+
+func test_executes_catalog_game_meta_and_taxonomy_reads_with_doc_corrected_urls() -> void:
+	var public_config := ModioClientConfig.new("777", "demo-key", "https://api.mod.io/v1/", "", "en-US", "steam", "WINDOWS")
+	var auth_config := ModioClientConfig.new("777", "demo-key", "", "user-token", "en-US", "steam", "WINDOWS", ModioClientConfig.HOST_GAME)
+	var transport := ModioHttpTransport.new(Callable(self, "_transport_double"))
+	var public_adapter := ModioVendorAdapter.new(public_config, transport)
+	var auth_adapter := ModioVendorAdapter.new(auth_config, transport)
+
+	var games_query := ModioListingQuery.new("", PackedStringArray(), 3, 1, "-date_updated")
+	games_query.name = "AeroBeat"
+	games_query.status = 1
+	games_query.submitted_by = "42"
+	games_query.summary = "Rhythm workouts"
+	games_query.instructions_url = "https://docs.aerobeat.example/mods"
+	games_query.ugc_name = "mods"
+	games_query.presentation_option = 0
+	games_query.submission_option = 1
+	games_query.curation_option = 2
+	games_query.profanity_option = 3
+	games_query.dependency_option = 2
+	games_query.community_options = 258
+	games_query.monetization_options = 1
+	games_query.api_access_options = 7
+	games_query.maturity_option = 0
+	games_query.show_hidden_mods = true
+
+	_queued_responses.append({"status_code": 200, "headers": {}, "body": JSON.stringify(_fixture("games.json"))})
+	var games_response := transport.execute(public_adapter.build_games_request(games_query), public_config)
+	assert_true(games_response.ok)
+	assert_eq(_recorded_requests[0].url, "https://api.mod.io/v1/games?_limit=3&_offset=1&_sort=-date_updated&api_access_options=7&api_key=demo-key&community_options=258&curation_option=2&dependency_option=2&instructions_url=https%3A%2F%2Fdocs.aerobeat.example%2Fmods&maturity_option=0&monetization_options=1&name=AeroBeat&presentation_option=0&profanity_option=3&show_hidden_tags=true&status=1&submission_option=1&submitted_by=42&summary=Rhythm%20workouts&ugc_name=mods")
+
+	_queued_responses.append({"status_code": 200, "headers": {}, "body": JSON.stringify(_fixture("game_stats.json"))})
+	var game_stats_response := transport.execute(public_adapter.build_game_stats_request(), public_config)
+	assert_true(game_stats_response.ok)
+	assert_eq(_recorded_requests[1].url, "https://api.mod.io/v1/games/777/stats?api_key=demo-key")
+
+	_queued_responses.append({"status_code": 200, "headers": {}, "body": JSON.stringify(_fixture("game_tags.json"))})
+	var game_tags_response := transport.execute(public_adapter.build_game_tags_request("888", true), public_config)
+	assert_true(game_tags_response.ok)
+	assert_eq(_recorded_requests[2].url, "https://api.mod.io/v1/games/888/tags?api_key=demo-key&show_hidden_tags=true")
+
+	var mod_stats_query := ModioListingQuery.new()
+	mod_stats_query.mod_id = "1001"
+	_queued_responses.append({"status_code": 200, "headers": {}, "body": JSON.stringify(_fixture("game_mod_stats.json"))})
+	var game_mod_stats_response := transport.execute(public_adapter.build_game_mod_stats_request("888", mod_stats_query), public_config)
+	assert_true(game_mod_stats_response.ok)
+	assert_eq(_recorded_requests[3].url, "https://api.mod.io/v1/games/888/mods/stats?_limit=25&_offset=0&api_key=demo-key&mod_id=1001")
+
+	_queued_responses.append({"status_code": 200, "headers": {}, "body": JSON.stringify(_fixture("guide_tags.json"))})
+	var guide_tags_response := transport.execute(public_adapter.build_guide_tags_request("888"), public_config)
+	assert_true(guide_tags_response.ok)
+	assert_eq(_recorded_requests[4].url, "https://api.mod.io/v1/games/888/guides/tags?api_key=demo-key")
+
+	_queued_responses.append({"status_code": 200, "headers": {}, "body": JSON.stringify(_fixture("agreement_version.json"))})
+	var agreement_version_response := transport.execute(public_adapter.build_agreement_version_request(31), public_config)
+	assert_true(agreement_version_response.ok)
+	assert_eq(_recorded_requests[5].url, "https://api.mod.io/v1/agreements/versions/31?api_key=demo-key")
+
+	_queued_responses.append({"status_code": 200, "headers": {}, "body": JSON.stringify(_fixture("game_token_packs.json"))})
+	var token_packs_response := transport.execute(auth_adapter.build_game_token_packs_request("888"), auth_config)
+	assert_true(token_packs_response.ok)
+	assert_eq(_recorded_requests[6].url, "https://g-777.modapi.io/v1/games/888/monetization/token-packs")
+	assert_eq(_recorded_requests[6].headers.Authorization, "Bearer user-token")
+	assert_false(_recorded_requests[6].url.contains("api_key="))
+
+	_queued_responses.append({"status_code": 200, "headers": {}, "body": JSON.stringify(_fixture("ping.json"))})
+	var ping_response := transport.execute(public_adapter.build_ping_request(), public_config)
+	assert_true(ping_response.ok)
+	assert_eq(_recorded_requests[7].url, "https://api.mod.io/v1/ping")
+
 func _transport_double(final_request: Dictionary, _options: Dictionary) -> Dictionary:
 	_recorded_requests.append(final_request.duplicate(true))
 	assert_true(_queued_responses.size() > 0, "No queued transport response for request %s" % final_request.url)

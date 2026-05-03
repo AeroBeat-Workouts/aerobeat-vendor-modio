@@ -4,6 +4,8 @@ extends RefCounted
 const ENDPOINT_MODS := "mods"
 const ENDPOINT_MODFILES := "modfiles"
 const ENDPOINT_SUBSCRIPTIONS := "subscriptions"
+const ENDPOINT_GAMES := "games"
+const ENDPOINT_GAME_MOD_STATS := "game_mod_stats"
 const ENDPOINT_USER_RATINGS := "user_ratings"
 const ENDPOINT_MOD_COMMENTS := "mod_comments"
 const ENDPOINT_GUIDES := "guides"
@@ -45,6 +47,17 @@ var thread_position: String
 var karma: int
 var content: String
 var show_hidden_mods: bool
+var summary: String = ""
+var instructions_url: String = ""
+var ugc_name: String = ""
+var presentation_option: int = -1
+var submission_option: int = -1
+var curation_option: int = -1
+var profanity_option: int = -1
+var community_options: int = -1
+var monetization_options: int = -1
+var api_access_options: int = -1
+var dependency_option: int = -1
 
 func _init(
 	p_search_term: String = "",
@@ -150,8 +163,30 @@ func to_query_dict(endpoint: String = ENDPOINT_MODS) -> Dictionary:
 		query["category"] = category
 	if capabilities.has("maturity_option") and maturity_option >= 0:
 		query["maturity_option"] = str(maturity_option)
+	if capabilities.has("presentation_option") and presentation_option >= 0:
+		query["presentation_option"] = str(presentation_option)
+	if capabilities.has("submission_option") and submission_option >= 0:
+		query["submission_option"] = str(submission_option)
+	if capabilities.has("curation_option") and curation_option >= 0:
+		query["curation_option"] = str(curation_option)
+	if capabilities.has("profanity_option") and profanity_option >= 0:
+		query["profanity_option"] = str(profanity_option)
+	if capabilities.has("community_options") and community_options >= 0:
+		query["community_options"] = str(community_options)
+	if capabilities.has("monetization_options") and monetization_options >= 0:
+		query["monetization_options"] = str(monetization_options)
+	if capabilities.has("api_access_options") and api_access_options >= 0:
+		query["api_access_options"] = str(api_access_options)
+	if capabilities.has("dependency_option") and dependency_option >= 0:
+		query["dependency_option"] = str(dependency_option)
 	if capabilities.has("name") and not name.is_empty():
 		query["name"] = name
+	if capabilities.has("summary") and not summary.is_empty():
+		query["summary"] = summary
+	if capabilities.has("instructions_url") and not instructions_url.is_empty():
+		query["instructions_url"] = instructions_url
+	if capabilities.has("ugc_name") and not ugc_name.is_empty():
+		query["ugc_name"] = ugc_name
 	if capabilities.has("game_id") and not game_id.is_empty():
 		query["game_id"] = game_id
 	if capabilities.has("mod_id") and not mod_id.is_empty():
@@ -177,12 +212,42 @@ func to_query_dict(endpoint: String = ENDPOINT_MODS) -> Dictionary:
 	if capabilities.has("content") and not content.is_empty():
 		query["content"] = content
 	if capabilities.has("show_hidden_mods") and show_hidden_mods:
-		query["show_hidden_mods"] = true
+		if endpoint == ENDPOINT_GAMES:
+			query["show_hidden_tags"] = true
+		else:
+			query["show_hidden_mods"] = true
 
 	return query
 
 func _get_capabilities(endpoint: String) -> PackedStringArray:
 	match endpoint:
+		ENDPOINT_GAMES:
+			return PackedStringArray([
+				"id",
+				"status",
+				"submitted_by",
+				"date_added",
+				"date_updated",
+				"date_live",
+				"name",
+				"name_id",
+				"summary",
+				"instructions_url",
+				"ugc_name",
+				"presentation_option",
+				"submission_option",
+				"curation_option",
+				"profanity_option",
+				"dependency_option",
+				"community_options",
+				"monetization_options",
+				"api_access_options",
+				"maturity_option",
+				"show_hidden_mods",
+				"sort"
+			])
+		ENDPOINT_GAME_MOD_STATS:
+			return PackedStringArray(["mod_id"])
 		ENDPOINT_USER_SOCIAL:
 			return PackedStringArray([])
 		ENDPOINT_USER_COLLECTIONS:
@@ -299,6 +364,15 @@ func _get_capabilities(endpoint: String) -> PackedStringArray:
 
 func _get_allowed_sorts(endpoint: String) -> PackedStringArray:
 	match endpoint:
+		ENDPOINT_GAMES:
+			return PackedStringArray([
+				"name",
+				"filesize",
+				"date_updated",
+				"added_to_collection"
+			])
+		ENDPOINT_GAME_MOD_STATS:
+			return PackedStringArray([])
 		ENDPOINT_USER_SOCIAL:
 			return PackedStringArray([])
 		ENDPOINT_USER_COLLECTIONS:

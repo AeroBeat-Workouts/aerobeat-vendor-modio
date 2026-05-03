@@ -119,6 +119,16 @@ func build_current_agreement_request(agreement_type_id: int) -> Dictionary:
 		{"auth_mode": "api_key_query"}
 	)
 
+func build_agreement_version_request(agreement_version_id: int) -> Dictionary:
+	return _transport.build_request(
+		"GET",
+		"/agreements/versions/%s" % agreement_version_id,
+		_build_public_query(),
+		{},
+		_build_read_headers(false),
+		{"auth_mode": "api_key_query"}
+	)
+
 func build_authenticated_user_request(delegation_token: String = "") -> Dictionary:
 	var headers := _build_read_headers(true)
 	if not delegation_token.strip_edges().is_empty():
@@ -153,6 +163,83 @@ func build_game_request(show_hidden_tags: bool = false) -> Dictionary:
 		{},
 		_build_read_headers(false),
 		{"auth_mode": _resolve_read_auth_mode(false)}
+	)
+
+func build_games_request(query: ModioListingQuery = ModioListingQuery.new()) -> Dictionary:
+	var full_query := _build_public_query()
+	full_query.merge(query.to_query_dict(ModioListingQuery.ENDPOINT_GAMES), true)
+	return _transport.build_request(
+		"GET",
+		"/games",
+		full_query,
+		{},
+		_build_read_headers(false),
+		{"auth_mode": "api_key_query"}
+	)
+
+func build_game_stats_request(game_id: String = "") -> Dictionary:
+	return _transport.build_request(
+		"GET",
+		"/games/%s/stats" % _resolve_requested_game_id(game_id),
+		_build_public_query(),
+		{},
+		_build_read_headers(false),
+		{"auth_mode": "api_key_query"}
+	)
+
+func build_game_tags_request(game_id: String = "", show_hidden_tags: bool = false) -> Dictionary:
+	var query := _build_public_query()
+	if show_hidden_tags:
+		query["show_hidden_tags"] = true
+	return _transport.build_request(
+		"GET",
+		"/games/%s/tags" % _resolve_requested_game_id(game_id),
+		query,
+		{},
+		_build_read_headers(false),
+		{"auth_mode": "api_key_query"}
+	)
+
+func build_game_token_packs_request(game_id: String = "") -> Dictionary:
+	return _transport.build_request(
+		"GET",
+		"/games/%s/monetization/token-packs" % _resolve_requested_game_id(game_id),
+		_build_authenticated_query(),
+		{},
+		_build_read_headers(true),
+		{"auth_mode": "bearer"}
+	)
+
+func build_game_mod_stats_request(game_id: String = "", query: ModioListingQuery = ModioListingQuery.new()) -> Dictionary:
+	var full_query := _build_public_query()
+	full_query.merge(query.to_query_dict(ModioListingQuery.ENDPOINT_GAME_MOD_STATS), true)
+	return _transport.build_request(
+		"GET",
+		"/games/%s/mods/stats" % _resolve_requested_game_id(game_id),
+		full_query,
+		{},
+		_build_read_headers(false),
+		{"auth_mode": "api_key_query"}
+	)
+
+func build_guide_tags_request(game_id: String = "") -> Dictionary:
+	return _transport.build_request(
+		"GET",
+		"/games/%s/guides/tags" % _resolve_requested_game_id(game_id),
+		_build_public_query(),
+		{},
+		_build_read_headers(false),
+		{"auth_mode": "api_key_query"}
+	)
+
+func build_ping_request() -> Dictionary:
+	return _transport.build_request(
+		"GET",
+		"/ping",
+		{},
+		{},
+		_build_read_headers(false),
+		{"auth_mode": "none"}
 	)
 
 func build_listing_request(query: ModioListingQuery = ModioListingQuery.new()) -> Dictionary:
@@ -697,6 +784,9 @@ func normalize_agreement_response(payload: Dictionary) -> Dictionary:
 		"adjacent_versions": _normalize_adjacent_versions(payload.get("adjacent_versions", {}))
 	}
 
+func normalize_agreement_version_response(payload: Dictionary) -> Dictionary:
+	return normalize_agreement_response(payload)
+
 func normalize_authenticated_user_response(payload: Dictionary) -> Dictionary:
 	var user := _normalize_user_object(payload)
 	user["country"] = str(payload.get("country", ""))
@@ -723,10 +813,31 @@ func normalize_game_response(payload: Dictionary) -> Dictionary:
 		"tag_options": _normalize_tag_options(payload.get("tag_options", [])),
 		"platforms": _normalize_game_platforms(payload.get("platforms", [])),
 		"theme": _normalize_dictionary(payload.get("theme", {})),
-		"stats": _normalize_dictionary(payload.get("stats", {})),
+		"stats": _normalize_game_stats_object(payload.get("stats", {})),
 		"download_policy": interpret_game_download_policy(payload),
 		"community_policy": interpret_game_community_policy(payload)
 	}
+
+func normalize_games_response(payload: Dictionary) -> Dictionary:
+	return _normalize_list_payload(payload, Callable(self, "_normalize_game_object"))
+
+func normalize_game_stats_response(payload: Dictionary) -> Dictionary:
+	return _normalize_game_stats_object(payload)
+
+func normalize_game_tags_response(payload: Dictionary) -> Dictionary:
+	return _normalize_list_payload(payload, Callable(self, "_normalize_game_tag_option_object"))
+
+func normalize_game_token_packs_response(payload: Dictionary) -> Dictionary:
+	return _normalize_list_payload(payload, Callable(self, "_normalize_game_token_pack_object"))
+
+func normalize_game_mod_stats_response(payload: Dictionary) -> Dictionary:
+	return _normalize_list_payload(payload, Callable(self, "_normalize_stats_object"))
+
+func normalize_guide_tags_response(payload: Dictionary) -> Dictionary:
+	return _normalize_list_payload(payload, Callable(self, "_normalize_guide_tag_object"))
+
+func normalize_ping_response(payload: Dictionary) -> Dictionary:
+	return normalize_message_response(payload)
 
 func normalize_mod_list_response(payload: Dictionary) -> Dictionary:
 	return _normalize_list_payload(payload, Callable(self, "_normalize_mod_object"))
@@ -1147,6 +1258,24 @@ func _normalize_guide_object(payload: Dictionary) -> Dictionary:
 		"comments_total": int(normalized_stats.get("comments_total", 0))
 	}
 
+func _normalize_game_object(payload: Dictionary) -> Dictionary:
+	return normalize_game_response(payload)
+
+func _normalize_game_stats_object(payload: Dictionary) -> Dictionary:
+	var normalized := {
+		"game_id": int(payload.get("game_id", 0)),
+		"mods_count_total": int(payload.get("mods_count_total", 0)),
+		"mods_downloads_today": int(payload.get("mods_downloads_today", 0)),
+		"mods_downloads_total": int(payload.get("mods_downloads_total", 0)),
+		"mods_downloads_daily_average": int(payload.get("mods_downloads_daily_average", 0)),
+		"mods_subscribers_total": int(payload.get("mods_subscribers_total", 0)),
+		"date_expires": int(payload.get("date_expires", 0))
+	}
+	var now := Time.get_unix_time_from_system()
+	normalized["has_expiry"] = normalized.date_expires > 0
+	normalized["is_stale"] = normalized.date_expires > 0 and normalized.date_expires <= now
+	return normalized
+
 func _normalize_stats_object(payload: Dictionary) -> Dictionary:
 	return {
 		"mod_id": int(payload.get("mod_id", 0)),
@@ -1286,20 +1415,27 @@ func _normalize_adjacent_versions(payload: Dictionary) -> Dictionary:
 		}
 	return normalized
 
+func _normalize_game_tag_option_object(payload: Dictionary) -> Dictionary:
+	var name_localization := _normalize_dictionary(payload.get("name_localization", {}))
+	var tags_localized := _normalize_dictionary(payload.get("tags_localized", {}))
+	return {
+		"name": str(payload.get("name", "")),
+		"name_localized": str(payload.get("name_localized", "")),
+		"name_localization": name_localization,
+		"type": str(payload.get("type", "")),
+		"tags": _normalize_string_array(payload.get("tags", [])),
+		"tags_localized": tags_localized,
+		"tags_localization": _normalize_tag_localizations(payload.get("tags_localization", [])),
+		"tag_count_map": _normalize_dictionary(payload.get("tag_count_map", {})),
+		"hidden": bool(payload.get("hidden", false)),
+		"locked": bool(payload.get("locked", false))
+	}
+
 func _normalize_tag_options(payload: Array) -> Array:
 	var normalized: Array = []
 	for item in payload:
 		if item is Dictionary:
-			normalized.append({
-				"name": str(item.get("name", "")),
-				"name_localized": str(item.get("name_localized", "")),
-				"type": str(item.get("type", "")),
-				"tags": item.get("tags", []),
-				"tags_localized": _normalize_dictionary(item.get("tags_localized", {})),
-				"tag_count_map": _normalize_dictionary(item.get("tag_count_map", {})),
-				"hidden": bool(item.get("hidden", false)),
-				"locked": bool(item.get("locked", false))
-			})
+			normalized.append(_normalize_game_tag_option_object(item))
 	return normalized
 
 func _normalize_game_platforms(payload: Array) -> Array:
@@ -1355,15 +1491,18 @@ func _normalize_tags(payload: Array) -> Array:
 			})
 	return normalized
 
+func _normalize_guide_tag_object(payload: Dictionary) -> Dictionary:
+	return {
+		"name": str(payload.get("name", "")),
+		"date_added": int(payload.get("date_added", 0)),
+		"count": int(payload.get("count", 0))
+	}
+
 func _normalize_guide_tags(payload: Array) -> Array:
 	var normalized: Array = []
 	for item in payload:
 		if item is Dictionary:
-			normalized.append({
-				"name": str(item.get("name", "")),
-				"date_added": int(item.get("date_added", 0)),
-				"count": int(item.get("count", 0))
-			})
+			normalized.append(_normalize_guide_tag_object(item))
 	return normalized
 
 func _normalize_guide_stats(payload: Variant) -> Dictionary:
@@ -1378,6 +1517,30 @@ func _normalize_guide_stats(payload: Variant) -> Dictionary:
 		"visits_today": int(source.get("visits_today", 0)),
 		"visits_total": int(source.get("visits_total", 0)),
 		"comments_total": int(source.get("comments_total", 0))
+	}
+
+func _normalize_tag_localizations(payload: Array) -> Array:
+	var normalized: Array = []
+	for item in payload:
+		if item is Dictionary:
+			normalized.append({
+				"tag": str(item.get("tag", "")),
+				"translations": _normalize_dictionary(item.get("translations", {}))
+			})
+	return normalized
+
+func _normalize_game_token_pack_object(payload: Dictionary) -> Dictionary:
+	return {
+		"id": int(payload.get("id", 0)),
+		"token_pack_id": int(payload.get("token_pack_id", 0)),
+		"price": int(payload.get("price", 0)),
+		"amount": int(payload.get("amount", 0)),
+		"portal": str(payload.get("portal", "")),
+		"sku": str(payload.get("sku", "")),
+		"name": str(payload.get("name", "")),
+		"description": str(payload.get("description", "")),
+		"date_added": int(payload.get("date_added", 0)),
+		"date_updated": int(payload.get("date_updated", 0))
 	}
 
 func _normalize_collection_stats(payload: Variant) -> Dictionary:
@@ -1564,6 +1727,12 @@ func build_artifact_key(game_id: String, mod_id: String, file_id: String) -> Str
 	if game_id.strip_edges().is_empty() or mod_id.strip_edges().is_empty() or file_id.strip_edges().is_empty():
 		return ""
 	return "%s:%s:%s:%s" % [PROVIDER_NAME, game_id.strip_edges(), mod_id.strip_edges(), file_id.strip_edges()]
+
+func _resolve_requested_game_id(game_id: String = "") -> String:
+	var requested := game_id.strip_edges()
+	if not requested.is_empty():
+		return requested
+	return _config.game_id.strip_edges()
 
 func _resolve_game_id(game_payload: Dictionary, fallback_payload: Dictionary = {}) -> String:
 	var from_game := _stringify_id_value(game_payload.get("id", 0))

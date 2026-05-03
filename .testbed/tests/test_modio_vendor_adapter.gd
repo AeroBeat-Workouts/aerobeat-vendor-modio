@@ -735,6 +735,42 @@ func test_normalizes_fixture_payloads_for_richer_slice() -> void:
 	assert_eq(game.stats.mods_count_total, 44)
 	assert_eq(game.stats.mods_subscribers_total, 2301)
 
+	var games = adapter.normalize_games_response(_fixture("games.json"))
+	assert_eq(games.result_total, 2)
+	assert_eq(games.data[1].name_id, "aerobeat-trials")
+	assert_true(games.data[0].stats.has_expiry)
+
+	var game_stats = adapter.normalize_game_stats_response(_fixture("game_stats.json"))
+	assert_eq(game_stats.mods_downloads_total, 2048)
+	assert_true(game_stats.has_expiry)
+	assert_false(game_stats.is_stale)
+
+	var game_tags = adapter.normalize_game_tags_response(_fixture("game_tags.json"))
+	assert_eq(game_tags.result_total, 1)
+	assert_eq(game_tags.data[0].name_localization.fr, "Difficulte")
+	assert_eq(game_tags.data[0].tags_localization[0].translations.fr, "Debutant")
+
+	var token_packs = adapter.normalize_game_token_packs_response(_fixture("game_token_packs.json"))
+	assert_eq(token_packs.data.size(), 2)
+	assert_eq(token_packs.data[0].sku, "AEROBEAT_TOKEN_PACK_A")
+
+	var game_mod_stats = adapter.normalize_game_mod_stats_response(_fixture("game_mod_stats.json"))
+	assert_eq(game_mod_stats.result_total, 2)
+	assert_eq(game_mod_stats.data[0].mod_id, 1001)
+	assert_eq(game_mod_stats.data[1].ratings_display_text, "Positive")
+
+	var guide_tags = adapter.normalize_guide_tags_response(_fixture("guide_tags.json"))
+	assert_eq(guide_tags.data[0].count, 8)
+	assert_eq(guide_tags.data[1].name, "Beginner")
+
+	var agreement_version = adapter.normalize_agreement_version_response(_fixture("agreement_version.json"))
+	assert_eq(agreement_version.id, 31)
+	assert_eq(agreement_version.adjacent_versions.previous.id, 13)
+
+	var ping = adapter.normalize_ping_response(_fixture("ping.json"))
+	assert_true(ping.success)
+	assert_eq(ping.message, "mod.io API reachable")
+
 	var mods = adapter.normalize_mod_list_response(_fixture("mods.json"))
 	assert_eq(mods.result_offset, 5)
 	assert_true(mods.page.has_next)
@@ -1110,6 +1146,81 @@ func test_normalizes_rating_report_and_comment_error_variants() -> void:
 	assert_false(karma_downvote_disabled.ok)
 	assert_eq(karma_downvote_disabled.error.category, "forbidden")
 	assert_eq(karma_downvote_disabled.error.error_ref, 15095)
+
+
+func test_builds_catalog_game_meta_and_taxonomy_requests_with_doc_corrected_paths() -> void:
+	var public_adapter := _build_adapter()
+	var auth_adapter := _build_adapter_with_token()
+	var games_query := ModioListingQuery.new("", PackedStringArray(), 3, 1, "-date_updated")
+	games_query.name = "AeroBeat"
+	games_query.status = 1
+	games_query.submitted_by = "42"
+	games_query.summary = "Rhythm workouts"
+	games_query.instructions_url = "https://docs.aerobeat.example/mods"
+	games_query.ugc_name = "mods"
+	games_query.presentation_option = 0
+	games_query.submission_option = 1
+	games_query.curation_option = 2
+	games_query.profanity_option = 3
+	games_query.dependency_option = 2
+	games_query.community_options = 258
+	games_query.monetization_options = 1
+	games_query.api_access_options = 7
+	games_query.maturity_option = 0
+	games_query.show_hidden_mods = true
+
+	var games_request = public_adapter.build_games_request(games_query)
+	assert_eq(games_request.path, "/games")
+	assert_eq(games_request.query.api_key, "demo-key")
+	assert_eq(games_request.query._sort, "-date_updated")
+	assert_eq(games_request.query.name, "AeroBeat")
+	assert_eq(games_request.query.summary, "Rhythm workouts")
+	assert_eq(games_request.query.instructions_url, "https://docs.aerobeat.example/mods")
+	assert_eq(games_request.query.ugc_name, "mods")
+	assert_eq(games_request.query.presentation_option, "0")
+	assert_eq(games_request.query.submission_option, "1")
+	assert_eq(games_request.query.curation_option, "2")
+	assert_eq(games_request.query.profanity_option, "3")
+	assert_eq(games_request.query.dependency_option, "2")
+	assert_eq(games_request.query.community_options, "258")
+	assert_eq(games_request.query.monetization_options, "1")
+	assert_eq(games_request.query.api_access_options, "7")
+	assert_eq(games_request.query.maturity_option, "0")
+	assert_true(games_request.query.show_hidden_tags)
+
+	var invalid_games_sort := ModioListingQuery.new()
+	invalid_games_sort.sort = "-downloads_total"
+	var invalid_games_request = public_adapter.build_games_request(invalid_games_sort)
+	assert_false(invalid_games_request.query.has("_sort"))
+
+	var game_stats_request = public_adapter.build_game_stats_request()
+	assert_eq(game_stats_request.path, "/games/777/stats")
+
+	var game_tags_request = public_adapter.build_game_tags_request("888", true)
+	assert_eq(game_tags_request.path, "/games/888/tags")
+	assert_true(game_tags_request.query.show_hidden_tags)
+
+	var token_packs_request = auth_adapter.build_game_token_packs_request("888")
+	assert_eq(token_packs_request.path, "/games/888/monetization/token-packs")
+	assert_eq(token_packs_request.headers.Authorization, "Bearer user-token")
+	assert_eq(token_packs_request.auth_mode, "bearer")
+
+	var mod_stats_query := ModioListingQuery.new()
+	mod_stats_query.mod_id = "1001"
+	var game_mod_stats_request = public_adapter.build_game_mod_stats_request("888", mod_stats_query)
+	assert_eq(game_mod_stats_request.path, "/games/888/mods/stats")
+	assert_eq(game_mod_stats_request.query.mod_id, "1001")
+
+	var guide_tags_request = public_adapter.build_guide_tags_request("888")
+	assert_eq(guide_tags_request.path, "/games/888/guides/tags")
+
+	var agreement_version_request = public_adapter.build_agreement_version_request(31)
+	assert_eq(agreement_version_request.path, "/agreements/versions/31")
+
+	var ping_request = public_adapter.build_ping_request()
+	assert_eq(ping_request.path, "/ping")
+	assert_eq(ping_request.auth_mode, "none")
+	assert_eq(ping_request.query, {})
 
 func _build_adapter() -> ModioVendorAdapter:
 	return ModioVendorAdapter.new(
