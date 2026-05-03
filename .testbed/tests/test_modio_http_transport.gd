@@ -54,6 +54,14 @@ func test_executes_public_get_requests_with_final_encoded_query_and_headers() ->
 	assert_eq(_recorded_requests.size(), 1)
 	assert_eq(_recorded_requests[0].url, "https://api.mod.io/v1/games/777/mods?_limit=10&_offset=5&_q=boxing%20gloves&_sort=-downloads_total&api_key=demo-key&id=1001&metadata_blob=%7B%22intensity%22%3A%22high%22%7D&metadata_kvp=difficulty%3Aexpert%2Cworkout_type%3Acardio&name_id=cardio-blaster&status=1&submitted_by=55&tags=approved%2Cfeatured&tags-in=cardio&tags-not-in=hidden&visible=1")
 	assert_eq(_recorded_requests[0].headers["Accept-Language"], "fr-CA")
+
+	var invalid_mod_sort_query := ModioListingQuery.new()
+	invalid_mod_sort_query.sort = "-comments_total"
+	_queue_json_response(200, _fixture("mods.json"))
+	var invalid_mod_sort_response := transport.execute(adapter.build_listing_request(invalid_mod_sort_query), config)
+	assert_true(invalid_mod_sort_response.ok)
+	assert_eq(_recorded_requests[1].url, "https://api.mod.io/v1/games/777/mods?_limit=25&_offset=0&api_key=demo-key")
+
 	assert_eq(_recorded_requests[0].headers["X-Modio-Platform"], "WINDOWS")
 	assert_eq(_recorded_requests[0].headers["X-Modio-Portal"], "steam")
 	assert_eq(int(response.payload.result_total), 13)
@@ -141,6 +149,13 @@ func test_executes_platform_targeted_subscription_sync_with_required_game_id() -
 	assert_eq(_recorded_requests[0].url, "https://g-777.modapi.io/v1/me/subscribed?_limit=25&_offset=25&_q=boxing&_sort=-downloads_total&game_id=777&id=1001&metadata_blob=%7B%22intensity%22%3A%22high%22%7D&metadata_kvp=workout_type%3Acardio&name_id=cardio-blaster&status=1&submitted_by=55&tags=approved&tags-in=cardio&tags-not-in=hidden&visible=1")
 	assert_eq(_recorded_requests[0].headers.Authorization, "Bearer user-token")
 	assert_false(_recorded_requests[0].url.contains("api_key="))
+
+	var invalid_subscription_sort_query := ModioListingQuery.new()
+	invalid_subscription_sort_query.sort = "-ratings_weighted_aggregate"
+	_queue_json_response(200, _fixture("subscribed.json"))
+	var invalid_subscription_sort_response := transport.execute(adapter.build_user_subscriptions_request(invalid_subscription_sort_query), config)
+	assert_true(invalid_subscription_sort_response.ok)
+	assert_eq(_recorded_requests[1].url, "https://g-777.modapi.io/v1/me/subscribed?_limit=25&_offset=0&game_id=777")
 
 func test_executes_dependency_requests_with_explicit_recursive_semantics() -> void:
 	var config := ModioClientConfig.new("777", "demo-key", "https://api.mod.io/v1/", "", "en-US", "steam", "WINDOWS")

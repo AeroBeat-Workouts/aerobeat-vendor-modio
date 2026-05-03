@@ -137,9 +137,9 @@ No code/test changes were made during this audit because the truthful next actio
 - implementation/tests/docs as needed
 - `.plans/2026-05-03-aerobeat-vendor-modio-doc-truth-and-repo-audit.md`
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** Repaired the audited sort-gating drift in `src/models/modio_listing_query.gd` by replacing the old "empty allowlist means accept anything" behavior with explicit documented sort allowlists for `GET /games/{game-id}/mods` (`name`, `date_live`, `date_updated`, `submitted_by`, `downloads_today`, `downloads_total`, `subscribers_total`, `ratings_weighted_aggregate`) and `GET /me/subscribed` (`name`, `date_live`, `date_updated`, `submitted_by`, `downloads_today`, `downloads_total`, `subscribers_total`), while preserving the existing guide allowlist. Added narrow regression coverage in `.testbed/tests/test_modio_vendor_adapter.gd` and `.testbed/tests/test_modio_http_transport.gd` proving that undocumented sorts are now dropped for mods (`-comments_total`) and subscriptions (`-ratings_weighted_aggregate`) instead of serialized into outgoing requests. Made the minimum truthful README adjustment to state that documented `_sort` allowlists are enforced for mod listings, guide listings, and authenticated subscriptions. Repo-local validation: `godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit` → 27/27 passing tests, 0 failures, 3 pre-existing float/int comparison warnings. Commit/push details recorded in git history for this task.
 
 ---
 

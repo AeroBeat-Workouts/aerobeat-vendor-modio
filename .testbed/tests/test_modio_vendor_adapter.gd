@@ -85,6 +85,11 @@ func test_builds_browse_and_detail_requests_with_endpoint_aware_query_shapes() -
 	assert_eq(listing_request.query._limit, "10")
 	assert_eq(listing_request.query._offset, "5")
 
+	var invalid_mod_sort_query := ModioListingQuery.new()
+	invalid_mod_sort_query.sort = "-comments_total"
+	var invalid_mod_sort_request = adapter.build_listing_request(invalid_mod_sort_query)
+	assert_false(invalid_mod_sort_request.query.has("_sort"))
+
 	var detail_request = adapter.build_mod_detail_request("1001")
 	assert_eq(detail_request.path, "/games/777/mods/1001")
 
@@ -138,6 +143,11 @@ func test_builds_authenticated_subscription_requests_and_gates_unsupported_filte
 	assert_eq(subscribed_request.query.status, "1")
 	assert_eq(subscribed_request.query.visible, "1")
 	assert_eq(subscribed_request.query.submitted_by, "55")
+
+	var invalid_subscription_sort_query := ModioListingQuery.new()
+	invalid_subscription_sort_query.sort = "-ratings_weighted_aggregate"
+	var invalid_subscription_sort_request = adapter.build_user_subscriptions_request(invalid_subscription_sort_query)
+	assert_false(invalid_subscription_sort_request.query.has("_sort"))
 
 	var ratings_query := ModioListingQuery.new("", PackedStringArray(), 50, 0, "", PackedStringArray(), PackedStringArray(), "", {}, "", "", -1, -1, "", "777", "1001", -1, "mods", 1777800001)
 	var user_ratings_request = adapter.build_user_ratings_request(ratings_query)

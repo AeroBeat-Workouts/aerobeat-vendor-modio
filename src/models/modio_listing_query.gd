@@ -234,6 +234,27 @@ func _get_capabilities(endpoint: String) -> PackedStringArray:
 
 func _get_allowed_sorts(endpoint: String) -> PackedStringArray:
 	match endpoint:
+		ENDPOINT_MODS:
+			return PackedStringArray([
+				"name",
+				"date_live",
+				"date_updated",
+				"submitted_by",
+				"downloads_today",
+				"downloads_total",
+				"subscribers_total",
+				"ratings_weighted_aggregate"
+			])
+		ENDPOINT_SUBSCRIPTIONS:
+			return PackedStringArray([
+				"name",
+				"date_live",
+				"date_updated",
+				"submitted_by",
+				"downloads_today",
+				"downloads_total",
+				"subscribers_total"
+			])
 		ENDPOINT_GUIDES:
 			return PackedStringArray([
 				"name",
@@ -253,7 +274,7 @@ func _sanitize_sort(endpoint: String, raw_sort: String) -> String:
 		return ""
 	var sort_key := candidate.substr(1) if candidate.begins_with("-") else candidate
 	var allowed_sorts := _get_allowed_sorts(endpoint)
-	if allowed_sorts.is_empty() or allowed_sorts.has(sort_key):
+	if allowed_sorts.has(sort_key):
 		return candidate
 	return ""
 
