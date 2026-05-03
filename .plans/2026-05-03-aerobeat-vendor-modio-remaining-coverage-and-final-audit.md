@@ -227,6 +227,22 @@ Validation evidence after the fix:
 - `godot --headless --path .testbed --script res://tests/validate_scaffold.gd` ✅
 - `godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit` ✅ (`35/35` tests passed, `1100` asserts)
 
+Additional QA pass — mod-adjacent read enrichment batch:
+- ✅ Request paths/methods re-verified against the refreshed local official corpus for `GET /games/{game-id}/mods/{mod-id}/dependants`, `GET /games/{game-id}/mods/{mod-id}/tags`, `GET /games/{game-id}/mods/{mod-id}/metadatakvp`, and `GET /games/{game-id}/mods/{mod-id}/team`.
+- ✅ The doc-truth correction to `metadatakvp` held: implementation/tests/docs continue to use `/games/{game-id}/mods/{mod-id}/metadatakvp`, matching `modio-docs` and the generated Unity endpoint.
+- ✅ Dependants + metadata KVP remained paging-only, mod tags remained limited to documented `date_added` + `tag` filters plus paging, and mod team remained limited to documented `id` / `user_id` / `username` / `level` / `date_added` / `pending` filters plus paging.
+- ✅ The repo continued to omit invented mod-scoped collection routes. The refreshed local corpus pages titled `Get Mod Collections` / `Get Mod Collection` still resolve to the already-wrapped game-scoped collection paths (`/games/{game-id}/collections` and `/games/{game-id}/collections/{collection-id}`), so no extra mod-scoped collection wrapper was missing.
+- ✅ Fixtures/normalizers stayed truthful to the refreshed docs schemas: dependants preserve `mod_id`/status/visibility/logo payloads, tags preserve `name`/`name_localized`/deprecated `date_added`, metadata KVP preserves `metakey`/`metavalue`, and team preserves `invite_pending` plus deprecated nested user `timezone`/`language` fields without inventing higher-level policy.
+- ✅ README/seam-plan claims stayed truthful and vendor-local boundaries remained intact: no write-side tags/metadata/team/dependency management or higher-level AeroBeat orchestration leaked into this slice.
+- ✅ No residual drift found in this QA pass. No code/docs/test fixes were required.
+
+Validation evidence for this QA pass:
+- `godot --headless --path .testbed --script res://tests/validate_scaffold.gd` ✅
+- `godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit` ✅ (`38/38` tests passed, `1164` asserts)
+
+Files changed during this QA pass:
+- `.plans/2026-05-03-aerobeat-vendor-modio-remaining-coverage-and-final-audit.md`
+
 ---
 
 ### Task 4: Audit each remaining slice automatically
