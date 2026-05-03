@@ -252,6 +252,26 @@ Validation evidence for this QA pass:
 Files changed during this QA pass:
 - `.plans/2026-05-03-aerobeat-vendor-modio-remaining-coverage-and-final-audit.md`
 
+Additional QA pass — authenticated user inventory/profile read batch:
+- ✅ Request paths/methods re-verified against the refreshed local official corpus for `GET /me/games`, `GET /me/mods`, and `GET /me/files`; implementation/tests/docs all stayed aligned to the authenticated `/me/...` routes, not guessed `/users/{user-id}/...` aliases.
+- ✅ The doc-truth correction held across the repo: no undocumented `/users/{user-id}/games`, `/users/{user-id}/mods`, or `/users/{user-id}/modfiles` route was implemented or claimed.
+- ✅ Query shaping remained truthful to the refreshed docs plus generated Unity surfaces:
+  - `/me/games` reuses the documented game filters and documented game sort allowlist.
+  - `/me/mods` stays limited to documented authenticated user-mod fields (`tags`, `metadata_blob`, `metadata_kvp`, `id`, `name_id`, `status`, `visible`, `submitted_by`, `game_id`, `date_added`, `date_updated`, `date_live`, `name`, `modfile`, `maturity_option`, `monetization_options`, `platform_status`, paging, `_sort`).
+  - `/me/files` stays limited to documented authenticated user-modfile fields (`id`, `mod_id`, `date_added`, `date_scanned`, `virus_status`, `virus_positive`, `filesize`, `filehash`, `filename`, `version`, `changelog`, `metadata_blob`, `platform_status`, paging).
+- ✅ Normalization/fixtures stayed truthful: user-game responses reuse the existing game list normalizer, user-mod responses reuse the existing mod list normalizer, and user-modfile responses reuse the existing modfile list normalizer without inventing extra seam policy; fixture coverage matches current provider field names including file scan / virus metadata.
+- ✅ README and seam-plan claims stayed truthful to the refreshed local corpus: they now describe only the documented authenticated user inventory routes and the actual supported filter subsets.
+- ✅ Vendor-local boundaries remained intact: this slice stayed read-only and did not add write-side tags/metadata/team/dependency management, authoring/CMS, uploads, install orchestration, purchase/wallet/intents, or legacy event work.
+- ✅ No residual drift found in this QA pass. No code/docs/test fixes were required.
+
+Validation evidence for this QA pass:
+- `godot --headless --path .testbed --import` ✅
+- `godot --headless --path .testbed --script res://tests/validate_scaffold.gd` ✅
+- `godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit` ✅ (`41/41` tests passed, `1245` asserts)
+
+Files changed during this QA pass:
+- `.plans/2026-05-03-aerobeat-vendor-modio-remaining-coverage-and-final-audit.md`
+
 ---
 
 ### Task 4: Audit each remaining slice automatically
