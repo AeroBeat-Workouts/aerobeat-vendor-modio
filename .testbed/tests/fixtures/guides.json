@@ -1,0 +1,99 @@
+{
+  "data": [
+    {
+      "id": 7001,
+      "game_id": 777,
+      "game_name": "AeroBeat",
+      "logo": {
+        "filename": "guide-card.png",
+        "original": "https://assets.modcdn.io/images/guides/guide-card.png",
+        "thumb_320x180": "https://assets.modcdn.io/images/guides/guide-card_320x180.png",
+        "thumb_640x360": "https://assets.modcdn.io/images/guides/guide-card_640x360.png",
+        "thumb_1280x720": "https://assets.modcdn.io/images/guides/guide-card_1280x720.png"
+      },
+      "user": {
+        "id": 42,
+        "name_id": "coach-chip",
+        "username": "Coach Chip",
+        "display_name_portal": "Coach Chip",
+        "date_online": 1777801000,
+        "date_joined": 1777701000,
+        "avatar": {
+          "filename": "coach.png",
+          "original": "https://assets.modcdn.io/avatars/coach.png",
+          "thumb_50x50": "https://assets.modcdn.io/avatars/coach_50x50.png",
+          "thumb_100x100": "https://assets.modcdn.io/avatars/coach_100x100.png"
+        },
+        "timezone": "",
+        "language": "",
+        "profile_url": "https://mod.io/u/coach-chip"
+      },
+      "date_added": 1777800001,
+      "date_updated": 1777803600,
+      "date_live": 1777807200,
+      "status": 1,
+      "url": "https://mod.io/g/aerobeat/r/building-your-first-routine",
+      "name": "Building Your First Routine",
+      "name_id": "building-your-first-routine",
+      "summary": "Learn how to assemble a beginner-friendly AeroBeat workout routine.",
+      "description": "<h1>Routine Basics</h1><p>Start with the warmup and build intensity gradually.</p>",
+      "community_options": 2048,
+      "tags": [
+        {"name": "Instructions", "date_added": 1777800001, "count": 8},
+        {"name": "Beginner", "date_added": 1777800002, "count": 3}
+      ],
+      "stats": [
+        {"guide_id": 7001, "visits_today": 12, "visits_total": 320, "comments_total": 5}
+      ]
+    },
+    {
+      "id": 7002,
+      "game_id": 777,
+      "game_name": "AeroBeat",
+      "logo": {
+        "filename": "guide-advanced.png",
+        "original": "https://assets.modcdn.io/images/guides/guide-advanced.png",
+        "thumb_320x180": "https://assets.modcdn.io/images/guides/guide-advanced_320x180.png",
+        "thumb_640x360": "https://assets.modcdn.io/images/guides/guide-advanced_640x360.png",
+        "thumb_1280x720": "https://assets.modcdn.io/images/guides/guide-advanced_1280x720.png"
+      },
+      "user": {
+        "id": 84,
+        "name_id": "designer-dash",
+        "username": "Designer Dash",
+        "display_name_portal": "Designer Dash",
+        "date_online": 1777802000,
+        "date_joined": 1777600000,
+        "avatar": {
+          "filename": "dash.png",
+          "original": "https://assets.modcdn.io/avatars/dash.png",
+          "thumb_50x50": "https://assets.modcdn.io/avatars/dash_50x50.png",
+          "thumb_100x100": "https://assets.modcdn.io/avatars/dash_100x100.png"
+        },
+        "timezone": "",
+        "language": "",
+        "profile_url": "https://mod.io/u/designer-dash"
+      },
+      "date_added": 1777790000,
+      "date_updated": 1777793600,
+      "date_live": 1777797200,
+      "status": 1,
+      "url": "https://mod.io/g/aerobeat/r/high-intensity-patterns",
+      "name": "High Intensity Patterns",
+      "name_id": "high-intensity-patterns",
+      "summary": "Advanced movement sequencing for high-intensity charts.",
+      "description": "<p>Use mirrored drills and tempo spikes to challenge veteran players.</p>",
+      "community_options": 0,
+      "tags": [
+        {"name": "Advanced", "date_added": 1777790000, "count": 4}
+      ],
+      "stats": [
+        {"guide_id": 7002, "visits_today": 5, "visits_total": 110, "comments_total": 0}
+      ]
+    }
+  ],
+  "result_count": 2,
+  "result_offset": 1,
+  "result_limit": 2,
+  "result_total": 5
+}

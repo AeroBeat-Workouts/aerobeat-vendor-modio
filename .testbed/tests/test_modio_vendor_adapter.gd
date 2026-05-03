@@ -192,6 +192,117 @@ func test_builds_authenticated_subscription_requests_and_gates_unsupported_filte
 	assert_eq(logout_request.path, "/oauth/logout")
 	assert_eq(logout_request.headers.Authorization, "Bearer user-token")
 
+func test_builds_guide_requests_with_documented_filter_and_sort_support() -> void:
+	var public_adapter := _build_adapter()
+	var auth_adapter := _build_adapter_with_token()
+	var guide_query := ModioListingQuery.new()
+	guide_query.search_term = "ignored-search"
+	guide_query.tags_all = PackedStringArray(["Instructions", "Beginner"])
+	guide_query.limit = 20
+	guide_query.offset = 40
+	guide_query.sort = "-comments_total"
+	guide_query.tags_any = PackedStringArray(["Featured"])
+	guide_query.tags_not_in = PackedStringArray(["Hidden"])
+	guide_query.metadata_blob = "ignored-metadata"
+	guide_query.metadata_kvp = {"ignored": "pair"}
+	guide_query.id = "7001"
+	guide_query.name_id = "building-your-first-routine"
+	guide_query.status = 1
+	guide_query.submitted_by = "77"
+	guide_query.game_id = "777"
+	guide_query.date_added = 1777800001
+	guide_query.submitted_by_display_name = "Coach Chip"
+	guide_query.date_updated = 1777803600
+	guide_query.date_live = 1777807200
+
+	var guides_request = public_adapter.build_guides_request(guide_query)
+	assert_eq(guides_request.method, "GET")
+	assert_eq(guides_request.path, "/games/777/guides")
+	assert_eq(guides_request.query.api_key, "demo-key")
+	assert_eq(guides_request.query.id, "7001")
+	assert_eq(guides_request.query.game_id, "777")
+	assert_eq(guides_request.query.status, "1")
+	assert_eq(guides_request.query.submitted_by, "77")
+	assert_eq(guides_request.query.submitted_by_display_name, "Coach Chip")
+	assert_eq(guides_request.query.date_added, "1777800001")
+	assert_eq(guides_request.query.date_updated, "1777803600")
+	assert_eq(guides_request.query.date_live, "1777807200")
+	assert_eq(guides_request.query.name_id, "building-your-first-routine")
+	assert_eq(guides_request.query.tags, "Instructions,Beginner")
+	assert_eq(guides_request.query["tags-in"], "Featured")
+	assert_eq(guides_request.query["tags-not-in"], "Hidden")
+	assert_eq(guides_request.query._sort, "-comments_total")
+	assert_eq(guides_request.query._limit, "20")
+	assert_eq(guides_request.query._offset, "40")
+	assert_false(guides_request.query.has("_q"))
+	assert_false(guides_request.query.has("metadata_blob"))
+	assert_false(guides_request.query.has("metadata_kvp"))
+	assert_false(guides_request.query.has("visible"))
+
+	var guide_detail_request = public_adapter.build_guide_detail_request("7001")
+	assert_eq(guide_detail_request.path, "/games/777/guides/7001")
+	assert_eq(guide_detail_request.query.api_key, "demo-key")
+
+	var guide_comment_query := ModioListingQuery.new()
+	guide_comment_query.search_term = "ignored-search"
+	guide_comment_query.tags_all = PackedStringArray(["Instructions"])
+	guide_comment_query.limit = 15
+	guide_comment_query.offset = 30
+	guide_comment_query.sort = "ignored-sort"
+	guide_comment_query.tags_any = PackedStringArray(["Featured"])
+	guide_comment_query.tags_not_in = PackedStringArray(["Hidden"])
+	guide_comment_query.metadata_blob = "ignored-metadata"
+	guide_comment_query.metadata_kvp = {"ignored": "pair"}
+	guide_comment_query.id = "9902"
+	guide_comment_query.name_id = "ignored-name-id"
+	guide_comment_query.status = 1
+	guide_comment_query.submitted_by = "77"
+	guide_comment_query.game_id = "777"
+	guide_comment_query.date_added = 1777808300
+	guide_comment_query.resource_id = "7001"
+	guide_comment_query.reply_id = 9901
+	guide_comment_query.thread_position = "01.01"
+	guide_comment_query.karma = -1
+	guide_comment_query.content = "Second-level reply"
+	guide_comment_query.submitted_by_display_name = "ignored-display-name"
+	guide_comment_query.date_updated = 1777803600
+	guide_comment_query.date_live = 1777807200
+	var guide_comments_request = public_adapter.build_guide_comments_request("7001", guide_comment_query)
+	assert_eq(guide_comments_request.path, "/games/777/guides/7001/comments")
+	assert_eq(guide_comments_request.query.id, "9902")
+	assert_eq(guide_comments_request.query.resource_id, "7001")
+	assert_eq(guide_comments_request.query.submitted_by, "77")
+	assert_eq(guide_comments_request.query.date_added, "1777808300")
+	assert_eq(guide_comments_request.query.reply_id, "9901")
+	assert_eq(guide_comments_request.query.thread_position, "01.01")
+	assert_eq(guide_comments_request.query.karma, "-1")
+	assert_eq(guide_comments_request.query.content, "Second-level reply")
+	assert_false(guide_comments_request.query.has("game_id"))
+	assert_false(guide_comments_request.query.has("tags"))
+	assert_false(guide_comments_request.query.has("_sort"))
+	assert_false(guide_comments_request.query.has("submitted_by_display_name"))
+
+	var create_request = auth_adapter.build_add_guide_comment_request("7001", "  Great pacing tip  ", 9901)
+	assert_eq(create_request.method, "POST")
+	assert_eq(create_request.path, "/games/777/guides/7001/comments")
+	assert_eq(create_request.headers.Authorization, "Bearer user-token")
+	assert_eq(create_request.body.content, "Great pacing tip")
+	assert_eq(create_request.body.reply_id, "9901")
+
+	var update_request = auth_adapter.build_update_guide_comment_request("7001", "9903", "  Tweaked for recovery  ")
+	assert_eq(update_request.method, "PUT")
+	assert_eq(update_request.path, "/games/777/guides/7001/comments/9903")
+	assert_eq(update_request.body.content, "Tweaked for recovery")
+
+	var delete_request = auth_adapter.build_delete_guide_comment_request("7001", "9903")
+	assert_eq(delete_request.method, "DELETE")
+	assert_eq(delete_request.path, "/games/777/guides/7001/comments/9903")
+
+	var karma_request = auth_adapter.build_add_guide_comment_karma_request("7001", "9902", -99)
+	assert_eq(karma_request.method, "POST")
+	assert_eq(karma_request.path, "/games/777/guides/7001/comments/9902/karma")
+	assert_eq(karma_request.body.karma, "-1")
+
 func test_builds_mod_comment_requests_with_doc_gated_filters_and_auth_modes() -> void:
 	var public_adapter := _build_adapter()
 	var auth_adapter := _build_adapter_with_token()
@@ -447,6 +558,49 @@ func test_normalizes_fixture_payloads_for_richer_slice() -> void:
 	var logout = adapter.normalize_logout_response(_fixture("logout_success.json"))
 	assert_true(logout.success)
 	assert_string_contains(logout.message, "logged out")
+
+func test_normalizes_guides_and_guide_comment_fixture_payloads() -> void:
+	var adapter := _build_adapter_with_token()
+
+	var guides = adapter.normalize_guides_response(_fixture("guides.json"))
+	assert_eq(guides.result_total, 5)
+	assert_true(guides.page.has_next)
+	assert_eq(guides.data[0].name, "Building Your First Routine")
+	assert_true(guides.data[0].community_policy.allows_comments)
+	assert_false(guides.data[1].community_policy.allows_comments)
+	assert_eq(guides.data[0].tags[0].count, 8)
+	assert_eq(guides.data[0].stats.visits_total, 320)
+
+	var guide_detail = adapter.normalize_guide_response(_fixture("guide_detail.json"))
+	assert_eq(guide_detail.id, 7001)
+	assert_eq(guide_detail.user.username, "Coach Chip")
+	assert_eq(guide_detail.stats.comments_total, 5)
+	assert_eq(guide_detail.logo.thumb_320x180, "https://assets.modcdn.io/images/guides/guide-card_320x180.png")
+
+	var guide_comments = adapter.normalize_guide_comments_response(_fixture("guide_comments_list.json"))
+	assert_eq(guide_comments.data.size(), 2)
+	assert_eq(guide_comments.data[0].resource_type, "guide_comment")
+	assert_true(guide_comments.data[0].is_pinned)
+	assert_true(guide_comments.data[1].is_reply)
+	assert_true(guide_comments.data[1].is_locked)
+	assert_eq(guide_comments.data[1].thread_depth, 2)
+
+	var guide_comment_detail = adapter.normalize_guide_comment_response(_fixture("guide_comment_detail.json"))
+	assert_eq(guide_comment_detail.id, 9902)
+	assert_eq(guide_comment_detail.reply_id, 9901)
+	assert_eq(guide_comment_detail.resource_type, "guide_comment")
+
+	var created_guide_comment = adapter.normalize_guide_comment_write_response(_fixture("guide_comment_created.json"))
+	assert_eq(created_guide_comment.thread_position, "01.02")
+	assert_true(created_guide_comment.is_reply)
+
+	var updated_guide_comment = adapter.normalize_guide_comment_write_response(_fixture("guide_comment_updated.json"))
+	assert_eq(updated_guide_comment.karma, 1)
+	assert_eq(updated_guide_comment.content, "I added a lighter recovery block and it fixed the pacing.")
+
+	var karma_updated_guide_comment = adapter.normalize_guide_comment_write_response(_fixture("guide_comment_karma_updated.json"))
+	assert_eq(karma_updated_guide_comment.karma, 0)
+	assert_true(karma_updated_guide_comment.is_locked)
 
 func test_resolves_download_requests_from_modfile_metadata_not_download_endpoint() -> void:
 	var adapter := _build_adapter_with_token()

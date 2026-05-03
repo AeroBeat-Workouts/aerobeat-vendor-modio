@@ -201,6 +201,104 @@ func test_executes_modfile_stats_ratings_and_report_requests_with_documented_sha
 	assert_eq(_recorded_requests[4].body_string, "game_name_id=aerobeat&id=1001&platforms=WINDOWS&reason=6&resource=MODS&summary=crashes%20after%20song%20load&type=2")
 	assert_eq(_recorded_requests[4].headers.Authorization, "Bearer user-token")
 
+func test_executes_guide_requests_with_documented_urls_filters_and_form_bodies() -> void:
+	var public_config := ModioClientConfig.new("777", "demo-key", "https://api.mod.io/v1/", "", "en-US", "steam", "WINDOWS")
+	var auth_config := ModioClientConfig.new("777", "demo-key", "", "user-token", "en-US", "steam", "WINDOWS", ModioClientConfig.HOST_GAME)
+	var transport := ModioHttpTransport.new(Callable(self, "_transport_double"))
+	var public_adapter := ModioVendorAdapter.new(public_config, transport)
+	var auth_adapter := ModioVendorAdapter.new(auth_config, transport)
+	var guide_query := ModioListingQuery.new()
+	guide_query.search_term = "ignored-search"
+	guide_query.tags_all = PackedStringArray(["Instructions", "Beginner"])
+	guide_query.limit = 20
+	guide_query.offset = 40
+	guide_query.sort = "-comments_total"
+	guide_query.tags_any = PackedStringArray(["Featured"])
+	guide_query.tags_not_in = PackedStringArray(["Hidden"])
+	guide_query.metadata_blob = "ignored-metadata"
+	guide_query.metadata_kvp = {"ignored": "pair"}
+	guide_query.id = "7001"
+	guide_query.name_id = "building-your-first-routine"
+	guide_query.status = 1
+	guide_query.submitted_by = "77"
+	guide_query.game_id = "777"
+	guide_query.date_added = 1777800001
+	guide_query.submitted_by_display_name = "Coach Chip"
+	guide_query.date_updated = 1777803600
+	guide_query.date_live = 1777807200
+	var guide_comment_query := ModioListingQuery.new()
+	guide_comment_query.search_term = "ignored-search"
+	guide_comment_query.tags_all = PackedStringArray(["Instructions"])
+	guide_comment_query.limit = 15
+	guide_comment_query.offset = 30
+	guide_comment_query.sort = "ignored-sort"
+	guide_comment_query.tags_any = PackedStringArray(["Featured"])
+	guide_comment_query.tags_not_in = PackedStringArray(["Hidden"])
+	guide_comment_query.metadata_blob = "ignored-metadata"
+	guide_comment_query.metadata_kvp = {"ignored": "pair"}
+	guide_comment_query.id = "9902"
+	guide_comment_query.name_id = "ignored-name-id"
+	guide_comment_query.status = 1
+	guide_comment_query.submitted_by = "77"
+	guide_comment_query.game_id = "777"
+	guide_comment_query.date_added = 1777808300
+	guide_comment_query.resource_id = "7001"
+	guide_comment_query.reply_id = 9901
+	guide_comment_query.thread_position = "01.01"
+	guide_comment_query.karma = -1
+	guide_comment_query.content = "Second-level reply"
+	guide_comment_query.submitted_by_display_name = "ignored-display-name"
+	guide_comment_query.date_updated = 1777803600
+	guide_comment_query.date_live = 1777807200
+
+	_queue_json_response(200, _fixture("guides.json"))
+	var guides_response := transport.execute(public_adapter.build_guides_request(guide_query), public_config)
+	assert_true(guides_response.ok)
+	assert_eq(_recorded_requests[0].url, "https://api.mod.io/v1/games/777/guides?_limit=20&_offset=40&_sort=-comments_total&api_key=demo-key&date_added=1777800001&date_live=1777807200&date_updated=1777803600&game_id=777&id=7001&name_id=building-your-first-routine&status=1&submitted_by=77&submitted_by_display_name=Coach%20Chip&tags=Instructions%2CBeginner&tags-in=Featured&tags-not-in=Hidden")
+
+	_queue_json_response(200, _fixture("guide_detail.json"))
+	var guide_response := transport.execute(public_adapter.build_guide_detail_request("7001"), public_config)
+	assert_true(guide_response.ok)
+	assert_eq(_recorded_requests[1].url, "https://api.mod.io/v1/games/777/guides/7001?api_key=demo-key")
+
+	_queue_json_response(200, _fixture("guide_comments_list.json"))
+	var guide_comments_response := transport.execute(public_adapter.build_guide_comments_request("7001", guide_comment_query), public_config)
+	assert_true(guide_comments_response.ok)
+	assert_eq(_recorded_requests[2].url, "https://api.mod.io/v1/games/777/guides/7001/comments?_limit=15&_offset=30&api_key=demo-key&content=Second-level%20reply&date_added=1777808300&id=9902&karma=-1&reply_id=9901&resource_id=7001&submitted_by=77&thread_position=01.01")
+
+	_queue_json_response(200, _fixture("guide_comment_detail.json"))
+	var guide_comment_response := transport.execute(public_adapter.build_guide_comment_request("7001", "9902"), public_config)
+	assert_true(guide_comment_response.ok)
+	assert_eq(_recorded_requests[3].url, "https://api.mod.io/v1/games/777/guides/7001/comments/9902?api_key=demo-key")
+
+	_queue_json_response(201, _fixture("guide_comment_created.json"), {"Location": "/games/777/guides/7001/comments/9903"})
+	var create_response := transport.execute(auth_adapter.build_add_guide_comment_request("7001", "Great pacing tip", 9901), auth_config)
+	assert_true(create_response.ok)
+	assert_eq(_recorded_requests[4].method, "POST")
+	assert_eq(_recorded_requests[4].url, "https://g-777.modapi.io/v1/games/777/guides/7001/comments")
+	assert_eq(_recorded_requests[4].body_string, "content=Great%20pacing%20tip&reply_id=9901")
+	assert_eq(_recorded_requests[4].headers.Authorization, "Bearer user-token")
+
+	_queue_json_response(200, _fixture("guide_comment_updated.json"))
+	var update_response := transport.execute(auth_adapter.build_update_guide_comment_request("7001", "9903", "Tweaked for recovery"), auth_config)
+	assert_true(update_response.ok)
+	assert_eq(_recorded_requests[5].method, "PUT")
+	assert_eq(_recorded_requests[5].url, "https://g-777.modapi.io/v1/games/777/guides/7001/comments/9903")
+	assert_eq(_recorded_requests[5].body_string, "content=Tweaked%20for%20recovery")
+
+	_queue_response({"status_code": 204, "headers": {}, "body": ""})
+	var delete_response := transport.execute(auth_adapter.build_delete_guide_comment_request("7001", "9903"), auth_config)
+	assert_true(delete_response.ok)
+	assert_eq(_recorded_requests[6].method, "DELETE")
+	assert_eq(_recorded_requests[6].url, "https://g-777.modapi.io/v1/games/777/guides/7001/comments/9903")
+
+	_queue_json_response(200, _fixture("guide_comment_karma_updated.json"))
+	var karma_response := transport.execute(auth_adapter.build_add_guide_comment_karma_request("7001", "9902", -1), auth_config)
+	assert_true(karma_response.ok)
+	assert_eq(_recorded_requests[7].method, "POST")
+	assert_eq(_recorded_requests[7].url, "https://g-777.modapi.io/v1/games/777/guides/7001/comments/9902/karma")
+	assert_eq(_recorded_requests[7].body_string, "karma=-1")
+
 func test_executes_mod_comment_requests_with_documented_urls_and_form_bodies() -> void:
 	var public_config := ModioClientConfig.new("777", "demo-key", "https://api.mod.io/v1/", "", "en-US", "steam", "WINDOWS")
 	var auth_config := ModioClientConfig.new("777", "demo-key", "", "user-token", "en-US", "steam", "WINDOWS", ModioClientConfig.HOST_GAME)

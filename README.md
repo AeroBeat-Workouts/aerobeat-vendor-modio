@@ -52,15 +52,23 @@ This slice now implements a fixture-driven REST wrapper for the current research
   - `POST /report`
   - `POST /games/{game-id}/mods/{mod-id}/subscribe`
   - `DELETE /games/{game-id}/mods/{mod-id}/subscribe`
-- mod comment reads/writes
+- mod + guide community reads/writes
   - `GET /games/{game-id}/mods/{mod-id}/comments`
   - `GET /games/{game-id}/mods/{mod-id}/comments/{comment-id}`
   - `POST /games/{game-id}/mods/{mod-id}/comments`
   - `PUT /games/{game-id}/mods/{mod-id}/comments/{comment-id}`
   - `DELETE /games/{game-id}/mods/{mod-id}/comments/{comment-id}`
   - `POST /games/{game-id}/mods/{mod-id}/comments/{comment-id}/karma`
+  - `GET /games/{game-id}/guides`
+  - `GET /games/{game-id}/guides/{guide-id}`
+  - `GET /games/{game-id}/guides/{guide-id}/comments`
+  - `GET /games/{game-id}/guides/{guide-id}/comments/{comment-id}`
+  - `POST /games/{game-id}/guides/{guide-id}/comments`
+  - `PUT /games/{game-id}/guides/{guide-id}/comments/{comment-id}`
+  - `DELETE /games/{game-id}/guides/{guide-id}/comments/{comment-id}`
+  - `POST /games/{game-id}/guides/{guide-id}/comments/{comment-id}/karma`
 - response normalization seams
-  - access token, logout/message, terms, agreement, user, game, mod list/detail, modfiles, mod stats, mod comments, user ratings, subscriptions, and dependencies
+  - access token, logout/message, terms, agreement, user, game, mod list/detail, modfiles, mod stats, mod comments, guides, guide comments, user ratings, subscriptions, and dependencies
   - documented page helpers derived from `result_count`, `result_offset`, `result_limit`, and `result_total`
   - structured error/rate-limit mapping including `retry-after`, auth exchange/OpenID/key/terms variants, `11008`, `11009`, `11017`, `11074`, `15025`, and `17053`
 - artifact/cache metadata helpers
@@ -75,7 +83,7 @@ This slice now implements a fixture-driven REST wrapper for the current research
 
 The wrapper now owns a **thin execution seam** in addition to request construction and normalization. The live transport remains intentionally narrow: it prepares and dispatches mod.io-specific HTTP requests, normalizes the response/error envelope, and keeps provider-only host/auth/header logic local to this repo so higher layers can compose it later without inheriting raw mod.io rules.
 
-The current query model is intentionally endpoint-aware instead of emitting every filter everywhere. `GET /games/{game-id}/mods`, `GET /games/{game-id}/mods/{mod-id}/files`, `GET /games/{game-id}/mods/{mod-id}/comments`, `GET /me/subscribed`, and `GET /me/ratings` now serialize only the documented subset each wrapped endpoint should receive, while still preserving shared paging inputs. Platform-targeted `GET /me/subscribed` requests also continue to force the required `game_id` field, `GET /me/ratings` defaults to the mod-centric `resource_type=mods` seam while still preserving raw provider fields in normalized output, and mod comment normalization keeps the raw comment fields while adding only light seam-local helpers such as `is_reply`, `thread_depth`, `is_pinned`, `is_locked`, and `option_flags`. Integration-style tests validate the final encoded URLs and form bodies that the transport would execute.
+The current query model is intentionally endpoint-aware instead of emitting every filter everywhere. `GET /games/{game-id}/mods`, `GET /games/{game-id}/mods/{mod-id}/files`, `GET /games/{game-id}/mods/{mod-id}/comments`, `GET /games/{game-id}/guides`, `GET /games/{game-id}/guides/{guide-id}/comments`, `GET /me/subscribed`, and `GET /me/ratings` now serialize only the documented subset each wrapped endpoint should receive, while still preserving shared paging inputs. Platform-targeted `GET /me/subscribed` requests also continue to force the required `game_id` field, `GET /me/ratings` defaults to the mod-centric `resource_type=mods` seam while still preserving raw provider fields in normalized output, guide list serialization now includes the current documented `submitted_by_display_name` / `date_updated` / `date_live` filters plus guide-only sort keys, and both mod + guide comment normalization keep the raw comment fields while adding only light seam-local helpers such as `is_reply`, `thread_depth`, `is_pinned`, `is_locked`, and `option_flags`. Integration-style tests validate the final encoded URLs and form bodies that the transport would execute.
 
 ## Download URL stance
 
