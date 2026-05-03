@@ -113,8 +113,10 @@ func to_query_dict(endpoint: String = ENDPOINT_MODS) -> Dictionary:
 		query["metadata_blob"] = metadata_blob
 	if capabilities.has("metadata_kvp") and not metadata_kvp.is_empty():
 		query["metadata_kvp"] = _serialize_metadata_kvp(metadata_kvp)
-	if capabilities.has("sort") and not sort.is_empty():
-		query["_sort"] = sort
+	if capabilities.has("sort"):
+		var sanitized_sort := _sanitize_sort(endpoint, sort)
+		if not sanitized_sort.is_empty():
+			query["_sort"] = sanitized_sort
 	if capabilities.has("id") and not id.is_empty():
 		query["id"] = id
 	if capabilities.has("name_id") and not name_id.is_empty():
@@ -229,6 +231,31 @@ func _get_capabilities(endpoint: String) -> PackedStringArray:
 				"visible",
 				"submitted_by"
 			])
+
+func _get_allowed_sorts(endpoint: String) -> PackedStringArray:
+	match endpoint:
+		ENDPOINT_GUIDES:
+			return PackedStringArray([
+				"name",
+				"date_live",
+				"date_updated",
+				"submitted_by",
+				"visits_today",
+				"visits_total",
+				"comments_total"
+			])
+		_:
+			return PackedStringArray()
+
+func _sanitize_sort(endpoint: String, raw_sort: String) -> String:
+	var candidate := raw_sort.strip_edges()
+	if candidate.is_empty():
+		return ""
+	var sort_key := candidate.substr(1) if candidate.begins_with("-") else candidate
+	var allowed_sorts := _get_allowed_sorts(endpoint)
+	if allowed_sorts.is_empty() or allowed_sorts.has(sort_key):
+		return candidate
+	return ""
 
 func _serialize_metadata_kvp(values: Dictionary) -> String:
 	var pairs: PackedStringArray = []

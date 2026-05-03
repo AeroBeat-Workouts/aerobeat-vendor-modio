@@ -178,9 +178,9 @@ Execution-ready recommendation:
 - implementation/tests/docs as needed
 - `.plans/2026-05-02-aerobeat-vendor-modio-adjacent-comment-surfaces.md`
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** Independently re-verified the new guide discovery/read + guide comments batch against the current local official `modio-docs` REST mirror first, then sanity-checked the surrounding vendor seam against the pinned `modio-sdk` and `modio-unity` references. Confirmed the request paths/methods/bodies for guide list/detail and guide comment list/detail/create/update/delete/karma still match the current docs, and that guide-comment query gating correctly stays limited to the documented subset (`id`, `resource_id`, `submitted_by`, `date_added`, `reply_id`, `thread_position`, `karma`, `content` plus paging). Found two concrete gaps in the landed QA surface: guide list `_sort` accepted undocumented values instead of only the documented guide sort keys, and normalized guide objects were missing the planned guide-local convenience fields (`resource_type="guide"`, top-level `allows_comments`, and flattened `visits_today` / `visits_total` / `comments_total` derived from the documented stats payload). Applied the minimum fix in `src/models/modio_listing_query.gd`, `src/modio_vendor_adapter.gd`, and the focused guide request/normalization transport tests, then re-ran repo-local validation successfully with `godot --headless --path .testbed --import` and `godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit` (27/27 tests passed, 706 asserts, 3 pre-existing float/int warnings). Vendor concerns remain local to this repo; no cross-repo policy/orchestration drift was introduced.
 
 ---
 

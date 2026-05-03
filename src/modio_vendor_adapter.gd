@@ -851,10 +851,13 @@ func _normalize_dependency_object(payload: Dictionary) -> Dictionary:
 
 func _normalize_guide_object(payload: Dictionary) -> Dictionary:
 	var raw_community_options := int(payload.get("community_options", 0))
+	var allows_comments := (raw_community_options & COMMUNITY_OPTION_ALLOW_GUIDE_COMMENTS) != 0
+	var normalized_stats := _normalize_guide_stats(payload.get("stats", {}))
 	return {
 		"id": int(payload.get("id", 0)),
 		"game_id": int(payload.get("game_id", 0)),
 		"game_name": str(payload.get("game_name", "")),
+		"resource_type": "guide",
 		"logo": _normalize_dictionary(payload.get("logo", {})),
 		"user": _normalize_user_object(payload.get("user", {})),
 		"date_added": int(payload.get("date_added", 0)),
@@ -867,12 +870,16 @@ func _normalize_guide_object(payload: Dictionary) -> Dictionary:
 		"summary": str(payload.get("summary", "")),
 		"description": str(payload.get("description", "")),
 		"community_options": raw_community_options,
+		"allows_comments": allows_comments,
 		"community_policy": {
 			"community_options": raw_community_options,
-			"allows_comments": (raw_community_options & COMMUNITY_OPTION_ALLOW_GUIDE_COMMENTS) != 0
+			"allows_comments": allows_comments
 		},
 		"tags": _normalize_guide_tags(payload.get("tags", [])),
-		"stats": _normalize_guide_stats(payload.get("stats", {}))
+		"stats": normalized_stats,
+		"visits_today": int(normalized_stats.get("visits_today", 0)),
+		"visits_total": int(normalized_stats.get("visits_total", 0)),
+		"comments_total": int(normalized_stats.get("comments_total", 0))
 	}
 
 func _normalize_stats_object(payload: Dictionary) -> Dictionary:

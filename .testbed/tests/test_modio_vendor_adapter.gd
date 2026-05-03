@@ -239,6 +239,11 @@ func test_builds_guide_requests_with_documented_filter_and_sort_support() -> voi
 	assert_false(guides_request.query.has("metadata_kvp"))
 	assert_false(guides_request.query.has("visible"))
 
+	var invalid_guide_sort_query := ModioListingQuery.new()
+	invalid_guide_sort_query.sort = "-downloads_total"
+	var invalid_guide_sort_request = public_adapter.build_guides_request(invalid_guide_sort_query)
+	assert_false(invalid_guide_sort_request.query.has("_sort"))
+
 	var guide_detail_request = public_adapter.build_guide_detail_request("7001")
 	assert_eq(guide_detail_request.path, "/games/777/guides/7001")
 	assert_eq(guide_detail_request.query.api_key, "demo-key")
@@ -566,15 +571,21 @@ func test_normalizes_guides_and_guide_comment_fixture_payloads() -> void:
 	assert_eq(guides.result_total, 5)
 	assert_true(guides.page.has_next)
 	assert_eq(guides.data[0].name, "Building Your First Routine")
+	assert_eq(guides.data[0].resource_type, "guide")
+	assert_true(guides.data[0].allows_comments)
 	assert_true(guides.data[0].community_policy.allows_comments)
 	assert_false(guides.data[1].community_policy.allows_comments)
 	assert_eq(guides.data[0].tags[0].count, 8)
 	assert_eq(guides.data[0].stats.visits_total, 320)
+	assert_eq(guides.data[0].visits_total, 320)
+	assert_eq(guides.data[0].comments_total, 5)
 
 	var guide_detail = adapter.normalize_guide_response(_fixture("guide_detail.json"))
 	assert_eq(guide_detail.id, 7001)
+	assert_eq(guide_detail.resource_type, "guide")
 	assert_eq(guide_detail.user.username, "Coach Chip")
 	assert_eq(guide_detail.stats.comments_total, 5)
+	assert_eq(guide_detail.comments_total, 5)
 	assert_eq(guide_detail.logo.thumb_320x180, "https://assets.modcdn.io/images/guides/guide-card_320x180.png")
 
 	var guide_comments = adapter.normalize_guide_comments_response(_fixture("guide_comments_list.json"))
