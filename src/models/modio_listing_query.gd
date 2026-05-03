@@ -11,6 +11,8 @@ const ENDPOINT_GUIDE_COMMENTS := "guide_comments"
 const ENDPOINT_COLLECTIONS := "collections"
 const ENDPOINT_COLLECTION_MODS := "collection_mods"
 const ENDPOINT_COLLECTION_COMMENTS := "collection_comments"
+const ENDPOINT_USER_SOCIAL := "user_social"
+const ENDPOINT_USER_COLLECTIONS := "user_collections"
 
 var search_term: String
 var tags_all: PackedStringArray
@@ -181,6 +183,10 @@ func to_query_dict(endpoint: String = ENDPOINT_MODS) -> Dictionary:
 
 func _get_capabilities(endpoint: String) -> PackedStringArray:
 	match endpoint:
+		ENDPOINT_USER_SOCIAL:
+			return PackedStringArray([])
+		ENDPOINT_USER_COLLECTIONS:
+			return PackedStringArray([])
 		ENDPOINT_COLLECTIONS:
 			return PackedStringArray([
 				"id",
@@ -293,6 +299,10 @@ func _get_capabilities(endpoint: String) -> PackedStringArray:
 
 func _get_allowed_sorts(endpoint: String) -> PackedStringArray:
 	match endpoint:
+		ENDPOINT_USER_SOCIAL:
+			return PackedStringArray([])
+		ENDPOINT_USER_COLLECTIONS:
+			return PackedStringArray([])
 		ENDPOINT_COLLECTIONS:
 			return PackedStringArray([
 				"name",

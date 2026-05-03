@@ -470,6 +470,102 @@ func test_builds_collection_requests_with_documented_filter_and_sort_support() -
 	assert_eq(compatibility_request.headers.Authorization, "Bearer user-token")
 	assert_eq(compatibility_request.body.rating, "1")
 
+func test_builds_user_social_and_account_state_requests_with_paging_only_query_shapes() -> void:
+	var public_adapter := _build_adapter()
+	var auth_adapter := _build_adapter_with_token()
+	var query := ModioListingQuery.new()
+	query.limit = 40
+	query.offset = 80
+	query.sort = "-date_updated"
+	query.search_term = "ignored-search"
+	query.tags_all = PackedStringArray(["ignored-tag"])
+	query.id = "9001"
+	query.submitted_by = "42"
+
+	var user_followers_request = public_adapter.build_user_followers_request("42", query)
+	assert_eq(user_followers_request.method, "GET")
+	assert_eq(user_followers_request.path, "/users/42/followers")
+	assert_eq(user_followers_request.query.api_key, "demo-key")
+	assert_eq(user_followers_request.query._limit, "40")
+	assert_eq(user_followers_request.query._offset, "80")
+	assert_false(user_followers_request.query.has("_sort"))
+	assert_false(user_followers_request.query.has("_q"))
+	assert_false(user_followers_request.query.has("tags"))
+	assert_false(user_followers_request.query.has("id"))
+
+	var user_following_request = public_adapter.build_user_following_request("42", query)
+	assert_eq(user_following_request.path, "/users/42/following")
+	assert_eq(user_following_request.query._limit, "40")
+	assert_eq(user_following_request.query._offset, "80")
+	assert_false(user_following_request.query.has("submitted_by"))
+
+	var user_collections_request = public_adapter.build_user_collections_request("42", query)
+	assert_eq(user_collections_request.path, "/users/42/collections")
+	assert_eq(user_collections_request.query._limit, "40")
+	assert_eq(user_collections_request.query._offset, "80")
+	assert_false(user_collections_request.query.has("_sort"))
+	assert_false(user_collections_request.query.has("id"))
+
+	var me_followers_request = auth_adapter.build_me_followers_request(query)
+	assert_eq(me_followers_request.path, "/me/followers")
+	assert_eq(me_followers_request.auth_mode, "bearer")
+	assert_eq(me_followers_request.headers.Authorization, "Bearer user-token")
+	assert_eq(me_followers_request.query._limit, "40")
+	assert_eq(me_followers_request.query._offset, "80")
+	assert_false(me_followers_request.query.has("api_key"))
+	assert_false(me_followers_request.query.has("_sort"))
+
+	var muted_users_request = auth_adapter.build_muted_users_request(query)
+	assert_eq(muted_users_request.path, "/me/users/muted")
+	assert_eq(muted_users_request.headers.Authorization, "Bearer user-token")
+	assert_eq(muted_users_request.query._limit, "40")
+	assert_eq(muted_users_request.query._offset, "80")
+	assert_false(muted_users_request.query.has("_q"))
+
+	var me_collections_request = auth_adapter.build_me_collections_request(query)
+	assert_eq(me_collections_request.path, "/me/collections")
+	assert_eq(me_collections_request.headers.Authorization, "Bearer user-token")
+	assert_eq(me_collections_request.query._limit, "40")
+	assert_eq(me_collections_request.query._offset, "80")
+	assert_false(me_collections_request.query.has("tags"))
+
+	var followed_collections_request = auth_adapter.build_followed_collections_request(query)
+	assert_eq(followed_collections_request.path, "/me/following/collections")
+	assert_eq(followed_collections_request.headers.Authorization, "Bearer user-token")
+	assert_eq(followed_collections_request.query._limit, "40")
+	assert_eq(followed_collections_request.query._offset, "80")
+	assert_false(followed_collections_request.query.has("submitted_by"))
+
+func test_normalizes_user_social_and_account_state_fixture_payloads() -> void:
+	var adapter := _build_adapter_with_token()
+
+	var user_followers := adapter.normalize_user_followers_response(_fixture("user_social_users.json"))
+	assert_eq(user_followers.result_total, 9)
+	assert_eq(user_followers.page.next_offset, 7)
+	assert_eq(user_followers.page.previous_offset, 3)
+	assert_eq(user_followers.data[0].username, "Designer Dash")
+	assert_eq(user_followers.data[1].display_name_portal, null)
+
+	var user_following := adapter.normalize_user_following_response(_fixture("user_social_users.json"))
+	assert_eq(user_following.data[1].name_id, "runner-rhythm")
+
+	var me_followers := adapter.normalize_me_followers_response(_fixture("user_social_users.json"))
+	assert_true(me_followers.page.has_next)
+	assert_true(me_followers.page.has_previous)
+
+	var muted_users := adapter.normalize_muted_users_response(_fixture("user_social_users.json"))
+	assert_eq(muted_users.data[0].avatar.filename, "dash.png")
+
+	var user_collections := adapter.normalize_user_collections_response(_fixture("collections.json"))
+	assert_eq(user_collections.data[0].name, "Starter Bundle")
+	assert_eq(user_collections.data[0].stats.followers_total, 120)
+
+	var me_collections := adapter.normalize_me_collections_response(_fixture("collections.json"))
+	assert_eq(me_collections.data[1].name_id, "advanced-bundle")
+
+	var followed_collections := adapter.normalize_followed_collections_response(_fixture("collections.json"))
+	assert_true(followed_collections.page.has_next)
+
 func test_builds_mod_comment_requests_with_doc_gated_filters_and_auth_modes() -> void:
 	var public_adapter := _build_adapter()
 	var auth_adapter := _build_adapter_with_token()

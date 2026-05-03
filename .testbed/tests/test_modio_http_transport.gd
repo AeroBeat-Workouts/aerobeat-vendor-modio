@@ -444,6 +444,59 @@ func test_executes_collection_requests_with_documented_urls_filters_and_form_bod
 	assert_eq(_recorded_requests[11].url, "https://g-777.modapi.io/v1/games/777/collections/3001/compatibility")
 	assert_eq(_recorded_requests[11].body_string, "rating=1")
 
+func test_executes_user_social_and_account_state_requests_with_documented_urls() -> void:
+	var public_config := ModioClientConfig.new("777", "demo-key", "https://api.mod.io/v1/", "", "en-US", "steam", "WINDOWS")
+	var auth_config := ModioClientConfig.new("777", "demo-key", "", "user-token", "en-US", "steam", "WINDOWS", ModioClientConfig.HOST_GAME)
+	var transport := ModioHttpTransport.new(Callable(self, "_transport_double"))
+	var public_adapter := ModioVendorAdapter.new(public_config, transport)
+	var auth_adapter := ModioVendorAdapter.new(auth_config, transport)
+	var query := ModioListingQuery.new()
+	query.limit = 40
+	query.offset = 80
+	query.sort = "-date_updated"
+	query.search_term = "ignored-search"
+	query.tags_all = PackedStringArray(["ignored-tag"])
+	query.id = "9001"
+
+	_queue_json_response(200, _fixture("user_social_users.json"))
+	var user_followers_response := transport.execute(public_adapter.build_user_followers_request("42", query), public_config)
+	assert_true(user_followers_response.ok)
+	assert_eq(_recorded_requests[0].url, "https://api.mod.io/v1/users/42/followers?_limit=40&_offset=80&api_key=demo-key")
+
+	_queue_json_response(200, _fixture("user_social_users.json"))
+	var user_following_response := transport.execute(public_adapter.build_user_following_request("42", query), public_config)
+	assert_true(user_following_response.ok)
+	assert_eq(_recorded_requests[1].url, "https://api.mod.io/v1/users/42/following?_limit=40&_offset=80&api_key=demo-key")
+
+	_queue_json_response(200, _fixture("collections.json"))
+	var user_collections_response := transport.execute(public_adapter.build_user_collections_request("42", query), public_config)
+	assert_true(user_collections_response.ok)
+	assert_eq(_recorded_requests[2].url, "https://api.mod.io/v1/users/42/collections?_limit=40&_offset=80&api_key=demo-key")
+
+	_queue_json_response(200, _fixture("user_social_users.json"))
+	var me_followers_response := transport.execute(auth_adapter.build_me_followers_request(query), auth_config)
+	assert_true(me_followers_response.ok)
+	assert_eq(_recorded_requests[3].url, "https://g-777.modapi.io/v1/me/followers?_limit=40&_offset=80")
+	assert_eq(_recorded_requests[3].headers.Authorization, "Bearer user-token")
+
+	_queue_json_response(200, _fixture("user_social_users.json"))
+	var muted_users_response := transport.execute(auth_adapter.build_muted_users_request(query), auth_config)
+	assert_true(muted_users_response.ok)
+	assert_eq(_recorded_requests[4].url, "https://g-777.modapi.io/v1/me/users/muted?_limit=40&_offset=80")
+	assert_eq(_recorded_requests[4].headers.Authorization, "Bearer user-token")
+
+	_queue_json_response(200, _fixture("collections.json"))
+	var me_collections_response := transport.execute(auth_adapter.build_me_collections_request(query), auth_config)
+	assert_true(me_collections_response.ok)
+	assert_eq(_recorded_requests[5].url, "https://g-777.modapi.io/v1/me/collections?_limit=40&_offset=80")
+	assert_eq(_recorded_requests[5].headers.Authorization, "Bearer user-token")
+
+	_queue_json_response(200, _fixture("collections.json"))
+	var followed_collections_response := transport.execute(auth_adapter.build_followed_collections_request(query), auth_config)
+	assert_true(followed_collections_response.ok)
+	assert_eq(_recorded_requests[6].url, "https://g-777.modapi.io/v1/me/following/collections?_limit=40&_offset=80")
+	assert_eq(_recorded_requests[6].headers.Authorization, "Bearer user-token")
+
 func test_executes_mod_comment_requests_with_documented_urls_and_form_bodies() -> void:
 	var public_config := ModioClientConfig.new("777", "demo-key", "https://api.mod.io/v1/", "", "en-US", "steam", "WINDOWS")
 	var auth_config := ModioClientConfig.new("777", "demo-key", "", "user-token", "en-US", "steam", "WINDOWS", ModioClientConfig.HOST_GAME)

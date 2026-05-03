@@ -1,0 +1,42 @@
+{
+  "data": [
+    {
+      "id": 77,
+      "name_id": "designer-dash",
+      "username": "Designer Dash",
+      "display_name_portal": "Designer Dash",
+      "date_online": 1777802000,
+      "date_joined": 1777600000,
+      "avatar": {
+        "filename": "dash.png",
+        "original": "https://assets.modcdn.io/avatars/dash.png",
+        "thumb_50x50": "https://assets.modcdn.io/avatars/dash_50x50.png",
+        "thumb_100x100": "https://assets.modcdn.io/avatars/dash_100x100.png"
+      },
+      "timezone": "",
+      "language": "",
+      "profile_url": "https://mod.io/u/designer-dash"
+    },
+    {
+      "id": 88,
+      "name_id": "runner-rhythm",
+      "username": "Runner Rhythm",
+      "display_name_portal": null,
+      "date_online": 1777803000,
+      "date_joined": 1777500000,
+      "avatar": {
+        "filename": "runner.png",
+        "original": "https://assets.modcdn.io/avatars/runner.png",
+        "thumb_50x50": "https://assets.modcdn.io/avatars/runner_50x50.png",
+        "thumb_100x100": "https://assets.modcdn.io/avatars/runner_100x100.png"
+      },
+      "timezone": "",
+      "language": "",
+      "profile_url": "https://mod.io/u/runner-rhythm"
+    }
+  ],
+  "result_count": 2,
+  "result_offset": 5,
+  "result_limit": 2,
+  "result_total": 9
+}

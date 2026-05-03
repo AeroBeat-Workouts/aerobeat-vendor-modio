@@ -231,6 +231,90 @@ func build_collection_request(collection_id: String) -> Dictionary:
 		{"auth_mode": _resolve_read_auth_mode(false)}
 	)
 
+func build_user_followers_request(user_id: String, query: ModioListingQuery = ModioListingQuery.new()) -> Dictionary:
+	var full_query := _build_public_query()
+	full_query.merge(query.to_query_dict(ModioListingQuery.ENDPOINT_USER_SOCIAL), true)
+	return _transport.build_request(
+		"GET",
+		"/users/%s/followers" % user_id.strip_edges(),
+		full_query,
+		{},
+		_build_read_headers(false),
+		{"auth_mode": _resolve_read_auth_mode(false)}
+	)
+
+func build_user_following_request(user_id: String, query: ModioListingQuery = ModioListingQuery.new()) -> Dictionary:
+	var full_query := _build_public_query()
+	full_query.merge(query.to_query_dict(ModioListingQuery.ENDPOINT_USER_SOCIAL), true)
+	return _transport.build_request(
+		"GET",
+		"/users/%s/following" % user_id.strip_edges(),
+		full_query,
+		{},
+		_build_read_headers(false),
+		{"auth_mode": _resolve_read_auth_mode(false)}
+	)
+
+func build_user_collections_request(user_id: String, query: ModioListingQuery = ModioListingQuery.new()) -> Dictionary:
+	var full_query := _build_public_query()
+	full_query.merge(query.to_query_dict(ModioListingQuery.ENDPOINT_USER_COLLECTIONS), true)
+	return _transport.build_request(
+		"GET",
+		"/users/%s/collections" % user_id.strip_edges(),
+		full_query,
+		{},
+		_build_read_headers(false),
+		{"auth_mode": _resolve_read_auth_mode(false)}
+	)
+
+func build_me_followers_request(query: ModioListingQuery = ModioListingQuery.new()) -> Dictionary:
+	var full_query := _build_authenticated_query()
+	full_query.merge(query.to_query_dict(ModioListingQuery.ENDPOINT_USER_SOCIAL), true)
+	return _transport.build_request(
+		"GET",
+		"/me/followers",
+		full_query,
+		{},
+		_build_read_headers(true),
+		{"auth_mode": _resolve_read_auth_mode(true)}
+	)
+
+func build_muted_users_request(query: ModioListingQuery = ModioListingQuery.new()) -> Dictionary:
+	var full_query := _build_authenticated_query()
+	full_query.merge(query.to_query_dict(ModioListingQuery.ENDPOINT_USER_SOCIAL), true)
+	return _transport.build_request(
+		"GET",
+		"/me/users/muted",
+		full_query,
+		{},
+		_build_read_headers(true),
+		{"auth_mode": _resolve_read_auth_mode(true)}
+	)
+
+func build_me_collections_request(query: ModioListingQuery = ModioListingQuery.new()) -> Dictionary:
+	var full_query := _build_authenticated_query()
+	full_query.merge(query.to_query_dict(ModioListingQuery.ENDPOINT_USER_COLLECTIONS), true)
+	return _transport.build_request(
+		"GET",
+		"/me/collections",
+		full_query,
+		{},
+		_build_read_headers(true),
+		{"auth_mode": _resolve_read_auth_mode(true)}
+	)
+
+func build_followed_collections_request(query: ModioListingQuery = ModioListingQuery.new()) -> Dictionary:
+	var full_query := _build_authenticated_query()
+	full_query.merge(query.to_query_dict(ModioListingQuery.ENDPOINT_USER_COLLECTIONS), true)
+	return _transport.build_request(
+		"GET",
+		"/me/following/collections",
+		full_query,
+		{},
+		_build_read_headers(true),
+		{"auth_mode": _resolve_read_auth_mode(true)}
+	)
+
 func build_collection_mods_request(collection_id: String, query: ModioListingQuery = ModioListingQuery.new()) -> Dictionary:
 	var full_query := _build_public_query()
 	full_query.merge(query.to_query_dict(ModioListingQuery.ENDPOINT_COLLECTION_MODS), true)
@@ -661,6 +745,27 @@ func normalize_mod_stats_response(payload: Dictionary) -> Dictionary:
 	return normalized
 
 func normalize_collections_response(payload: Dictionary) -> Dictionary:
+	return _normalize_list_payload(payload, Callable(self, "_normalize_collection_object"))
+
+func normalize_user_followers_response(payload: Dictionary) -> Dictionary:
+	return _normalize_list_payload(payload, Callable(self, "_normalize_user_object"))
+
+func normalize_user_following_response(payload: Dictionary) -> Dictionary:
+	return _normalize_list_payload(payload, Callable(self, "_normalize_user_object"))
+
+func normalize_user_collections_response(payload: Dictionary) -> Dictionary:
+	return _normalize_list_payload(payload, Callable(self, "_normalize_collection_object"))
+
+func normalize_me_followers_response(payload: Dictionary) -> Dictionary:
+	return _normalize_list_payload(payload, Callable(self, "_normalize_user_object"))
+
+func normalize_muted_users_response(payload: Dictionary) -> Dictionary:
+	return _normalize_list_payload(payload, Callable(self, "_normalize_user_object"))
+
+func normalize_me_collections_response(payload: Dictionary) -> Dictionary:
+	return _normalize_list_payload(payload, Callable(self, "_normalize_collection_object"))
+
+func normalize_followed_collections_response(payload: Dictionary) -> Dictionary:
 	return _normalize_list_payload(payload, Callable(self, "_normalize_collection_object"))
 
 func normalize_collection_response(payload: Dictionary) -> Dictionary:
