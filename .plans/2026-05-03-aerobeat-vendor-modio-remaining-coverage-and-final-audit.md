@@ -314,9 +314,22 @@ Exact audit findings — mod-adjacent read enrichment batch:
 - ✅ Vendor-local boundary discipline held: no write-side tags/metadata/team/dependency management, no authoring/CMS or install-orchestration work, and no monetization/admin policy leakage were pulled into this slice.
 - ✅ No residual drift found. No code/docs/test fixes were required during audit.
 
+Additional audit pass — authenticated user inventory/profile read batch:
+- ✅ Request paths/methods truth-check passed for all implemented routes in this batch: `GET /me/games`, `GET /me/mods`, and `GET /me/files`.
+- ✅ The doc-truth correction away from the stale gap-map wording held across implementation/tests/docs: the repo continues to wrap only the documented authenticated `/me/...` routes and did not add or claim undocumented `/users/{user-id}/games`, `/users/{user-id}/mods`, or `/users/{user-id}/modfiles` aliases.
+- ✅ Query serialization stayed truthful to the refreshed docs/SDK/Unity corpus:
+  - `/me/games` reuses the documented game filters and documented game sort allowlist, including the corrected `maturity_options` field name.
+  - `/me/mods` remains limited to the documented authenticated user-mod fields (`tags`, `metadata_blob`, `metadata_kvp`, `id`, `name_id`, `status`, `visible`, `submitted_by`, `game_id`, `date_added`, `date_updated`, `date_live`, `name`, `modfile`, `maturity_option`, `monetization_options`, `platform_status`) plus paging and the documented user-mod sort keys.
+  - `/me/files` remains limited to the documented authenticated user-modfile fields (`id`, `mod_id`, `date_added`, `date_scanned`, `virus_status`, `virus_positive`, `filesize`, `filehash`, `filename`, `version`, `changelog`, `metadata_blob`, `platform_status`) plus paging, with no undocumented `_sort` or search filters leaking through.
+- ✅ Normalization and fixtures remained truthful to the refreshed docs/SDK/Unity corpus: `normalize_user_games_response()` delegates to the existing game list normalizer, `normalize_user_mods_response()` delegates to the existing mod list normalizer, and `normalize_user_modfiles_response()` delegates to the existing modfile list normalizer without inventing extra seam policy; the shared fixture coverage preserves provider fields including file scan / virus metadata and expiring download URLs.
+- ✅ README and seam docs stayed truthful: they now describe only the documented authenticated user inventory routes and the actual supported filter subsets for each route.
+- ✅ Vendor-local boundary discipline held: this slice stayed read-only and did not pull in write-side user/social mutation, authoring/CMS, uploads, install orchestration, monetization purchase/wallet/intents, or legacy event work.
+- ✅ No residual drift found. No code/docs/test fixes were required during this audit pass.
+
 Validation evidence:
+- `godot --headless --path .testbed --import` ✅
 - `godot --headless --path .testbed --script res://tests/validate_scaffold.gd` ✅
-- `godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit` ✅ (`38/38` tests passed, `1164` asserts)
+- `godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit` ✅ (`41/41` tests passed, `1245` asserts)
 
 Audit note: because the audit produced only plan-state documentation updates, the only tracked file changed in this pass was this umbrella plan.
 
