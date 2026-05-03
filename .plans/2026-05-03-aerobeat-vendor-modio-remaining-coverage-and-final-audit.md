@@ -265,20 +265,29 @@ Files changed during this QA pass:
 
 **Status:** ✅ Complete
 
-**Results:** Independently audited the catalog / game-meta / taxonomy utility batch against the refreshed local official corpus in `REF-08` through `REF-10`, including the Task 2 implementation notes and the QA singular/plural maturity fix.
+**Results:** Independently audited the catalog / game-meta / taxonomy utility batch and the mod-adjacent read enrichment batch against the refreshed local official corpus in `REF-08` through `REF-10`, including the Task 2 implementation notes and the QA follow-up findings.
 
-Exact audit findings:
+Exact audit findings — catalog / game-meta / taxonomy utility batch:
 - ✅ Request paths/methods truth-check passed for all implemented routes in this batch: `GET /games`, `GET /games/{game-id}/stats`, `GET /games/{game-id}/tags`, `GET /games/{game-id}/mods/stats`, `GET /games/{game-id}/guides/tags`, `GET /agreements/versions/{agreement-version-id}`, `GET /games/{game-id}/monetization/token-packs`, and `GET /ping`.
 - ✅ The earlier gap-map wording drift stayed corrected in implementation/tests/docs: token packs remain on the current documented monetization route (`/games/{game-id}/monetization/token-packs`), and agreement-version reads remain on `/agreements/versions/{agreement-version-id}`.
 - ✅ The QA fix was present and truthful: `GET /games` now serializes `maturity_options` (plural) while collection and collection-mod filters correctly remain on `maturity_option` where the corpus still documents the singular field.
 - ✅ Normalization and fixtures for games, game stats, game tags, guide tags, agreement versions, token packs, and ping remained consistent with the refreshed docs/SDK/Unity corpus. The repo preserves provider fields/localization payloads and only adds the same light seam-local helper metadata already used elsewhere (`has_expiry` / `is_stale`).
 - ✅ README and seam docs stayed truthful about the added surface and its vendor-local boundaries.
 - ✅ Vendor-local boundary discipline held: no install orchestration, authoring/CMS, moderation/admin, monetization purchase/intents, or other higher-level AeroBeat policy work was pulled into this slice.
+
+Exact audit findings — mod-adjacent read enrichment batch:
+- ✅ Request paths/methods truth-check passed for all implemented routes in this batch: `GET /games/{game-id}/mods/{mod-id}/dependants`, `GET /games/{game-id}/mods/{mod-id}/tags`, `GET /games/{game-id}/mods/{mod-id}/metadatakvp`, and `GET /games/{game-id}/mods/{mod-id}/team`.
+- ✅ The doc-truth correction to metadata KVP held across implementation/tests/docs: the repo continues to use the documented `/games/{game-id}/mods/{mod-id}/metadatakvp` route rather than the stale `metadata` wording from the initial gap-map note.
+- ✅ The repo correctly omitted invented mod-scoped collection routes. The refreshed local corpus still titles those pages `Get Mod Collections` / `Get Mod Collection`, but both the raw REST docs and the generated Unity endpoints resolve to the already wrapped game-scoped routes `GET /games/{game-id}/collections` and `GET /games/{game-id}/collections/{collection-id}` instead of `/games/{game-id}/mods/{mod-id}/collections...`.
+- ✅ Query serialization stayed truthful to the corpus: dependants + metadata KVP remain paging-only, mod tags remain limited to documented `date_added` + `tag` filters plus paging, and mod team remains limited to documented `id`, `user_id`, `username`, `level`, `date_added`, and `pending` filters plus paging.
+- ✅ Normalization and fixtures remained truthful to the refreshed docs/SDK/Unity corpus: dependants preserve `mod_id` / status / visibility / logo fields, tags preserve `name` / `name_localized` / deprecated `date_added`, metadata KVP preserves `metakey` / `metavalue`, and team preserves `invite_pending` plus the deprecated nested user `timezone` / `language` fields while adding only the seam-local convenience flag `is_pending`.
+- ✅ README and seam docs stayed truthful about the added surface and still describe the collection omission and endpoint-specific filter limits accurately.
+- ✅ Vendor-local boundary discipline held: no write-side tags/metadata/team/dependency management, no authoring/CMS or install-orchestration work, and no monetization/admin policy leakage were pulled into this slice.
 - ✅ No residual drift found. No code/docs/test fixes were required during audit.
 
 Validation evidence:
 - `godot --headless --path .testbed --script res://tests/validate_scaffold.gd` ✅
-- `godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit` ✅ (`35/35` tests passed, `1100` asserts)
+- `godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit` ✅ (`38/38` tests passed, `1164` asserts)
 
 Audit note: because the audit produced only plan-state documentation updates, the only tracked file changed in this pass was this umbrella plan.
 
