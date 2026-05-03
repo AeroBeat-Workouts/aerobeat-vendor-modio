@@ -100,9 +100,22 @@ The audit standard here is strict: endpoint paths, supported query/body paramete
 - `.plans/2026-05-03-aerobeat-vendor-modio-doc-truth-and-repo-audit.md`
 - implementation/tests only if needed
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** Strict repo-wide truth audit completed against the refreshed local official corpus in `REF-01` through `REF-07` using `modio-docs` as the primary REST contract and `modio-sdk` / `modio-unity` as official sanity references for ratings, auth request objects, dependency recursion notes, and generated response object shapes. Audited surfaces covered by the current wrapper: auth/session (`/oauth/emailrequest`, `/oauth/emailexchange`, `/external/openidauth`, `/authenticate/terms`, `/agreements/types/{id}/current`, `/me`, `/oauth/logout`), browse/detail (`/games/{game-id}`, `/games/{game-id}/mods`, `/games/{game-id}/mods/{mod-id}`, `/games/{game-id}/mods/{mod-id}/files`, `/games/{game-id}/mods/{mod-id}/files/{file-id}`, `/games/{game-id}/mods/{mod-id}/stats`), user state (`/me/subscribed`, `/me/ratings`, mod rating write, subscribe/unsubscribe, report `/report`), comment/guide flows, dependencies, and the transport/error envelope.
+
+Audit findings:
+- ✅ Endpoint paths + methods for every currently wrapped route matched the local official docs.
+- ✅ Implemented body fields matched the wrapped docs for email auth, OpenID auth, rating writes, report submission, subscribe/unsubscribe, comment create/update/delete, guide comment create/update/delete, and comment karma writes.
+- ✅ Implemented query-gating for mod comments, guide comments, guides, user ratings, and dependency recursion matched the documented endpoint-specific filters that this repo claims to support.
+- ✅ Normalized convenience fields that are explicitly described in `README.md` remained derivable from official payloads: auth expiry helpers, comment helpers (`is_reply`, `thread_depth`, `is_pinned`, `is_locked`, `option_flags`), rating sentiment helpers, dependency resolution metadata, expiring download metadata, and game/community policy helpers.
+- ✅ Fixture-driven response normalization remained broadly truthful to the current official schemas checked from `modio-docs` plus generated Unity response objects (for example guide `stats` as an array, comment `thread_position`, mod/game/community bitfields, `date_expires`, and rating values including `-1`).
+- ✅ Repo-local validation currently passes cleanly: `godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit` → 27/27 passing tests.
+- ❌ Concrete drift found: `src/models/modio_listing_query.gd` only enforces explicit `_sort` allowlists for guides. For `GET /games/{game-id}/mods` and `GET /me/subscribed`, `_sanitize_sort()` currently accepts any arbitrary sort key whenever an endpoint allowlist is empty, even though the local official docs expose specific `x-sortFilters` for those endpoints (`name`, `date_live`, `date_updated`, `submitted_by`, `downloads_today`, `downloads_total`, `subscribers_total`, plus `ratings_weighted_aggregate` for `/mods`). That means undocumented/hallucinated sort keys can leak through the wrapper despite the README claiming endpoint-aware documented subsets.
+- ⚠️ Trust/risk assessment: the repo is close to truthful for the currently implemented slice, but it is **not fully trustworthy as-is for continued coverage work** until the sort allowlist drift is repaired and regression-tested. The issue is narrow, but it is a real contract looseness in a repo whose stated goal is doc-truth.
+- ⚠️ Secondary note: several convenience fields are truthful/derivable but not exhaustively enumerated in the README (for example some guide/download/dependency helpers). This is not currently a proven contract bug, but future audits should keep documentation aligned as more seam-local helpers are added.
+
+No code/test changes were made during this audit because the truthful next action is a focused repair in Task 4 rather than broad audit-time edits.
 
 ---
 
