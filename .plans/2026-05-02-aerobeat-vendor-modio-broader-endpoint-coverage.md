@@ -292,7 +292,7 @@ Execution-ready recommendation: Task 2 should implement the five-endpoint **mod 
 **Reference Check:** Task 2 was implemented against `REF-01` through `REF-09`, using the local official `modio-docs` REST mirror as source of truth first and cross-checking the pinned SDK/plugin refs where the rating/report contracts were uneven. The landed seam deliberately preserves raw provider rating integers (`1` / `-1`) instead of inventing a stricter local enum, and keeps report/rating/provider capability concerns isolated to this repo.
 
 **Commits:**
-- `af4bc6b` - Add mod.io ratings report and stats endpoint batch
+- `Add mod.io ratings report and stats endpoint batch` (see git history on `main` for the landed coder commit and follow-up plan bookkeeping commit)
 
 **Lessons Learned:** The mod.io docs are broadly current, but ratings remain a good example of where the generated docs, response examples, and client refs do not line up perfectly. Preserving provider truth in the seam while adding small convenience derivations (`is_positive`, `is_negative`, `sentiment`, `community_policy`) keeps the wrapper honest and easier to audit.
 
