@@ -156,9 +156,16 @@ Derrick decisions needed before implementation:
 - implementation/tests/docs as needed
 - `.plans/2026-05-03-aerobeat-vendor-modio-social-mutation-coverage.md`
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** Independent QA truth-check passed against the refreshed local official corpus in `REF-04` through `REF-06` and the repo implementation/tests/docs in `REF-02`, `REF-03`, `REF-07`, and `REF-08`. Verified all six write routes exactly:
+- `POST /users/{user-id}/following` stays bearer-authenticated, uses form encoding, and includes the required redundant body field `user_id` for the target user.
+- `DELETE /users/{user-id}/following/{target-user-id}` stays bearer-authenticated and bodyless, with `204 No Content` normalization reused through the shared no-content write helper.
+- `POST /users/{user-id}/mute` and `DELETE /users/{user-id}/mute` stay bearer-authenticated, bodyless, and normalize through the same shared `204` helper.
+- `POST /games/{game-id}/collections/{collection-id}/followers` stays bearer-authenticated, bodyless, preserves the returned normalized collection object, exposes `already_followed := (status_code == 200)`, and forwards any `Location` header.
+- `DELETE /games/{game-id}/collections/{collection-id}/followers` stays bearer-authenticated, bodyless, and normalizes as `204 No Content`.
+
+Also re-verified that README + seam docs are truthful about the social-mutation slice and that the vendor boundary is still intact: collection subscribe/unsubscribe remains deferred and unimplemented in this repo despite existing in the upstream SDK/Unity corpus. Repo-local validation passed unchanged via `godot --headless --path .testbed --script res://tests/validate_scaffold.gd` and `godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit` (44/44 tests passed, 1396 asserts). No implementation drift was found, so no code changes were required beyond recording QA findings in this plan.
 
 ---
 
