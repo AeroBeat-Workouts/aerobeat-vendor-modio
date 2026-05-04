@@ -668,6 +668,37 @@ func test_builds_checkout_and_s2s_requests_with_documented_semantics() -> void:
 		ModioHttpTransport.new()
 	)
 
+	var virtual_checkout_request = adapter.build_checkout_request("1001", {
+		"idempotent_key": " virtual-idem ",
+		"type": 0,
+		"display_amount": 499,
+		"subscribe": false
+	}, "")
+	assert_eq(virtual_checkout_request.method, "POST")
+	assert_eq(virtual_checkout_request.path, "/games/777/mods/1001/checkout")
+	assert_eq(virtual_checkout_request.auth_mode, "bearer")
+	assert_eq(virtual_checkout_request.headers.Authorization, "Bearer user-token")
+	assert_eq(virtual_checkout_request.headers["X-Modio-Portal"], "steam")
+	assert_eq(virtual_checkout_request.body.idempotent_key, "virtual-idem")
+	assert_eq(virtual_checkout_request.body.type, "0")
+	assert_eq(virtual_checkout_request.body.display_amount, "499")
+	assert_eq(virtual_checkout_request.body.subscribe, false)
+	assert_true(virtual_checkout_request.validation_errors.is_empty())
+
+	var psn_checkout_request = adapter.build_checkout_request("1001", {
+		"idempotent_key": "psn-idem",
+		"type": 1,
+		"psn_token": " v3.PSN ",
+		"psn_env": 256,
+		"psn_service_label": 0
+	}, "psn", "PLAYSTATION5")
+	assert_eq(psn_checkout_request.headers["X-Modio-Portal"], "psn")
+	assert_eq(psn_checkout_request.headers["X-Modio-Platform"], "PLAYSTATION5")
+	assert_eq(psn_checkout_request.body.psn_token, "v3.PSN")
+	assert_eq(psn_checkout_request.body.psn_env, "256")
+	assert_eq(psn_checkout_request.body.psn_service_label, "0")
+	assert_true(psn_checkout_request.validation_errors.is_empty())
+
 	var checkout_request = adapter.build_checkout_request("1001", {
 		"idempotent_key": " idem-123 ",
 		"type": 2,
@@ -689,19 +720,23 @@ func test_builds_checkout_and_s2s_requests_with_documented_semantics() -> void:
 	assert_eq(checkout_request.body.subscribe, true)
 	assert_true(checkout_request.validation_errors.is_empty())
 
-	var psn_checkout_request = adapter.build_checkout_request("1001", {
-		"idempotent_key": "psn-idem",
-		"type": 1,
-		"psn_token": " v3.PSN ",
-		"psn_env": 256,
-		"psn_service_label": 0
-	}, "psn", "PLAYSTATION5")
-	assert_eq(psn_checkout_request.headers["X-Modio-Portal"], "psn")
-	assert_eq(psn_checkout_request.headers["X-Modio-Platform"], "PLAYSTATION5")
-	assert_eq(psn_checkout_request.body.psn_token, "v3.PSN")
-	assert_eq(psn_checkout_request.body.psn_env, "256")
-	assert_eq(psn_checkout_request.body.psn_service_label, "0")
-	assert_true(psn_checkout_request.validation_errors.is_empty())
+	var epic_intent_checkout_request = adapter.build_checkout_request("1001", {
+		"idempotent_key": "epic-idem",
+		"type": 3,
+		"payment_method_id": "pm_epic_123",
+		"terms_accepted": true,
+		"refund_accepted": true,
+		"epicgames_token": " epic-token ",
+		"epicgames_sandbox_id": " sandbox-id "
+	}, "epicgames")
+	assert_eq(epic_intent_checkout_request.headers["X-Modio-Portal"], "epicgames")
+	assert_eq(epic_intent_checkout_request.body.type, "3")
+	assert_eq(epic_intent_checkout_request.body.payment_method_id, "pm_epic_123")
+	assert_eq(epic_intent_checkout_request.body.terms_accepted, true)
+	assert_eq(epic_intent_checkout_request.body.refund_accepted, true)
+	assert_eq(epic_intent_checkout_request.body.epicgames_token, "epic-token")
+	assert_eq(epic_intent_checkout_request.body.epicgames_sandbox_id, "sandbox-id")
+	assert_true(epic_intent_checkout_request.validation_errors.is_empty())
 
 	var commit_checkout_request = adapter.build_checkout_request("1001", {
 		"idempotent_key": "commit-idem",
@@ -710,6 +745,15 @@ func test_builds_checkout_and_s2s_requests_with_documented_semantics() -> void:
 	}, "")
 	assert_eq(commit_checkout_request.body.transaction_id, "55")
 	assert_true(commit_checkout_request.validation_errors.is_empty())
+
+	var xbox_checkout_request = adapter.build_checkout_request("1001", {
+		"idempotent_key": "xbox-idem",
+		"type": 1,
+		"xbox_token": " xbl-token "
+	}, "xboxlive")
+	assert_eq(xbox_checkout_request.headers["X-Modio-Portal"], "xboxlive")
+	assert_eq(xbox_checkout_request.body.xbox_token, "xbl-token")
+	assert_true(xbox_checkout_request.validation_errors.is_empty())
 
 	var invalid_checkout_request = ModioVendorAdapter.new(
 		ModioClientConfig.new("777", "demo-key", ModioClientConfig.DEFAULT_BASE_URL, "user-token", "en-US", "", ""),

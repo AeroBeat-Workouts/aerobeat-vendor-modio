@@ -351,9 +351,40 @@ Updated findings align with `REF-05` and extend the earlier follow-up note in `R
 - implementation/tests/docs as needed
 - `.plans/2026-05-04-aerobeat-vendor-modio-checkout-sync-and-s2s.md`
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** QA re-checked the checkout + monetization S2S slice against the refreshed REST endpoint pages in `REF-06` and the shipped seam in `REF-09`/`REF-10`.
+
+Findings:
+- request paths/methods/content types match the refreshed REST corpus for all six in-scope endpoints
+- checkout remains docs-first and does **not** hardcode extra product/store gating beyond the REST contract; the non-store / web / PC stance stays documentation-only in `README.md` / `docs/modio-seam-plan.md`
+- S2S remains explicitly server-side/service-token shaped via distinct `service_token` config and dedicated service-header builders; no bearer-user regression found
+- monetization history reads require explicit `monetization_team_id` input/config and serialize the drifted GET filters as query parameters instead of pretending they are form bodies
+- documented drift handling still matches the refreshed corpus:
+  - GET history filters are documented under a request-body schema but are sent as query
+  - history pagination envelope is documented as `download` and is preserved/aliased as `pagination`
+  - clawback `gateway_uuid` is typed inconsistently in the REST page and is truthfully treated as a string in the seam
+- no drifted `/me/iap/*/sync` routes or partner-team surfaces leaked into the implementation
+
+Minimum necessary QA fix made:
+- expanded `.testbed/tests/test_modio_vendor_adapter.gd` so valid checkout coverage now explicitly proves all documented modes `0..4` plus the remaining portal-specific requirements that were not previously covered by passing cases:
+  - type `0` virtual token checkout
+  - type `1` PSN checkout
+  - type `1` Xbox checkout
+  - type `2` unified checkout
+  - type `3` Epic unified intent checkout
+  - type `4` unified commit checkout
+
+Validation evidence after the QA fix:
+- `godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit` → `35/35 passed`, `57` tests total, `1992` asserts
+- `godot --headless --path .testbed --script res://tests/validate_scaffold.gd` → `Scaffold validation passed`
+
+Changed files:
+- `.testbed/tests/test_modio_vendor_adapter.gd`
+- `.plans/2026-05-04-aerobeat-vendor-modio-checkout-sync-and-s2s.md`
+
+Commit/push:
+- required, because QA tightened the checkout proof surface with a repo change
 
 ---
 
