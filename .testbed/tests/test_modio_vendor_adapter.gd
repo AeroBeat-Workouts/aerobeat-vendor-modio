@@ -386,7 +386,11 @@ func test_builds_source_and_multipart_upload_requests_with_documented_validation
 	assert_true(invalid_part_request.validation_errors.size() >= 3)
 	assert_string_contains(invalid_part_request.validation_error, "upload_id must be a non-empty string")
 	assert_string_contains(invalid_part_request.validation_error, "Content-Range must be a non-empty string")
-	assert_string_contains(invalid_part_request.validation_error, "part_body must be raw bytes or a string")
+	assert_string_contains(invalid_part_request.validation_error, "part_body must be raw bytes")
+
+	var string_part_request = adapter.build_upload_multipart_part_request("1001", "123e4567-e89b-12d3-a456-426614174000", "not-bytes", "bytes 0-8/9")
+	assert_true(string_part_request.validation_errors.size() >= 1)
+	assert_string_contains(string_part_request.validation_error, "part_body must be raw bytes")
 
 func test_builds_authenticated_subscription_requests_and_gates_unsupported_filters() -> void:
 	var adapter := _build_adapter_with_token()

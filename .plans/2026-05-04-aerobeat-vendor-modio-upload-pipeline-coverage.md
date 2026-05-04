@@ -290,9 +290,41 @@ Deliberately deferred / kept out of scope:
 - implementation/tests/docs as needed
 - `.plans/2026-05-04-aerobeat-vendor-modio-upload-pipeline-coverage.md`
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** Independently QAed the upload-side slice against `REF-05` through `REF-07`, with special attention to the locked docs-first rules for source-modfile parity and raw multipart transport.
+
+Exact QA findings:
+- Verified the implemented request builders match the refreshed REST corpus for all eight scoped endpoints:
+  - `GET /games/{game-id}/mods/{mod-id}/sources`
+  - `POST /games/{game-id}/mods/{mod-id}/sources`
+  - `POST /games/{game-id}/mods/{mod-id}/files/multipart`
+  - `GET /games/{game-id}/mods/{mod-id}/files/multipart/sessions`
+  - `GET /games/{game-id}/mods/{mod-id}/files/multipart`
+  - `PUT /games/{game-id}/mods/{mod-id}/files/multipart`
+  - `POST /games/{game-id}/mods/{mod-id}/files/multipart/complete`
+  - `DELETE /games/{game-id}/mods/{mod-id}/files/multipart`
+- Confirmed `POST /sources` preserves the full documented contract from `REF-05`: `active`, `filehash`, `metadata_blob`, `platforms[]`, and strict `filedata` xor `upload_id`, with no SDK/Unity compatibility aliasing.
+- Confirmed multipart create keeps documented `filename` plus optional `nonce`, and session browse stays restricted to documented `status`, `_limit`, and `_offset` with the correct `0..4` status enum.
+- Confirmed `PUT /files/multipart` preserves explicit `upload_id` query handling, required `Content-Range`, optional opaque `Digest`, and executed-request raw-body transport at the HTTP seam.
+- Confirmed fixtures, README scope text, seam docs, response normalizers, and Task 2 plan claims all line up with the refreshed corpus and keep upload workflow orchestration out of scope.
+
+Minimum fix made during QA:
+- Tightened multipart part validation in `src/modio_vendor_adapter.gd` so `part_body` now accepts raw `PackedByteArray` bytes only.
+- Removed the prior permissive `String` acceptance, which drifted from Derrick’s locked raw-bytes rule and the REST docs’ binary part semantics.
+- Extended `.testbed/tests/test_modio_vendor_adapter.gd` with a regression assertion that string-backed part uploads are rejected.
+
+Changed files:
+- `src/modio_vendor_adapter.gd`
+- `.testbed/tests/test_modio_vendor_adapter.gd`
+- `.plans/2026-05-04-aerobeat-vendor-modio-upload-pipeline-coverage.md`
+
+Validation evidence:
+- Command: `~/.local/bin/godot --headless --path .testbed -s res://addons/gut/gut_cmdln.gd -gdir=res://tests -gexit`
+- Result: **54/54 tests passed** after the QA fix.
+
+Commit/push:
+- Not performed in QA, because the repo worktree already contains unrelated pre-existing plan/doc churn outside this bead and I kept the QA changes minimal for auditor review.
 
 ---
 

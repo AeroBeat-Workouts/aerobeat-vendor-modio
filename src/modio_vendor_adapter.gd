@@ -2514,18 +2514,13 @@ func _normalize_multipart_upload_part_headers(content_range: String, digest: Str
 
 func _normalize_multipart_upload_part_body(part_body: Variant, errors: Array) -> Variant:
 	if part_body == null:
-		errors.append("part_body must be raw bytes or a string")
+		errors.append("part_body must be raw bytes")
 		return PackedByteArray()
 	if part_body is PackedByteArray:
 		if part_body.is_empty():
 			errors.append("part_body must not be empty")
 		return part_body
-	if part_body is String:
-		var sanitized := str(part_body)
-		if sanitized.is_empty():
-			errors.append("part_body must not be empty")
-		return sanitized
-	errors.append("part_body must be raw bytes or a string")
+	errors.append("part_body must be raw bytes")
 	return PackedByteArray()
 
 func _normalize_collection_delete_fields(fields: Dictionary) -> Dictionary:
