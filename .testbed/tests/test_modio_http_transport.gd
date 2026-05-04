@@ -283,6 +283,49 @@ func test_executes_mod_adjacent_read_enrichment_requests_with_documented_urls() 
 	assert_eq(_recorded_requests[3].url, "https://api.mod.io/v1/games/777/mods/1001/team?_limit=20&_offset=40&api_key=demo-key&date_added=1777801000&id=457&level=8&pending=1&user_id=42&username=Coach%20Chip")
 	assert_eq(int(team_response.payload.result_total), 2)
 
+func test_executes_mod_monetization_team_requests_with_documented_bearer_auth_and_indexed_form_keys() -> void:
+	var auth_config := ModioClientConfig.new("777", "demo-key", "", "user-token", "en-US", "steam", "WINDOWS", ModioClientConfig.HOST_GAME)
+	var transport := ModioHttpTransport.new(Callable(self, "_transport_double"))
+	var adapter := ModioVendorAdapter.new(auth_config, transport)
+
+	_queue_json_response(200, _fixture("mod_monetization_team.json"))
+	var read_response := transport.execute(adapter.build_mod_monetization_team_request("1001"), auth_config)
+	assert_true(read_response.ok)
+	assert_eq(_recorded_requests[0].method, "GET")
+	assert_eq(_recorded_requests[0].url, "https://g-777.modapi.io/v1/games/777/mods/1001/monetization/team")
+	assert_eq(_recorded_requests[0].headers.Authorization, "Bearer user-token")
+	assert_false(_recorded_requests[0].url.contains("api_key="))
+
+	_queue_json_response(200, _fixture("mod_monetization_team.json"))
+	var create_response := transport.execute(adapter.build_create_mod_monetization_team_request("1001", {
+		"users": [
+			{"id": 42, "split": 70},
+			{"id": 77, "split": 30}
+		]
+	}), auth_config, {"multipart_boundary": "TEST-BOUNDARY"})
+	assert_true(create_response.ok)
+	assert_eq(_recorded_requests[1].method, "POST")
+	assert_eq(_recorded_requests[1].url, "https://g-777.modapi.io/v1/games/777/mods/1001/monetization/team")
+	assert_eq(_recorded_requests[1].headers.Authorization, "Bearer user-token")
+	assert_eq(_recorded_requests[1].headers["Content-Type"], "multipart/form-data; boundary=TEST-BOUNDARY")
+	assert_string_contains(_recorded_requests[1].body_string, 'name="users[0][id]"')
+	assert_string_contains(_recorded_requests[1].body_string, 'name="users[0][split]"')
+	assert_string_contains(_recorded_requests[1].body_string, 'name="users[1][id]"')
+	assert_string_contains(_recorded_requests[1].body_string, 'name="users[1][split]"')
+	assert_string_contains(_recorded_requests[1].body_string, "70")
+	assert_string_contains(_recorded_requests[1].body_string, "30")
+	assert_eq(int(create_response.payload.result_total), 2)
+
+	var invalid_create_response := transport.execute(adapter.build_create_mod_monetization_team_request("1001", {
+		"users": [
+			{"id": 42, "split": 90},
+			{"id": 77, "split": 5}
+		]
+	}), auth_config)
+	assert_false(invalid_create_response.ok)
+	assert_eq(invalid_create_response.error.category, "transport")
+	assert_string_contains(invalid_create_response.error.message, "users split values must total 100")
+
 func test_executes_modfile_stats_ratings_and_report_requests_with_documented_shapes() -> void:
 	var public_config := ModioClientConfig.new("777", "demo-key", "https://api.mod.io/v1/", "", "en-US", "steam", "WINDOWS")
 	var auth_config := ModioClientConfig.new("777", "demo-key", "", "user-token", "en-US", "steam", "WINDOWS", ModioClientConfig.HOST_GAME)

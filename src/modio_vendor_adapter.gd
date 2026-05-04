@@ -1207,6 +1207,31 @@ func build_mod_team_request(mod_id: String, query: ModioListingQuery = ModioList
 		{"auth_mode": _resolve_read_auth_mode(false)}
 	)
 
+func build_mod_monetization_team_request(mod_id: String) -> Dictionary:
+	var validation_errors: Array = []
+	_append_required_positive_id_error(mod_id, "mod_id", validation_errors)
+	return _build_validated_request(
+		"GET",
+		"/games/%s/mods/%s/monetization/team" % [_config.game_id, mod_id.strip_edges()],
+		{},
+		{},
+		_build_read_headers(true),
+		{"auth_mode": "bearer"},
+		validation_errors
+	)
+
+func build_create_mod_monetization_team_request(mod_id: String, fields: Dictionary) -> Dictionary:
+	var normalized := _normalize_create_mod_monetization_team_fields(mod_id, fields)
+	return _build_validated_request(
+		"POST",
+		"/games/%s/mods/%s/monetization/team" % [_config.game_id, mod_id.strip_edges()],
+		{},
+		normalized.body,
+		normalized.headers,
+		{"content_type": ModioHttpTransport.CONTENT_TYPE_MULTIPART, "auth_mode": "bearer"},
+		normalized.errors
+	)
+
 func build_user_subscriptions_request(query: ModioListingQuery = ModioListingQuery.new()) -> Dictionary:
 	var full_query := _build_authenticated_query()
 	full_query.merge(query.to_query_dict(ModioListingQuery.ENDPOINT_SUBSCRIPTIONS), true)
@@ -1791,6 +1816,20 @@ func normalize_mod_metadata_kvp_response(payload: Dictionary) -> Dictionary:
 
 func normalize_mod_team_response(payload: Dictionary) -> Dictionary:
 	return _normalize_list_payload(payload, Callable(self, "_normalize_team_member_object"))
+
+func normalize_mod_monetization_team_response(payload: Dictionary) -> Dictionary:
+	return _normalize_list_payload(payload, Callable(self, "_normalize_monetization_team_account_object"))
+
+func normalize_create_mod_monetization_team_response(status_code: int, headers: Dictionary, payload: Dictionary) -> Dictionary:
+	var response := _transport.normalize_response(status_code, headers, payload)
+	if not response.ok:
+		return response
+	var normalized := normalize_mod_monetization_team_response(payload)
+	for key in ["data", "result_count", "result_offset", "result_limit", "result_total", "page", "pagination"]:
+		if normalized.has(key):
+			response[key] = normalized[key]
+	response["created"] = status_code == 200 and response.data is Array and response.data.size() > 0
+	return response
 
 func normalize_subscriptions_response(payload: Dictionary) -> Dictionary:
 	return normalize_mod_list_response(payload)
@@ -2545,6 +2584,16 @@ func _normalize_team_member_object(payload: Dictionary) -> Dictionary:
 		"is_pending": invite_pending != 0
 	}
 
+func _normalize_monetization_team_account_object(payload: Dictionary) -> Dictionary:
+	return {
+		"id": int(payload.get("id", 0)),
+		"name_id": str(payload.get("name_id", "")),
+		"username": str(payload.get("username", "")),
+		"monetization_status": int(payload.get("monetization_status", 0)),
+		"monetization_options": int(payload.get("monetization_options", 0)),
+		"split": int(payload.get("split", 0))
+	}
+
 func _normalize_game_token_pack_object(payload: Dictionary) -> Dictionary:
 	return {
 		"id": int(payload.get("id", 0)),
@@ -3192,6 +3241,56 @@ func _append_required_positive_id_error(value: Variant, field_name: String, erro
 	var parsed = _parse_int_like(value)
 	if parsed == null or int(parsed) <= 0:
 		errors.append("%s must be a positive integer path id" % field_name)
+
+func _normalize_create_mod_monetization_team_fields(mod_id: String, fields: Dictionary) -> Dictionary:
+	var errors: Array = []
+	var body := {}
+	var headers := _build_multipart_headers(true)
+	_append_required_positive_id_error(mod_id, "mod_id", errors)
+	_validate_allowed_fields(fields, ["users"], errors, "Create Mod Monetization Team")
+	if not fields.has("users"):
+		errors.append("users is required")
+		return {"body": body, "headers": headers, "errors": errors}
+	var users = fields["users"]
+	if not (users is Array):
+		errors.append("users must be an array")
+		return {"body": body, "headers": headers, "errors": errors}
+	if users.is_empty():
+		errors.append("users must contain at least one user object")
+		return {"body": body, "headers": headers, "errors": errors}
+	if users.size() > 5:
+		errors.append("users may contain at most 5 user objects")
+	var total_split := 0
+	var valid_split_count := 0
+	for index in range(users.size()):
+		var user = users[index]
+		if not (user is Dictionary):
+			errors.append("users[%d] must be an object" % index)
+			continue
+		for key in user.keys():
+			if not ["id", "split"].has(str(key)):
+				errors.append("Create Mod Monetization Team User field '%s' is not documented" % str(key))
+		if not user.has("id"):
+			errors.append("users[%d].id is required" % index)
+		else:
+			var user_id = _parse_int_like(user["id"])
+			if user_id == null or int(user_id) <= 0:
+				errors.append("users[%d].id must be a positive integer" % index)
+			else:
+				body["users[%d][id]" % index] = int(user_id)
+		if not user.has("split"):
+			errors.append("users[%d].split is required" % index)
+		else:
+			var split = _parse_int_like(user["split"])
+			if split == null:
+				errors.append("users[%d].split must be an integer" % index)
+			else:
+				body["users[%d][split]" % index] = int(split)
+				total_split += int(split)
+				valid_split_count += 1
+	if valid_split_count == users.size() and total_split != 100:
+		errors.append("users split values must total 100")
+	return {"body": body, "headers": headers, "errors": errors}
 
 func _normalize_user_entitlements_fields(fields: Dictionary, portal: String, platform: String) -> Dictionary:
 	var errors: Array = []

@@ -1,0 +1,24 @@
+{
+  "data": [
+    {
+      "id": 42,
+      "name_id": "coach-chip",
+      "username": "Coach Chip",
+      "monetization_status": 1,
+      "monetization_options": 3,
+      "split": 70
+    },
+    {
+      "id": 77,
+      "name_id": "guest-builder",
+      "username": "Guest Builder",
+      "monetization_status": 0,
+      "monetization_options": 2,
+      "split": 30
+    }
+  ],
+  "result_count": 2,
+  "result_offset": 0,
+  "result_limit": 100,
+  "result_total": 2
+}

@@ -1651,6 +1651,76 @@ func test_builds_mod_adjacent_read_enrichment_requests_with_documented_filter_su
 	assert_eq(team_request.query._offset, "40")
 	assert_false(team_request.query.has("submitted_by"))
 
+func test_builds_mod_monetization_team_requests_with_documented_auth_and_nested_body_shape() -> void:
+	var adapter := _build_adapter_with_token()
+
+	var read_request = adapter.build_mod_monetization_team_request("1001")
+	assert_eq(read_request.method, "GET")
+	assert_eq(read_request.path, "/games/777/mods/1001/monetization/team")
+	assert_eq(read_request.auth_mode, "bearer")
+	assert_eq(read_request.headers.Authorization, "Bearer user-token")
+	assert_false(read_request.query.has("api_key"))
+	assert_true(read_request.validation_errors.is_empty())
+
+	var create_request = adapter.build_create_mod_monetization_team_request("1001", {
+		"users": [
+			{"id": 42, "split": 70},
+			{"id": "77", "split": "30"}
+		]
+	})
+	assert_eq(create_request.method, "POST")
+	assert_eq(create_request.path, "/games/777/mods/1001/monetization/team")
+	assert_eq(create_request.auth_mode, "bearer")
+	assert_eq(create_request.content_type, ModioHttpTransport.CONTENT_TYPE_MULTIPART)
+	assert_eq(create_request.headers.Authorization, "Bearer user-token")
+	assert_eq(create_request.body["users[0][id]"], "42")
+	assert_eq(create_request.body["users[0][split]"], "70")
+	assert_eq(create_request.body["users[1][id]"], "77")
+	assert_eq(create_request.body["users[1][split]"], "30")
+	assert_true(create_request.validation_errors.is_empty())
+
+	var invalid_create_request = adapter.build_create_mod_monetization_team_request("0", {
+		"users": [
+			{"id": 0, "split": "x", "extra": true},
+			"not-an-object"
+		],
+		"extra": true
+	})
+	assert_true(invalid_create_request.validation_errors.size() >= 5)
+	assert_string_contains(invalid_create_request.validation_error, "mod_id must be a positive integer path id")
+	assert_string_contains(invalid_create_request.validation_error, "Create Mod Monetization Team field 'extra' is not documented")
+	assert_string_contains(invalid_create_request.validation_error, "Create Mod Monetization Team User field 'extra' is not documented")
+	assert_string_contains(invalid_create_request.validation_error, "users[0].id must be a positive integer")
+	assert_string_contains(invalid_create_request.validation_error, "users[0].split must be an integer")
+	assert_string_contains(invalid_create_request.validation_error, "users[1] must be an object")
+
+	var invalid_total_request = adapter.build_create_mod_monetization_team_request("1001", {
+		"users": [
+			{"id": 42, "split": 80},
+			{"id": 77, "split": 10}
+		]
+	})
+	assert_true(invalid_total_request.validation_errors.size() >= 1)
+	assert_string_contains(invalid_total_request.validation_error, "users split values must total 100")
+
+func test_normalizes_mod_monetization_team_fixture_payloads() -> void:
+	var adapter := _build_adapter_with_token()
+
+	var team = adapter.normalize_mod_monetization_team_response(_fixture("mod_monetization_team.json"))
+	assert_eq(team.result_total, 2)
+	assert_eq(team.data[0].id, 42)
+	assert_eq(team.data[0].name_id, "coach-chip")
+	assert_eq(team.data[0].monetization_status, 1)
+	assert_eq(team.data[0].split, 70)
+	assert_eq(team.data[1].username, "Guest Builder")
+	assert_eq(team.page.page_count, 1)
+
+	var created = adapter.normalize_create_mod_monetization_team_response(200, {}, _fixture("mod_monetization_team.json"))
+	assert_true(created.ok)
+	assert_true(created.created)
+	assert_eq(created.data.size(), 2)
+	assert_eq(created.data[1].monetization_options, 2)
+
 func test_normalizes_mod_adjacent_read_enrichment_fixture_payloads() -> void:
 	var adapter := _build_adapter()
 
