@@ -187,24 +187,26 @@ Decision check:
 - implementation/tests/docs as needed
 - `.plans/2026-05-03-aerobeat-vendor-modio-modfile-crud.md`
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** Independently truth-checked the dedicated modfile CRUD slice against `REF-06` through `REF-08` and found no residual implementation drift requiring code changes. Confirmed `POST /games/{game-id}/mods/{mod-id}/files` remains bearer-authenticated `multipart/form-data` on the documented route with documented fields only, enforced `filedata` xor `upload_id`, documented platform enum validation, and no source-modfile / multipart-session / local file-assistance / cook-platform workflow leakage. Confirmed `PUT /games/{game-id}/mods/{mod-id}/files/{file-id}` remains bearer-authenticated `application/x-www-form-urlencoded` with only the documented editable fields `version`, `changelog`, `active`, and `metadata_blob`, matching the refreshed REST schema despite the Unity generator lacking a dedicated edit request object. Confirmed `DELETE /games/{game-id}/mods/{mod-id}/files/{file-id}` remains a path-id-only bearer-authenticated delete with empty outgoing body and normalized `204 No Content` semantics, while preserving provider-enforced constraints like the live-modfile delete restriction (`15009`) as upstream behavior rather than local request fields. Re-checked `README.md` and `docs/modio-seam-plan.md` and found the documented scope truthful: this slice stays limited to add/edit/delete modfile only and explicitly leaves source-modfile flows, multipart upload orchestration, local file-path assistance, archive inspection, cloud-cook flows, and platform-management helpers out of scope. Re-ran repo-local validation successfully: `godot --headless --path .testbed --import`, `godot --headless --path .testbed --script res://tests/validate_scaffold.gd`, and `godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit` (51/51 tests passed).
 
 ---
 
 ## Final Results
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**What We Built:** Pending.
+**What We Built:** A thin documented-field wrapper for the dedicated modfile CRUD slice only: bearer-authenticated add/edit/delete request builders, documented request-shape validation including `filedata` xor `upload_id`, normalized `201`/`200`/`204` write responses, transport coverage, and truthful seam documentation without leaking higher-level upload/cook/platform workflow behavior into the vendor seam.
 
-**Reference Check:** Pending.
+**Reference Check:** `REF-06` through `REF-08` satisfied. The implementation, tests, and docs match the refreshed local official corpus for request routes/methods/auth/content types, editable field scope including `metadata_blob`, create/delete response semantics, and the deliberate exclusion of source-modfile, multipart-session orchestration, local file assistance, archive inspection, cloud-cook flows, and platform-management helpers.
 
 **Commits:**
-- Pending.
+- `80726f5` - Add dedicated modfile CRUD seam
+- `5c5044f` - docs: record modfile CRUD QA verification
+- Pending auditor plan-update commit if this audit modifies tracked files.
 
-**Lessons Learned:** Pending.
+**Lessons Learned:** For this slice, the refreshed REST docs remain the source of truth over generator gaps in `modio-unity` (notably the missing dedicated edit request object), while the SDK/Unity surfaces are still useful to corroborate auth, route, and transport expectations.
 
 ---
 
