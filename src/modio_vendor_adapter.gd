@@ -2942,6 +2942,8 @@ func _normalize_user_entitlements_fields(fields: Dictionary, portal: String, pla
 
 	var resolved_platform := platform.strip_edges()
 	if resolved_platform.is_empty():
+		resolved_platform = _config.platform.strip_edges()
+	if resolved_platform.is_empty():
 		headers.erase("X-Modio-Platform")
 	else:
 		headers["X-Modio-Platform"] = resolved_platform

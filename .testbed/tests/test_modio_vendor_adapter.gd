@@ -607,7 +607,7 @@ func test_builds_wallet_purchase_and_entitlement_requests_with_documented_semant
 	assert_eq(entitlements_request.content_type, ModioHttpTransport.CONTENT_TYPE_FORM)
 	assert_eq(entitlements_request.headers.Authorization, "Bearer user-token")
 	assert_eq(entitlements_request.headers["X-Modio-Portal"], "epicgames")
-	assert_false(entitlements_request.headers.has("X-Modio-Platform"))
+	assert_eq(entitlements_request.headers["X-Modio-Platform"], "WINDOWS")
 	assert_eq(entitlements_request.body.game_id, "888")
 	assert_eq(entitlements_request.body.epicgames_token, "epic-token")
 	assert_eq(entitlements_request.body.epicgames_sandbox_id, "sandbox-id")
@@ -626,6 +626,15 @@ func test_builds_wallet_purchase_and_entitlement_requests_with_documented_semant
 	assert_eq(psn_entitlements_request.body.psn_service_label, "0")
 	assert_true(psn_entitlements_request.validation_errors.is_empty())
 
+	var config_driven_psn_entitlements_request = adapter.build_user_entitlements_request({
+		"game_id": "777",
+		"psn_token": " v3.ConfigPlatform "
+	}, "psn")
+	assert_eq(config_driven_psn_entitlements_request.headers["X-Modio-Portal"], "psn")
+	assert_eq(config_driven_psn_entitlements_request.headers["X-Modio-Platform"], "WINDOWS")
+	assert_eq(config_driven_psn_entitlements_request.body.psn_token, "v3.ConfigPlatform")
+	assert_true(config_driven_psn_entitlements_request.validation_errors.is_empty())
+
 	var invalid_wallet_request = ModioVendorAdapter.new(
 		ModioClientConfig.new("", "demo-key", ModioClientConfig.DEFAULT_BASE_URL, "user-token", "en-US", "steam", "WINDOWS"),
 		ModioHttpTransport.new()
@@ -633,7 +642,10 @@ func test_builds_wallet_purchase_and_entitlement_requests_with_documented_semant
 	assert_true(invalid_wallet_request.validation_errors.size() >= 1)
 	assert_string_contains(invalid_wallet_request.validation_error, "game_id is required unless using a g-url host")
 
-	var invalid_entitlements_request = adapter.build_user_entitlements_request({
+	var invalid_entitlements_request = ModioVendorAdapter.new(
+		ModioClientConfig.new("777", "demo-key", ModioClientConfig.DEFAULT_BASE_URL, "user-token", "en-US", "steam", ""),
+		ModioHttpTransport.new()
+	).build_user_entitlements_request({
 		"extra": true,
 		"psn_env": "nope"
 	}, "psn")

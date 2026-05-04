@@ -313,12 +313,28 @@ Additional decision lock-in preserved in code/docs:
 - `.plans/`
 
 **Files Created/Deleted/Modified:**
-- implementation/tests/docs as needed
 - `.plans/2026-05-04-aerobeat-vendor-modio-monetization-entitlements-and-s2s.md`
 
-**Status:** ⏳ Pending
+**Status:** ⏳ Pending → ✅ Complete
 
-**Results:** Pending.
+**Results:** Independently re-verified the monetization-user slice against `REF-07` through `REF-10` and found no implementation drift requiring code changes. Exact QA findings:
+- `GET /me/wallets` matches the refreshed REST docs exactly: request method/path are `GET /me/wallets`, auth stays bearer-only, and the wrapper preserves the documented `game_id` rule by requiring it unless the caller is using a g-url host. Response normalization stays intentionally raw and limited to the documented wallet fields: `type`, `payment_method_id`, `game_id`, `currency`, `balance`, `pending_balance`, `deficit`, and `monetization_status`.
+- `GET /me/purchased` matches the refreshed REST docs exactly: request method/path are `GET /me/purchased`, auth stays bearer-only, query serialization is limited to the documented purchased-mod filters (`id`, `game_id`, `status`, `visible`, `submitted_by`, `date_added`, `date_updated`, `date_live`, `name`, `name_id`, `modfile`, `metadata_kvp`, `metadata_blob`, `tags`, `maturity_option`, `monetization_options`, `platform_status`, `platforms`) plus paging and the documented `_sort` allowlist (`name`, `date_live`, `date_updated`, `submitted_by`, `downloads_today`, `downloads_total`, `subscribers_total`, `ratings_weighted_aggregate`).
+- The purchased-mod platform caveat is preserved exactly: because this repo forwards configured `X-Modio-Platform` headers through the shared config, `build_user_purchased_request(...)` injects configured `game_id` only when platform targeting is in play and the caller omitted it, matching the docs note that platform-targeted purchased reads must also include `game_id`.
+- `POST /me/entitlements` matches the refreshed REST docs exactly: request method/path are `POST /me/entitlements`, content type stays `application/x-www-form-urlencoded`, `X-Modio-Portal` is required, and the wrapper validates only the documented request-body fields (`game_id`, `psn_token`, `psn_env`, `psn_service_label`, `xbox_token`, `epicgames_token`, `epicgames_sandbox_id`).
+- The PSN-specific entitlement requirements are preserved exactly: `X-Modio-Platform` is enforced only when `portal == psn`, `psn_token` is required for PSN requests, and `psn_env` / `psn_service_label` stay integer-only when supplied. The wrapper does not invent Apple/Google/Meta/Steam sync fields on this REST-page-backed route.
+- Re-checked response-shape boundaries and found no AeroBeat convenience leakage: wallets stay raw provider wallets, purchased results reuse the raw mod-object normalization so monetization fields like `price`, `tax`, and `skus` remain intact, and entitlements normalize only the minimal documented row shape (`sku_id`, `entitlement_type`).
+- Re-checked seam exclusions and found no leaked `/me/iap/*/sync`, checkout, partner-team, or `/s2s/*` wrappers in `src/`; the only mentions are deliberate documentation/plan deferrals that explain why those surfaces remain out of scope for this slice.
+- Re-checked `README.md`, `docs/modio-seam-plan.md`, and this plan and found the documentation truthful: the repo claims only `GET /me/wallets`, `GET /me/purchased`, and `POST /me/entitlements` for this monetization-user slice, explicitly records the intentional deferral of checkout plus the drifted `/me/iap/*/sync` family, and does not overclaim entitlement-sync support.
+
+Validation evidence:
+- `godot --headless --path .testbed --import`
+- `godot --headless --path .testbed --script res://tests/validate_scaffold.gd`
+- `godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit`
+- result: `55` tests passed, `0` failed (`1869` asserts)
+
+Fixes made:
+- none required
 
 ---
 
@@ -340,24 +356,46 @@ Additional decision lock-in preserved in code/docs:
 - implementation/tests/docs as needed
 - `.plans/2026-05-04-aerobeat-vendor-modio-monetization-entitlements-and-s2s.md`
 
-**Status:** ⏳ Pending
+**Status:** ⏳ Pending → ✅ Complete
 
-**Results:** Pending.
+**Results:** Independent audit completed against `REF-07` through `REF-10` plus the locked boundary rules. Exact audit findings:
+- `GET /me/wallets` remains doc-correct: method/path are `GET /me/wallets`, auth stays bearer-only, and `build_user_wallet_request(...)` preserves the documented `game_id` requirement by validating that `game_id` must resolve either from the call or from configured g-url context. Wallet normalization stays intentionally raw and limited to the documented fields `type`, `payment_method_id`, `game_id`, `currency`, `balance`, `pending_balance`, `deficit`, and `monetization_status`.
+- `GET /me/purchased` remains doc-correct: method/path are `GET /me/purchased`, auth stays bearer-only, query support is limited to the documented purchased-mod filters/sorts captured from `REF-08`, and the adapter preserves the platform-targeting caveat truthfully by auto-injecting configured `game_id` only when a configured `X-Modio-Platform` header is in play and the caller omitted `game_id`.
+- `POST /me/entitlements` was almost correct but had one real drift: when platform targeting was supplied via shared adapter config instead of the per-call `platform` argument, `_normalize_user_entitlements_fields(...)` erased the configured `X-Modio-Platform` header before PSN validation. That meant a config-driven PSN entitlement request could incorrectly fail local validation even though the shared config already carried the documented platform target.
+- Minimum fix applied: `_normalize_user_entitlements_fields(...)` now falls back to `_config.platform` before deciding whether `X-Modio-Platform` is absent. This preserves the documented PSN rule exactly while staying aligned with the repo’s shared-header behavior.
+- Added regression coverage to prove both paths: explicit PSN platform targeting still passes, and config-driven PSN platform targeting now also passes without requiring a redundant explicit `platform` argument.
+- Re-checked seam boundaries and found no leaked `/me/iap/*/sync`, checkout, partner-team, or `/s2s/*` wrappers in `src/`; those surfaces remain documented deferrals only.
+- Re-checked `README.md`, `docs/modio-seam-plan.md`, and this plan after the fix and found them still truthful: the repo claims only `GET /me/wallets`, `GET /me/purchased`, and `POST /me/entitlements` for this slice and does not overclaim entitlement-sync support.
+
+Changed files:
+- `src/modio_vendor_adapter.gd`
+- `.testbed/tests/test_modio_vendor_adapter.gd`
+- `.plans/2026-05-04-aerobeat-vendor-modio-monetization-entitlements-and-s2s.md`
+
+Validation evidence:
+- `godot --headless --path .testbed --import`
+- `godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit`
+- result after fix: `55` tests passed, `0` failed (`1873` asserts)
+
+Fixes made:
+- preserved config-driven `X-Modio-Platform` handling for `POST /me/entitlements`
+- added regression coverage for config-driven PSN entitlement requests
 
 ---
 
 ## Final Results
 
-**Status:** ⚠️ Partial
+**Status:** ✅ Complete
 
-**What We Built:** Research-only pre-slice ambiguity audit for the monetization / purchases / entitlements / S2S / partner-team family. Implementation has not started yet.
+**What We Built:** A clean REST-backed monetization-user slice for `GET /me/wallets`, `GET /me/purchased`, and `POST /me/entitlements`, plus independent QA and audit verification against the refreshed local mod.io REST corpus. The final audit found one config-driven PSN entitlement-header drift, applied the minimum fix, and added regression coverage without expanding scope into checkout, `/me/iap/*/sync`, partner-team, or `/s2s/*` surfaces.
 
-**Reference Check:** Task 1 findings were validated against `REF-07`, cross-checked with `REF-08`, `REF-09`, and compared with the current wrapper in `REF-10`.
+**Reference Check:** Final implementation and audit findings were validated against `REF-07`, `REF-08`, `REF-09`, and cross-checked against adjacent SDK/Unity behavior in `REF-10` while preserving the locked boundary captured in `REF-11`.
 
 **Commits:**
-- Pending.
+- `986bf22` - Add mod.io monetization user endpoints
+- Audit fix commit on `main` - Honor config-driven PSN entitlement platform header
 
-**Lessons Learned:** The next clean vendor slice is much narrower than the whole monetization family. Wallet/purchase-state reads are straightforward; checkout modes, entitlement sync, creator payout teams, and S2S transaction ownership all branch into explicit product/architecture decisions.
+**Lessons Learned:** The REST-backed monetization-user slice stays clean when it is treated as three documented endpoints with strict request-shape gating. The sharp edge was not endpoint discovery but shared-header behavior: if platform targeting can come from shared config for purchased reads, entitlement validation must honor that same source of truth for PSN requests instead of requiring a redundant per-call override.
 
 ---
 
