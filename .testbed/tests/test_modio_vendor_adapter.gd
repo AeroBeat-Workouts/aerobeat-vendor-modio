@@ -809,6 +809,15 @@ func test_builds_checkout_and_s2s_requests_with_documented_semantics() -> void:
 	assert_eq(s2s_clawback_request.body.refund_reason, "fraud")
 	assert_true(s2s_clawback_request.validation_errors.is_empty())
 
+	var s2s_disconnect_request = adapter.build_s2s_disconnect_request(" 1234 ")
+	assert_eq(s2s_disconnect_request.method, "DELETE")
+	assert_eq(s2s_disconnect_request.path, "/s2s/connections/1234")
+	assert_eq(s2s_disconnect_request.auth_mode, "bearer")
+	assert_eq(s2s_disconnect_request.headers.Authorization, "Bearer service-token")
+	assert_false(s2s_disconnect_request.headers.has("Content-Type"))
+	assert_true(s2s_disconnect_request.body.is_empty())
+	assert_true(s2s_disconnect_request.validation_errors.is_empty())
+
 	var s2s_transactions_request = adapter.build_s2s_monetization_transactions_request({
 		"transaction_type": ["PAID", "CLEARED"],
 		"monetization_type": "external",
@@ -845,6 +854,14 @@ func test_builds_checkout_and_s2s_requests_with_documented_semantics() -> void:
 	assert_string_contains(invalid_s2s_request.validation_error, "sku must be a non-empty string")
 	assert_string_contains(invalid_s2s_request.validation_error, "portal is required")
 
+	var invalid_s2s_disconnect_request = ModioVendorAdapter.new(
+		ModioClientConfig.new("777", "demo-key", ModioClientConfig.DEFAULT_BASE_URL, "user-token", "en-US", "steam", "WINDOWS"),
+		ModioHttpTransport.new()
+	).build_s2s_disconnect_request("0")
+	assert_true(invalid_s2s_disconnect_request.validation_errors.size() >= 2)
+	assert_string_contains(invalid_s2s_disconnect_request.validation_error, "service_token is required for S2S requests")
+	assert_string_contains(invalid_s2s_disconnect_request.validation_error, "portal_id must be a positive integer path id")
+
 	var invalid_s2s_history_request = ModioVendorAdapter.new(
 		ModioClientConfig.new("777", "demo-key", ModioClientConfig.DEFAULT_BASE_URL, "user-token", "en-US", "steam", "WINDOWS", ModioClientConfig.HOST_API, "", false, "service-token", ""),
 		ModioHttpTransport.new()
@@ -879,6 +896,11 @@ func test_normalizes_checkout_and_s2s_responses_with_documented_drift_notes() ->
 	assert_true(s2s_clawback.clawed_back)
 	assert_eq(s2s_clawback.data.tax, 150)
 	assert_eq(s2s_clawback.data.tax_type, "GST")
+
+	var s2s_disconnect = adapter.normalize_s2s_disconnect_response(204, {})
+	assert_true(s2s_disconnect.ok)
+	assert_true(s2s_disconnect.disconnected)
+	assert_true(s2s_disconnect.data.is_empty())
 
 	var s2s_transactions = adapter.normalize_s2s_monetization_transactions_response(_fixture("s2s_transactions.json"))
 	assert_eq(s2s_transactions.data.size(), 1)

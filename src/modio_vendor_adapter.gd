@@ -1410,6 +1410,18 @@ func build_s2s_transaction_clawback_request(fields: Dictionary) -> Dictionary:
 		normalized.errors
 	)
 
+func build_s2s_disconnect_request(portal_id: String) -> Dictionary:
+	var normalized := _normalize_s2s_disconnect_path(portal_id)
+	return _build_validated_request(
+		"DELETE",
+		"/s2s/connections/%s" % normalized.portal_id,
+		{},
+		{},
+		normalized.headers,
+		{"auth_mode": "bearer"},
+		normalized.errors
+	)
+
 func build_s2s_monetization_transactions_request(filters: Dictionary = {}, monetization_team_id: String = "") -> Dictionary:
 	var normalized := _normalize_s2s_monetization_transactions_filters(filters, monetization_team_id)
 	return _build_validated_request(
@@ -1981,6 +1993,11 @@ func normalize_s2s_transaction_clawback_response(status_code: int, headers: Dict
 		return response
 	response["data"] = _normalize_refund_object(payload)
 	response["clawed_back"] = status_code == 200 and int(response.data.get("transaction_id", 0)) > 0
+	return response
+
+func normalize_s2s_disconnect_response(status_code: int, headers: Dictionary = {}) -> Dictionary:
+	var response := _normalize_no_content_write_response(status_code, headers)
+	response["disconnected"] = response.ok and status_code == 204
 	return response
 
 func normalize_s2s_monetization_transactions_response(payload: Dictionary) -> Dictionary:
@@ -3665,6 +3682,15 @@ func _normalize_s2s_transaction_clawback_fields(fields: Dictionary) -> Dictionar
 		"errors": errors,
 		"drift_notes": ["The refreshed REST page types gateway_uuid as an integer even though the description says it is an alpha-dash identifier; this adapter treats it as a string."]
 	}
+
+func _normalize_s2s_disconnect_path(portal_id: String) -> Dictionary:
+	var errors: Array = []
+	var headers := _build_service_read_headers()
+	if not _config.has_service_token():
+		errors.append("service_token is required for S2S requests")
+	var sanitized_portal_id := portal_id.strip_edges()
+	_append_required_positive_id_error(sanitized_portal_id, "portal_id", errors)
+	return {"portal_id": sanitized_portal_id, "headers": headers, "errors": errors}
 
 func _normalize_s2s_monetization_transactions_filters(filters: Dictionary, monetization_team_id: String) -> Dictionary:
 	var errors: Array = []
