@@ -312,14 +312,17 @@ func _encode_parameters(values: Dictionary) -> String:
 	keys.sort_custom(func(a, b): return str(a) < str(b))
 	var parts: PackedStringArray = []
 	for key in keys:
-		var encoded_key := str(key).uri_encode()
+		var key_string := str(key)
+		var encoded_key := key_string.uri_encode()
 		var value = values[key]
 		if value is Array:
+			var array_field_name := key_string if key_string.ends_with("[]") else "%s[]" % key_string
+			var encoded_array_key := array_field_name.uri_encode()
 			if value.is_empty():
-				parts.append("%s=" % encoded_key)
+				parts.append("%s=" % encoded_array_key)
 				continue
 			for item in value:
-				parts.append("%s=%s" % [encoded_key, _parameter_to_string(item).uri_encode()])
+				parts.append("%s=%s" % [encoded_array_key, _parameter_to_string(item).uri_encode()])
 			continue
 		parts.append("%s=%s" % [encoded_key, _parameter_to_string(value).uri_encode()])
 	return "&".join(parts)

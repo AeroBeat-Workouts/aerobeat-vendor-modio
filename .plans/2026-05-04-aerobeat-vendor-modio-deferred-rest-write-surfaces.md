@@ -132,9 +132,31 @@ Deliberate deferrals preserved:
 - implementation/tests/docs as needed
 - `.plans/2026-05-04-aerobeat-vendor-modio-deferred-rest-write-surfaces.md`
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** Independent QA re-checked the six wrapped write endpoints against the refreshed REST endpoint pages in `REF-03` and found one real transport drift plus several confirmed-correct behaviors.
+
+Confirmed correct before fixes:
+- all six builders target the exact documented REST paths and methods
+- all six writes stay bearer-authenticated and `application/x-www-form-urlencoded`
+- metadata delete correctly preserves the REST-documented key-only delete semantics (`metadata[]=key`) at the adapter seam without extra wrapper restrictions
+- dependency add accepts the documented optional `sync` boolean and dependency delete does not expose `sync`
+- add/delete response normalizers remain intentionally thin (`message`/`no-content` plus status-derived `created` / `deleted`)
+- no drifted `/me/iap/*/sync`, mod media, or collection-removal surfaces leaked into this slice
+
+QA-found drift and fix:
+- the request builders were supplying array bodies as plain dictionary arrays (`tags`, `metadata`, `dependencies`) and the shared form-urlencoder in `src/network/modio_http_transport.gd` was serializing them as repeated bare keys (`tags=...`, `metadata=...`, `dependencies=...`) instead of the REST-documented repeated bracketed keys (`tags[]`, `metadata[]`, `dependencies[]`)
+- applied the minimum truthful fix in the shared form-urlencoder so array values serialize as repeated `field[]` keys unless the caller already provided an explicit `[]` suffix, matching existing multipart behavior and preserving already-explicit keys like `approved[]` / `denied[]`
+- added transport-level QA coverage in `.testbed/tests/test_modio_http_transport.gd` for all six mod-maintenance writes, including add/delete tags, add/delete metadata, add/delete dependencies, metadata key-only delete, and dependency add `sync`-only behavior
+
+Validation evidence:
+- command: `godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit`
+- result: `39/39` scripts passed, `63/63` tests passed, `2148` asserts
+
+Files changed during QA:
+- `src/network/modio_http_transport.gd`
+- `.testbed/tests/test_modio_http_transport.gd`
+- `.plans/2026-05-04-aerobeat-vendor-modio-deferred-rest-write-surfaces.md`
 
 ---
 

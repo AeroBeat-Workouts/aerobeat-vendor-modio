@@ -1141,6 +1141,68 @@ func test_executes_catalog_game_meta_and_taxonomy_reads_with_doc_corrected_urls(
 	assert_true(ping_response.ok)
 	assert_eq(_recorded_requests[7].url, "https://api.mod.io/v1/ping")
 
+func test_executes_mod_adjacent_write_requests_with_documented_form_array_keys() -> void:
+	var auth_config := ModioClientConfig.new("777", "demo-key", "", "user-token", "en-US", "steam", "WINDOWS", ModioClientConfig.HOST_GAME)
+	var transport := ModioHttpTransport.new(Callable(self, "_transport_double"))
+	var auth_adapter := ModioVendorAdapter.new(auth_config, transport)
+
+	_queue_json_response(201, _fixture("add_mod_rating_success.json"), {"Location": "/games/777/mods/1001/tags"})
+	var add_tags_response := transport.execute(auth_adapter.build_add_mod_tags_request("1001", {
+		"tags": ["Featured", "Cardio"]
+	}), auth_config)
+	assert_true(add_tags_response.ok)
+	assert_eq(_recorded_requests[0].method, "POST")
+	assert_eq(_recorded_requests[0].url, "https://g-777.modapi.io/v1/games/777/mods/1001/tags")
+	assert_eq(_recorded_requests[0].body_string, "tags%5B%5D=Featured&tags%5B%5D=Cardio")
+
+	_queue_response({"status_code": 204, "headers": {}, "body": ""})
+	var delete_tags_response := transport.execute(auth_adapter.build_delete_mod_tags_request("1001", {
+		"tags": ["Featured"]
+	}), auth_config)
+	assert_true(delete_tags_response.ok)
+	assert_eq(_recorded_requests[1].method, "DELETE")
+	assert_eq(_recorded_requests[1].body_string, "tags%5B%5D=Featured")
+
+	_queue_json_response(201, _fixture("add_mod_rating_success.json"), {"Location": "/games/777/mods/1001/metadatakvp"})
+	var add_metadata_response := transport.execute(auth_adapter.build_add_mod_metadata_kvp_request("1001", {
+		"metadata": ["difficulty:expert", "gravity:9.8"]
+	}), auth_config)
+	assert_true(add_metadata_response.ok)
+	assert_eq(_recorded_requests[2].method, "POST")
+	assert_eq(_recorded_requests[2].body_string, "metadata%5B%5D=difficulty%3Aexpert&metadata%5B%5D=gravity%3A9.8")
+
+	_queue_response({"status_code": 204, "headers": {}, "body": ""})
+	var delete_metadata_response := transport.execute(auth_adapter.build_delete_mod_metadata_kvp_request("1001", {
+		"metadata": ["difficulty", "intensity:high"]
+	}), auth_config)
+	assert_true(delete_metadata_response.ok)
+	assert_eq(_recorded_requests[3].method, "DELETE")
+	assert_eq(_recorded_requests[3].body_string, "metadata%5B%5D=difficulty&metadata%5B%5D=intensity%3Ahigh")
+
+	_queue_json_response(201, _fixture("add_mod_rating_success.json"), {"Location": "/games/777/mods/1001/dependencies"})
+	var add_dependencies_response := transport.execute(auth_adapter.build_add_mod_dependencies_request("1001", {
+		"dependencies": [2001, 2002],
+		"sync": true
+	}), auth_config)
+	assert_true(add_dependencies_response.ok)
+	assert_eq(_recorded_requests[4].method, "POST")
+	assert_eq(_recorded_requests[4].body_string, "dependencies%5B%5D=2001&dependencies%5B%5D=2002&sync=true")
+
+	_queue_json_response(201, _fixture("add_mod_rating_success.json"), {"Location": "/games/777/mods/1001/dependencies"})
+	var sync_only_dependencies_response := transport.execute(auth_adapter.build_add_mod_dependencies_request("1001", {
+		"sync": true
+	}), auth_config)
+	assert_true(sync_only_dependencies_response.ok)
+	assert_eq(_recorded_requests[5].body_string, "sync=true")
+
+	_queue_response({"status_code": 204, "headers": {}, "body": ""})
+	var delete_dependencies_response := transport.execute(auth_adapter.build_delete_mod_dependencies_request("1001", {
+		"dependencies": [2001]
+	}), auth_config)
+	assert_true(delete_dependencies_response.ok)
+	assert_eq(_recorded_requests[6].method, "DELETE")
+	assert_eq(_recorded_requests[6].body_string, "dependencies%5B%5D=2001")
+
 func test_executes_guide_authoring_requests_with_documented_multipart_and_validation() -> void:
 	var auth_config := ModioClientConfig.new("777", "demo-key", "", "user-token", "en-US", "steam", "WINDOWS", ModioClientConfig.HOST_GAME)
 	var transport := ModioHttpTransport.new(Callable(self, "_transport_double"))
