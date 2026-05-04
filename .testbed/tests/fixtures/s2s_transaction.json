@@ -1,0 +1,78 @@
+{
+  "data": [
+    {
+      "id": 1234,
+      "gateway_uuid": "123e4567-e89b-12d3-a456-426614174000",
+      "gateway_name": "tilia",
+      "account_id": 12345,
+      "gross_amount": 199,
+      "net_amount": 179,
+      "platform_fee": 10,
+      "gateway_fee": 10,
+      "tax": 0,
+      "tax_type": "sales",
+      "currency": "usd",
+      "tokens": 0,
+      "transaction_type": "paid",
+      "monetization_type": "fiat",
+      "purchase_date": "2024-10-07 02:29:11",
+      "created_at": "1728268151123456",
+      "payment_method": [
+        {
+          "name": "Visa ending in 1111",
+          "id": "123e4567-e89b-12d3-a456-426614174001",
+          "amount": 199,
+          "display_amount": "USD 1.99"
+        }
+      ],
+      "items": [
+        {
+          "id": 1234,
+          "gateway_uuid": "123e4567-e89b-12d3-a456-426614174000",
+          "gateway_name": "tilia",
+          "sale_price": 1.99,
+          "gateway_fee": 0.1,
+          "platform_fee": 0.1,
+          "currency": "usd",
+          "tokens": 0,
+          "token_team_id": 88,
+          "sale_type": "bought",
+          "monetization_type": "fiat",
+          "transaction_type": "paid",
+          "purchase_date": "2024-10-07T02:29:11Z",
+          "created_at": 1728268151123456,
+          "line_items": [
+            {
+              "mod_id": 1001,
+              "game_id": 777,
+              "buyer_id": 42,
+              "mod_name": "Cardio Pack",
+              "game_name": "AeroBeat",
+              "buyer_name": "chip"
+            }
+          ],
+          "breakdown": [
+            {
+              "platform": {
+                "revenue": 0.99
+              },
+              "store": []
+            }
+          ],
+          "revenue": 0.99
+        }
+      ],
+      "line_items": [
+        {
+          "game_id": 777,
+          "buyer_id": 42,
+          "game_name": "AeroBeat",
+          "buyer_name": "chip",
+          "token_name": "beats",
+          "token_pack_id": 11,
+          "token_pack_name": "200 Pack"
+        }
+      ]
+    }
+  ]
+}

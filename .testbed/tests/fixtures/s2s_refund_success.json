@@ -1,0 +1,22 @@
+{
+  "transaction_id": 987654321,
+  "gross_amount": 2500,
+  "net_amount": 2300,
+  "platform_fee": 100,
+  "gateway_fee": 50,
+  "tax": 150,
+  "tax_type": "GST",
+  "transaction_type": "REFUNDED",
+  "meta": [
+    {
+      "mod_id": 1001,
+      "game_id": 777,
+      "buyer_id": 42,
+      "mod_name": "Cardio Pack",
+      "game_name": "AeroBeat",
+      "buyer_name": "chip",
+      "token_name": "beats"
+    }
+  ],
+  "purchase_date": 1777808400
+}

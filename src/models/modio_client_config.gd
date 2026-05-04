@@ -10,12 +10,14 @@ const HOST_USER := "user"
 var game_id: String
 var api_key: String
 var access_token: String
+var service_token: String
 var base_url: String
 var accept_language: String
 var portal: String
 var platform: String
 var host_kind: String
 var user_id: String
+var monetization_team_id: String
 var use_test_environment: bool
 
 func _init(
@@ -28,17 +30,21 @@ func _init(
 	p_platform: String = "",
 	p_host_kind: String = HOST_API,
 	p_user_id: String = "",
-	p_use_test_environment: bool = false
+	p_use_test_environment: bool = false,
+	p_service_token: String = "",
+	p_monetization_team_id: String = ""
 ) -> void:
 	game_id = p_game_id.strip_edges()
 	api_key = p_api_key.strip_edges()
 	base_url = p_base_url.strip_edges()
 	access_token = p_access_token.strip_edges()
+	service_token = p_service_token.strip_edges()
 	accept_language = p_accept_language.strip_edges()
 	portal = p_portal.strip_edges()
 	platform = p_platform.strip_edges()
 	host_kind = p_host_kind.strip_edges().to_lower()
 	user_id = p_user_id.strip_edges()
+	monetization_team_id = p_monetization_team_id.strip_edges()
 	use_test_environment = p_use_test_environment
 
 func has_public_credentials() -> bool:
@@ -46,6 +52,9 @@ func has_public_credentials() -> bool:
 
 func has_access_token() -> bool:
 	return not access_token.is_empty()
+
+func has_service_token() -> bool:
+	return not service_token.is_empty()
 
 func resolve_base_url(base_url_override: String = "") -> String:
 	var explicit_override := base_url_override.strip_edges()

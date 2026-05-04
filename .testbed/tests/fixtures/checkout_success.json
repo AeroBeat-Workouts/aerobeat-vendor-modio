@@ -1,0 +1,62 @@
+{
+  "transaction_id": 654321,
+  "gateway_uuid": "987e6543-e21b-45d3-a456-426614174999",
+  "gross_amount": 499,
+  "net_amount": 450,
+  "platform_fee": 25,
+  "gateway_fee": 24,
+  "transaction_type": "PAID",
+  "meta": [
+    {
+      "mod_id": 1001,
+      "game_id": 777,
+      "buyer_id": 42,
+      "mod_name": "Cardio Pack",
+      "game_name": "AeroBeat",
+      "buyer_name": "chip",
+      "token_name": "beats"
+    }
+  ],
+  "purchase_date": 1777808400,
+  "wallet_type": "TOKEN",
+  "balance": 9501,
+  "deficit": 0,
+  "payment_method_id": "pm_web_123",
+  "mod": {
+    "id": 1001,
+    "game_id": 777,
+    "status": 1,
+    "visible": 1,
+    "submitted_by": {
+      "id": 42,
+      "username": "chip"
+    },
+    "date_added": 1777800000,
+    "date_live": 1777800100,
+    "maturity_option": 0,
+    "community_options": 0,
+    "monetization_options": 3,
+    "name": "Cardio Pack",
+    "name_id": "cardio-pack",
+    "summary": "Workout songs",
+    "description": "Paid workout songs",
+    "profile_url": "https://mod.io/g/aerobeat/m/cardio-pack",
+    "metadata_blob": "{}",
+    "modfile": {
+      "id": 5002,
+      "date_added": 1777800001,
+      "virus_status": 0,
+      "virus_positive": 0,
+      "filesize": 1024,
+      "filename": "cardio-pack.zip",
+      "version": "1.0.0",
+      "download": {
+        "binary_url": "https://example.com/cardio-pack.zip",
+        "date_expires": 1777894800
+      },
+      "filehash": {
+        "md5": "abc123"
+      }
+    }
+  }
+}

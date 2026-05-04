@@ -1,0 +1,21 @@
+{
+  "transaction_id": 123456789,
+  "gateway_uuid": "123e4567-e89b-12d3-a456-426614174000",
+  "gross_amount": 1000,
+  "net_amount": 900,
+  "platform_fee": 50,
+  "gateway_fee": 30,
+  "transaction_type": "PAID",
+  "meta": [
+    {
+      "mod_id": 1001,
+      "game_id": 777,
+      "buyer_id": 42,
+      "mod_name": "Cardio Pack",
+      "game_name": "AeroBeat",
+      "buyer_name": "chip",
+      "token_name": "beats"
+    }
+  ],
+  "purchase_date": 1777808400
+}

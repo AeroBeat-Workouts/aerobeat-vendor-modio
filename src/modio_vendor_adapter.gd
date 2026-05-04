@@ -42,6 +42,11 @@ const MULTIPART_UPLOAD_STATUS_VALUES := [0, 1, 2, 3, 4]
 const COLLECTION_VISIBILITY_VALUES := [0, 1]
 const COLLECTION_TAG_VALUES := ["ANIMATION", "AUDIO", "BUGFIXES", "CHEATING", "ENVIRONMENT", "GAMEPLAY", "QUALITY_OF_LIFE", "UI", "VISUAL"]
 const MODFILE_PLATFORM_VALUES := ["ALL", "WINDOWS", "MAC", "LINUX", "ANDROID", "IOS", "XBOXONE", "XBOXSERIESX", "PLAYSTATION4", "PLAYSTATION5", "SWITCH", "OCULUS", "SOURCE", "SWITCH2", "WINDOWSSERVER", "LINUXSERVER"]
+const CHECKOUT_TYPE_VALUES := [0, 1, 2, 3, 4]
+const MONETIZATION_TRANSACTION_TYPE_VALUES := ["CANCELLED", "CLEARED", "CREDITED", "FAILED", "PAID", "PENDING", "REFUNDED"]
+const MONETIZATION_TYPE_VALUES := ["FIAT", "TOKEN", "EXTERNAL"]
+const CHECKOUT_PORTAL_VALUES := ["steam", "xboxlive", "psn", "epicgames"]
+const CLAWBACK_PORTAL_VALUES := ["apple", "google", "xboxlive", "psn", "steam"]
 
 var _config: ModioClientConfig
 var _transport: ModioHttpTransport
@@ -1260,6 +1265,78 @@ func build_user_entitlements_request(fields: Dictionary, portal: String = "", pl
 		normalized.errors
 	)
 
+func build_checkout_request(mod_id: String, fields: Dictionary, portal: String = "", platform: String = "") -> Dictionary:
+	var normalized := _normalize_checkout_fields(mod_id, fields, portal, platform)
+	return _build_validated_request(
+		"POST",
+		"/games/%s/mods/%s/checkout" % [_config.game_id, mod_id.strip_edges()],
+		{},
+		normalized.body,
+		normalized.headers,
+		{"content_type": ModioHttpTransport.CONTENT_TYPE_FORM, "auth_mode": "bearer"},
+		normalized.errors
+	)
+
+func build_s2s_transaction_intent_request(fields: Dictionary, delegation_token: String, idempotent_key: String = "") -> Dictionary:
+	var normalized := _normalize_s2s_transaction_intent_fields(fields, delegation_token, idempotent_key)
+	return _build_validated_request(
+		"POST",
+		"/s2s/transactions/intent",
+		{},
+		normalized.body,
+		normalized.headers,
+		{"content_type": ModioHttpTransport.CONTENT_TYPE_FORM, "auth_mode": "bearer"},
+		normalized.errors
+	)
+
+func build_s2s_transaction_commit_request(fields: Dictionary, idempotent_key: String = "") -> Dictionary:
+	var normalized := _normalize_s2s_transaction_commit_fields(fields, idempotent_key)
+	return _build_validated_request(
+		"POST",
+		"/s2s/transactions/commit",
+		{},
+		normalized.body,
+		normalized.headers,
+		{"content_type": ModioHttpTransport.CONTENT_TYPE_FORM, "auth_mode": "bearer"},
+		normalized.errors
+	)
+
+func build_s2s_transaction_clawback_request(fields: Dictionary) -> Dictionary:
+	var normalized := _normalize_s2s_transaction_clawback_fields(fields)
+	return _build_validated_request(
+		"POST",
+		"/s2s/transactions/clawback",
+		{},
+		normalized.body,
+		normalized.headers,
+		{"content_type": ModioHttpTransport.CONTENT_TYPE_FORM, "auth_mode": "bearer"},
+		normalized.errors
+	)
+
+func build_s2s_monetization_transactions_request(filters: Dictionary = {}, monetization_team_id: String = "") -> Dictionary:
+	var normalized := _normalize_s2s_monetization_transactions_filters(filters, monetization_team_id)
+	return _build_validated_request(
+		"GET",
+		"/s2s/monetization-teams/%s/transactions" % normalized.monetization_team_id,
+		normalized.query,
+		{},
+		normalized.headers,
+		{"auth_mode": "bearer"},
+		normalized.errors
+	)
+
+func build_s2s_monetization_transaction_request(transaction_id: String, monetization_team_id: String = "") -> Dictionary:
+	var normalized := _normalize_s2s_monetization_transaction_path(transaction_id, monetization_team_id)
+	return _build_validated_request(
+		"GET",
+		"/s2s/monetization-teams/%s/transactions/%s" % [normalized.monetization_team_id, normalized.transaction_id],
+		{},
+		{},
+		normalized.headers,
+		{"auth_mode": "bearer"},
+		normalized.errors
+	)
+
 func build_user_ratings_request(query: ModioListingQuery = ModioListingQuery.new()) -> Dictionary:
 	var full_query := _build_authenticated_query()
 	full_query.merge(query.to_query_dict(ModioListingQuery.ENDPOINT_USER_RATINGS), true)
@@ -1726,6 +1803,59 @@ func normalize_user_purchased_response(payload: Dictionary) -> Dictionary:
 
 func normalize_user_entitlements_response(payload: Dictionary) -> Dictionary:
 	return _normalize_list_payload(payload, Callable(self, "_normalize_entitlement_object"))
+
+func normalize_checkout_response(status_code: int, headers: Dictionary, payload: Dictionary) -> Dictionary:
+	var response := _transport.normalize_response(status_code, headers, payload)
+	if not response.ok:
+		return response
+	response["data"] = _normalize_checkout_pay_object(payload)
+	response["completed"] = status_code == 200 and int(response.data.get("transaction_id", 0)) > 0
+	return response
+
+func normalize_s2s_transaction_intent_response(status_code: int, headers: Dictionary, payload: Dictionary) -> Dictionary:
+	var response := _transport.normalize_response(status_code, headers, payload)
+	if not response.ok:
+		return response
+	response["data"] = _normalize_s2s_pay_object(payload)
+	response["created"] = status_code == 200 and int(response.data.get("transaction_id", 0)) > 0
+	return response
+
+func normalize_s2s_transaction_commit_response(status_code: int, headers: Dictionary, payload: Dictionary) -> Dictionary:
+	var response := _transport.normalize_response(status_code, headers, payload)
+	if not response.ok:
+		return response
+	response["data"] = _normalize_s2s_pay_object(payload)
+	response["committed"] = status_code == 200 and int(response.data.get("transaction_id", 0)) > 0
+	return response
+
+func normalize_s2s_transaction_clawback_response(status_code: int, headers: Dictionary, payload: Dictionary) -> Dictionary:
+	var response := _transport.normalize_response(status_code, headers, payload)
+	if not response.ok:
+		return response
+	response["data"] = _normalize_refund_object(payload)
+	response["clawed_back"] = status_code == 200 and int(response.data.get("transaction_id", 0)) > 0
+	return response
+
+func normalize_s2s_monetization_transactions_response(payload: Dictionary) -> Dictionary:
+	return {
+		"data": _normalize_monetization_transaction_array(payload.get("data", [])),
+		"pagination": _normalize_dictionary(payload.get("download", {})),
+		"download": _normalize_dictionary(payload.get("download", {})),
+		"drift_notes": [
+			"The refreshed REST page models list filters under a GET body schema; this adapter serializes them as query parameters.",
+			"The refreshed REST page labels the pagination envelope as 'download'; this adapter preserves it verbatim and aliases it to pagination."
+		]
+	}
+
+func normalize_s2s_monetization_transaction_response(payload: Dictionary) -> Dictionary:
+	var data := _normalize_monetization_transaction_array(payload.get("data", []))
+	return {
+		"data": data,
+		"transaction": data[0] if data.size() > 0 else {},
+		"drift_notes": [
+			"The refreshed REST page models the single-transaction response as a data array rather than a singular object; this adapter preserves the array and exposes the first row as transaction for convenience."
+		]
+	}
 
 func normalize_logout_response(payload: Dictionary) -> Dictionary:
 	return normalize_message_response(payload)
@@ -2447,6 +2577,100 @@ func _normalize_entitlement_object(payload: Dictionary) -> Dictionary:
 		"entitlement_type": int(payload.get("entitlement_type", 0))
 	}
 
+func _normalize_transaction_meta_array(payload: Array) -> Array:
+	var normalized: Array = []
+	for item in payload:
+		if item is Dictionary:
+			normalized.append(_normalize_dictionary(item))
+	return normalized
+
+func _normalize_payment_method_array(payload: Array) -> Array:
+	var normalized: Array = []
+	for item in payload:
+		if item is Dictionary:
+			normalized.append({
+				"name": str(item.get("name", "")),
+				"id": str(item.get("id", "")),
+				"amount": int(item.get("amount", 0)),
+				"display_amount": str(item.get("display_amount", ""))
+			})
+	return normalized
+
+func _normalize_transaction_line_items(payload: Array) -> Array:
+	var normalized: Array = []
+	for item in payload:
+		if item is Dictionary:
+			normalized.append(_normalize_dictionary(item))
+	return normalized
+
+func _normalize_transaction_items(payload: Array) -> Array:
+	var normalized: Array = []
+	for item in payload:
+		if item is Dictionary:
+			var normalized_item := _normalize_dictionary(item)
+			normalized_item["line_items"] = _normalize_transaction_line_items(item.get("line_items", []))
+			normalized_item["breakdown"] = item.get("breakdown", [])
+			normalized.append(normalized_item)
+	return normalized
+
+func _normalize_checkout_pay_object(payload: Dictionary) -> Dictionary:
+	var normalized := _normalize_s2s_pay_object(payload)
+	normalized["wallet_type"] = str(payload.get("wallet_type", ""))
+	normalized["balance"] = int(payload.get("balance", 0))
+	normalized["deficit"] = int(payload.get("deficit", 0))
+	normalized["payment_method_id"] = str(payload.get("payment_method_id", ""))
+	normalized["mod"] = _normalize_mod_object(payload.get("mod", {})) if payload.get("mod", null) is Dictionary else {}
+	return normalized
+
+func _normalize_s2s_pay_object(payload: Dictionary) -> Dictionary:
+	return {
+		"transaction_id": int(payload.get("transaction_id", 0)),
+		"gateway_uuid": str(payload.get("gateway_uuid", "")),
+		"gross_amount": int(payload.get("gross_amount", 0)),
+		"net_amount": int(payload.get("net_amount", 0)),
+		"platform_fee": int(payload.get("platform_fee", 0)),
+		"gateway_fee": int(payload.get("gateway_fee", 0)),
+		"transaction_type": str(payload.get("transaction_type", "")),
+		"meta": _normalize_transaction_meta_array(payload.get("meta", [])),
+		"purchase_date": int(payload.get("purchase_date", 0))
+	}
+
+func _normalize_refund_object(payload: Dictionary) -> Dictionary:
+	var normalized := _normalize_s2s_pay_object(payload)
+	normalized["tax"] = int(payload.get("tax", 0))
+	normalized["tax_type"] = str(payload.get("tax_type", ""))
+	return normalized
+
+func _normalize_monetization_transaction_array(payload: Array) -> Array:
+	var normalized: Array = []
+	for item in payload:
+		if item is Dictionary:
+			normalized.append(_normalize_monetization_transaction_object(item))
+	return normalized
+
+func _normalize_monetization_transaction_object(payload: Dictionary) -> Dictionary:
+	return {
+		"id": int(payload.get("id", 0)),
+		"gateway_uuid": str(payload.get("gateway_uuid", "")),
+		"gateway_name": str(payload.get("gateway_name", "")),
+		"account_id": int(payload.get("account_id", 0)),
+		"gross_amount": int(payload.get("gross_amount", 0)),
+		"net_amount": int(payload.get("net_amount", 0)),
+		"platform_fee": int(payload.get("platform_fee", 0)),
+		"gateway_fee": int(payload.get("gateway_fee", 0)),
+		"tax": int(payload.get("tax", 0)),
+		"tax_type": str(payload.get("tax_type", "")),
+		"currency": str(payload.get("currency", "")),
+		"tokens": int(payload.get("tokens", 0)),
+		"transaction_type": str(payload.get("transaction_type", "")),
+		"monetization_type": str(payload.get("monetization_type", "")),
+		"purchase_date": str(payload.get("purchase_date", "")),
+		"created_at": str(payload.get("created_at", "")),
+		"payment_method": _normalize_payment_method_array(payload.get("payment_method", [])),
+		"items": _normalize_transaction_items(payload.get("items", [])),
+		"line_items": _normalize_transaction_line_items(payload.get("line_items", []))
+	}
+
 func _normalize_collection_stats(payload: Variant) -> Dictionary:
 	var source: Dictionary = {}
 	if payload is Array:
@@ -2762,6 +2986,19 @@ func _append_optional_string_field(fields: Dictionary, body: Dictionary, field_n
 		return
 	body[field_name] = str(value).strip_edges()
 
+func _append_optional_non_empty_string_field(fields: Dictionary, body: Dictionary, field_name: String, errors: Array, allow_empty: bool = false) -> void:
+	if not fields.has(field_name):
+		return
+	var value = fields[field_name]
+	if value == null:
+		errors.append("%s must be a non-empty string" % field_name)
+		return
+	var sanitized := str(value).strip_edges()
+	if sanitized.is_empty() and not allow_empty:
+		errors.append("%s must be a non-empty string" % field_name)
+		return
+	body[field_name] = sanitized
+
 func _append_optional_enum_int_field(fields: Dictionary, body: Dictionary, field_name: String, allowed_values: Array, errors: Array) -> void:
 	if not fields.has(field_name):
 		return
@@ -2814,6 +3051,34 @@ func _append_optional_boolean_field(fields: Dictionary, body: Dictionary, field_
 			body[field_name] = false
 			return
 	errors.append("%s must be a boolean" % field_name)
+
+func _append_optional_query_string_or_array(fields: Dictionary, query: Dictionary, field_name: String, allowed_values: Array, errors: Array) -> void:
+	if not fields.has(field_name):
+		return
+	var value = fields[field_name]
+	if value is Array:
+		if value.is_empty():
+			errors.append("%s must not be empty" % field_name)
+			return
+		var normalized: Array = []
+		for item in value:
+			var sanitized := str(item).strip_edges().to_upper()
+			if sanitized.is_empty():
+				errors.append("%s must contain only non-empty strings" % field_name)
+				return
+			if not allowed_values.has(sanitized):
+				errors.append("%s contains undocumented value '%s'" % [field_name, sanitized])
+			normalized.append(sanitized)
+		query[field_name] = normalized
+		return
+	var sanitized := str(value).strip_edges().to_upper()
+	if sanitized.is_empty():
+		errors.append("%s must be a non-empty string or array" % field_name)
+		return
+	if not allowed_values.has(sanitized):
+		errors.append("%s must be one of %s" % [field_name, str(allowed_values)])
+		return
+	query[field_name] = sanitized
 
 func _append_guide_tags_field(fields: Dictionary, body: Dictionary, errors: Array, required: bool) -> void:
 	if not fields.has("tags"):
@@ -3000,6 +3265,185 @@ func _normalize_user_entitlements_fields(fields: Dictionary, portal: String, pla
 
 	return {"body": body, "headers": headers, "errors": errors}
 
+func _normalize_checkout_fields(mod_id: String, fields: Dictionary, portal: String, platform: String) -> Dictionary:
+	var errors: Array = []
+	var body := {}
+	var headers := _build_form_headers(true)
+	_append_required_positive_id_error(_config.game_id, "game_id", errors)
+	_append_required_positive_id_error(mod_id, "mod_id", errors)
+	var resolved_portal := portal.strip_edges().to_lower()
+	if resolved_portal.is_empty():
+		resolved_portal = _config.portal.to_lower()
+	if not resolved_portal.is_empty():
+		if not CHECKOUT_PORTAL_VALUES.has(resolved_portal):
+			errors.append("X-Modio-Portal must be one of %s" % str(CHECKOUT_PORTAL_VALUES))
+		else:
+			headers["X-Modio-Portal"] = resolved_portal
+
+	var resolved_platform := platform.strip_edges()
+	if resolved_platform.is_empty():
+		resolved_platform = _config.platform.strip_edges()
+	if resolved_portal == "psn":
+		if resolved_platform.is_empty():
+			errors.append("X-Modio-Platform is required when portal is psn")
+		else:
+			headers["X-Modio-Platform"] = resolved_platform
+	elif not resolved_platform.is_empty():
+		headers["X-Modio-Platform"] = resolved_platform
+
+	var allowed_fields := ["display_amount", "idempotent_key", "type", "subscribe", "psn_token", "psn_env", "psn_service_label", "xbox_token", "epicgames_token", "epicgames_sandbox_id", "payment_method_id", "terms_accepted", "refund_accepted", "transaction_id"]
+	_validate_allowed_fields(fields, allowed_fields, errors, "Checkout")
+	_append_required_non_empty_string_field(fields, body, "idempotent_key", errors, true)
+	_append_optional_enum_int_field(fields, body, "type", CHECKOUT_TYPE_VALUES, errors)
+	_append_optional_boolean_field(fields, body, "subscribe", errors)
+	_append_optional_int_like_field(fields, body, "display_amount", errors)
+	_append_optional_non_empty_string_field(fields, body, "psn_token", errors, false)
+	_append_optional_int_like_field(fields, body, "psn_env", errors)
+	_append_optional_int_like_field(fields, body, "psn_service_label", errors)
+	_append_optional_non_empty_string_field(fields, body, "xbox_token", errors, false)
+	_append_optional_non_empty_string_field(fields, body, "epicgames_token", errors, false)
+	_append_optional_non_empty_string_field(fields, body, "epicgames_sandbox_id", errors, false)
+	_append_optional_non_empty_string_field(fields, body, "payment_method_id", errors, false)
+	_append_optional_boolean_field(fields, body, "terms_accepted", errors)
+	_append_optional_boolean_field(fields, body, "refund_accepted", errors)
+	_append_optional_int_like_field(fields, body, "transaction_id", errors)
+
+	var checkout_type = _parse_int_like(fields.get("type", null))
+	if checkout_type == null:
+		errors.append("type is required")
+	else:
+		match int(checkout_type):
+			0:
+				if not body.has("display_amount"):
+					errors.append("display_amount is required when type is 0")
+			2, 3:
+				if not body.has("payment_method_id"):
+					errors.append("payment_method_id is required when type is %d" % int(checkout_type))
+				if not body.has("terms_accepted"):
+					errors.append("terms_accepted is required when type is %d" % int(checkout_type))
+				if not body.has("refund_accepted"):
+					errors.append("refund_accepted is required when type is %d" % int(checkout_type))
+			4:
+				if not body.has("transaction_id"):
+					errors.append("transaction_id is required when type is 4")
+
+	match resolved_portal:
+		"psn":
+			if not body.has("psn_token"):
+				errors.append("psn_token is required when portal is psn")
+		"xboxlive":
+			if not body.has("xbox_token"):
+				errors.append("xbox_token is required when portal is xboxlive")
+		"epicgames":
+			if not body.has("epicgames_token"):
+				errors.append("epicgames_token is required when portal is epicgames")
+			if not body.has("epicgames_sandbox_id"):
+				errors.append("epicgames_sandbox_id is required when portal is epicgames")
+		_:
+			pass
+
+	return {"body": body, "headers": headers, "errors": errors}
+
+func _normalize_s2s_transaction_intent_fields(fields: Dictionary, delegation_token: String, idempotent_key: String) -> Dictionary:
+	var errors: Array = []
+	var body := {}
+	var headers := _build_service_form_headers()
+	if not _config.has_service_token():
+		errors.append("service_token is required for S2S requests")
+	var sanitized_delegation_token := delegation_token.strip_edges()
+	if sanitized_delegation_token.is_empty():
+		errors.append("X-Modio-Delegation-Token is required")
+	else:
+		headers["X-Modio-Delegation-Token"] = sanitized_delegation_token
+	var sanitized_idempotent_key := idempotent_key.strip_edges()
+	if not sanitized_idempotent_key.is_empty():
+		headers["X-Modio-Idempotent-Key"] = sanitized_idempotent_key
+	var allowed_fields := ["sku", "portal", "gateway_uuid"]
+	_validate_allowed_fields(fields, allowed_fields, errors, "S2S transaction intent")
+	_append_required_non_empty_string_field(fields, body, "sku", errors, true)
+	_append_required_non_empty_string_field(fields, body, "portal", errors, true)
+	_append_optional_non_empty_string_field(fields, body, "gateway_uuid", errors, false)
+	return {"body": body, "headers": headers, "errors": errors}
+
+func _normalize_s2s_transaction_commit_fields(fields: Dictionary, idempotent_key: String) -> Dictionary:
+	var errors: Array = []
+	var body := {}
+	var headers := _build_service_form_headers()
+	if not _config.has_service_token():
+		errors.append("service_token is required for S2S requests")
+	var sanitized_idempotent_key := idempotent_key.strip_edges()
+	if not sanitized_idempotent_key.is_empty():
+		headers["X-Modio-Idempotent-Key"] = sanitized_idempotent_key
+	var allowed_fields := ["transaction_id", "clawback_uuid"]
+	_validate_allowed_fields(fields, allowed_fields, errors, "S2S transaction commit")
+	_append_optional_int_like_field(fields, body, "transaction_id", errors)
+	_append_optional_non_empty_string_field(fields, body, "clawback_uuid", errors, false)
+	if not body.has("transaction_id"):
+		errors.append("transaction_id is required")
+	return {"body": body, "headers": headers, "errors": errors}
+
+func _normalize_s2s_transaction_clawback_fields(fields: Dictionary) -> Dictionary:
+	var errors: Array = []
+	var body := {}
+	var headers := _build_service_form_headers()
+	if not _config.has_service_token():
+		errors.append("service_token is required for S2S requests")
+	var allowed_fields := ["transaction_id", "gateway_uuid", "portal", "refund_reason", "clawback_uuid"]
+	_validate_allowed_fields(fields, allowed_fields, errors, "S2S transaction clawback")
+	_append_optional_int_like_field(fields, body, "transaction_id", errors)
+	_append_optional_non_empty_string_field(fields, body, "gateway_uuid", errors, false)
+	_append_required_non_empty_string_field(fields, body, "portal", errors, true)
+	_append_required_non_empty_string_field(fields, body, "refund_reason", errors, true)
+	_append_optional_non_empty_string_field(fields, body, "clawback_uuid", errors, false)
+	if not body.has("transaction_id") and not body.has("gateway_uuid"):
+		errors.append("transaction_id or gateway_uuid is required")
+	if body.has("portal") and not CLAWBACK_PORTAL_VALUES.has(str(body.get("portal", "")).to_lower()):
+		errors.append("portal must be one of %s" % str(CLAWBACK_PORTAL_VALUES))
+	if body.has("portal"):
+		body["portal"] = str(body["portal"]).to_lower()
+	return {
+		"body": body,
+		"headers": headers,
+		"errors": errors,
+		"drift_notes": ["The refreshed REST page types gateway_uuid as an integer even though the description says it is an alpha-dash identifier; this adapter treats it as a string."]
+	}
+
+func _normalize_s2s_monetization_transactions_filters(filters: Dictionary, monetization_team_id: String) -> Dictionary:
+	var errors: Array = []
+	var query := {}
+	var headers := _build_service_read_headers()
+	if not _config.has_service_token():
+		errors.append("service_token is required for S2S requests")
+	var resolved_team_id := _resolve_monetization_team_id(monetization_team_id)
+	if resolved_team_id.is_empty():
+		errors.append("monetization_team_id is required")
+	else:
+		_append_required_positive_id_error(resolved_team_id, "monetization_team_id", errors)
+	var allowed_fields := ["transaction_type", "monetization_type", "buyer", "clawback_uuid", "gateway_uuid", "line_items", "created_at_start"]
+	_validate_allowed_fields(filters, allowed_fields, errors, "S2S monetization transactions")
+	_append_optional_query_string_or_array(filters, query, "transaction_type", MONETIZATION_TRANSACTION_TYPE_VALUES, errors)
+	_append_optional_query_string_or_array(filters, query, "monetization_type", MONETIZATION_TYPE_VALUES, errors)
+	_append_optional_int_like_field(filters, query, "buyer", errors)
+	_append_optional_non_empty_string_field(filters, query, "clawback_uuid", errors, false)
+	_append_optional_non_empty_string_field(filters, query, "gateway_uuid", errors, false)
+	_append_optional_non_empty_string_field(filters, query, "line_items", errors, false)
+	_append_optional_int_like_field(filters, query, "created_at_start", errors)
+	return {"monetization_team_id": resolved_team_id, "query": query, "headers": headers, "errors": errors}
+
+func _normalize_s2s_monetization_transaction_path(transaction_id: String, monetization_team_id: String) -> Dictionary:
+	var errors: Array = []
+	var headers := _build_service_read_headers()
+	if not _config.has_service_token():
+		errors.append("service_token is required for S2S requests")
+	var resolved_team_id := _resolve_monetization_team_id(monetization_team_id)
+	if resolved_team_id.is_empty():
+		errors.append("monetization_team_id is required")
+	else:
+		_append_required_positive_id_error(resolved_team_id, "monetization_team_id", errors)
+	var sanitized_transaction_id := transaction_id.strip_edges()
+	_append_required_positive_id_error(sanitized_transaction_id, "transaction_id", errors)
+	return {"monetization_team_id": resolved_team_id, "transaction_id": sanitized_transaction_id, "headers": headers, "errors": errors}
+
 func _build_public_query() -> Dictionary:
 	var query := {}
 	if not _config.api_key.is_empty():
@@ -3017,8 +3461,19 @@ func _build_read_headers(requires_bearer: bool) -> Dictionary:
 		headers["Authorization"] = "Bearer %s" % _config.access_token
 	return headers
 
+func _build_service_read_headers() -> Dictionary:
+	var headers := _config.build_default_headers()
+	if _config.has_service_token():
+		headers["Authorization"] = "Bearer %s" % _config.service_token
+	return headers
+
 func _build_form_headers(requires_bearer: bool) -> Dictionary:
 	var headers := _build_read_headers(requires_bearer)
+	headers["Content-Type"] = ModioHttpTransport.CONTENT_TYPE_FORM
+	return headers
+
+func _build_service_form_headers() -> Dictionary:
+	var headers := _build_service_read_headers()
 	headers["Content-Type"] = ModioHttpTransport.CONTENT_TYPE_FORM
 	return headers
 
@@ -3051,6 +3506,12 @@ func _resolve_read_auth_mode(requires_bearer: bool) -> String:
 	if requires_bearer:
 		return "bearer"
 	return "api_key_query"
+
+func _resolve_monetization_team_id(monetization_team_id: String = "") -> String:
+	var explicit_team_id := monetization_team_id.strip_edges()
+	if not explicit_team_id.is_empty():
+		return explicit_team_id
+	return _config.monetization_team_id.strip_edges()
 
 func _sanitize_requested_expiry(requested_expiry: int, max_lifetime_seconds: int) -> int:
 	if requested_expiry <= 0:

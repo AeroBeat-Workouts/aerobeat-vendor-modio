@@ -662,6 +662,193 @@ func test_builds_wallet_purchase_and_entitlement_requests_with_documented_semant
 	assert_true(missing_portal_entitlements_request.validation_errors.size() >= 1)
 	assert_string_contains(missing_portal_entitlements_request.validation_error, "X-Modio-Portal is required")
 
+func test_builds_checkout_and_s2s_requests_with_documented_semantics() -> void:
+	var adapter := ModioVendorAdapter.new(
+		ModioClientConfig.new("777", "demo-key", ModioClientConfig.DEFAULT_BASE_URL, "user-token", "en-US", "steam", "WINDOWS", ModioClientConfig.HOST_API, "", false, "service-token", "88"),
+		ModioHttpTransport.new()
+	)
+
+	var checkout_request = adapter.build_checkout_request("1001", {
+		"idempotent_key": " idem-123 ",
+		"type": 2,
+		"payment_method_id": " pm_web_123 ",
+		"terms_accepted": true,
+		"refund_accepted": true,
+		"subscribe": true
+	})
+	assert_eq(checkout_request.method, "POST")
+	assert_eq(checkout_request.path, "/games/777/mods/1001/checkout")
+	assert_eq(checkout_request.auth_mode, "bearer")
+	assert_eq(checkout_request.headers.Authorization, "Bearer user-token")
+	assert_eq(checkout_request.headers["X-Modio-Portal"], "steam")
+	assert_eq(checkout_request.body.idempotent_key, "idem-123")
+	assert_eq(checkout_request.body.type, "2")
+	assert_eq(checkout_request.body.payment_method_id, "pm_web_123")
+	assert_eq(checkout_request.body.terms_accepted, true)
+	assert_eq(checkout_request.body.refund_accepted, true)
+	assert_eq(checkout_request.body.subscribe, true)
+	assert_true(checkout_request.validation_errors.is_empty())
+
+	var psn_checkout_request = adapter.build_checkout_request("1001", {
+		"idempotent_key": "psn-idem",
+		"type": 1,
+		"psn_token": " v3.PSN ",
+		"psn_env": 256,
+		"psn_service_label": 0
+	}, "psn", "PLAYSTATION5")
+	assert_eq(psn_checkout_request.headers["X-Modio-Portal"], "psn")
+	assert_eq(psn_checkout_request.headers["X-Modio-Platform"], "PLAYSTATION5")
+	assert_eq(psn_checkout_request.body.psn_token, "v3.PSN")
+	assert_eq(psn_checkout_request.body.psn_env, "256")
+	assert_eq(psn_checkout_request.body.psn_service_label, "0")
+	assert_true(psn_checkout_request.validation_errors.is_empty())
+
+	var commit_checkout_request = adapter.build_checkout_request("1001", {
+		"idempotent_key": "commit-idem",
+		"type": 4,
+		"transaction_id": 55
+	}, "")
+	assert_eq(commit_checkout_request.body.transaction_id, "55")
+	assert_true(commit_checkout_request.validation_errors.is_empty())
+
+	var invalid_checkout_request = ModioVendorAdapter.new(
+		ModioClientConfig.new("777", "demo-key", ModioClientConfig.DEFAULT_BASE_URL, "user-token", "en-US", "", ""),
+		ModioHttpTransport.new()
+	).build_checkout_request("0", {
+		"idempotent_key": "",
+		"type": 3,
+		"extra": true
+	}, "psn")
+	assert_true(invalid_checkout_request.validation_errors.size() >= 5)
+	assert_string_contains(invalid_checkout_request.validation_error, "Checkout field 'extra' is not documented")
+	assert_string_contains(invalid_checkout_request.validation_error, "mod_id must be a positive integer path id")
+	assert_string_contains(invalid_checkout_request.validation_error, "idempotent_key must be a non-empty string")
+	assert_string_contains(invalid_checkout_request.validation_error, "payment_method_id is required when type is 3")
+	assert_string_contains(invalid_checkout_request.validation_error, "X-Modio-Platform is required when portal is psn")
+	assert_string_contains(invalid_checkout_request.validation_error, "psn_token is required when portal is psn")
+
+	var s2s_intent_request = adapter.build_s2s_transaction_intent_request({
+		"sku": " beat-pack-200 ",
+		"portal": "steam",
+		"gateway_uuid": " gw-123 "
+	}, " delegation-token ", " idem-s2s ")
+	assert_eq(s2s_intent_request.path, "/s2s/transactions/intent")
+	assert_eq(s2s_intent_request.headers.Authorization, "Bearer service-token")
+	assert_eq(s2s_intent_request.headers["X-Modio-Delegation-Token"], "delegation-token")
+	assert_eq(s2s_intent_request.headers["X-Modio-Idempotent-Key"], "idem-s2s")
+	assert_eq(s2s_intent_request.body.sku, "beat-pack-200")
+	assert_eq(s2s_intent_request.body.portal, "steam")
+	assert_eq(s2s_intent_request.body.gateway_uuid, "gw-123")
+	assert_true(s2s_intent_request.validation_errors.is_empty())
+
+	var s2s_commit_request = adapter.build_s2s_transaction_commit_request({
+		"transaction_id": 123456789,
+		"clawback_uuid": " cb-123 "
+	}, " idem-commit ")
+	assert_eq(s2s_commit_request.path, "/s2s/transactions/commit")
+	assert_eq(s2s_commit_request.headers.Authorization, "Bearer service-token")
+	assert_eq(s2s_commit_request.headers["X-Modio-Idempotent-Key"], "idem-commit")
+	assert_eq(s2s_commit_request.body.transaction_id, "123456789")
+	assert_eq(s2s_commit_request.body.clawback_uuid, "cb-123")
+	assert_true(s2s_commit_request.validation_errors.is_empty())
+
+	var s2s_clawback_request = adapter.build_s2s_transaction_clawback_request({
+		"gateway_uuid": " abc-def ",
+		"portal": "PSN",
+		"refund_reason": "fraud",
+		"clawback_uuid": " refund-1 "
+	})
+	assert_eq(s2s_clawback_request.path, "/s2s/transactions/clawback")
+	assert_eq(s2s_clawback_request.headers.Authorization, "Bearer service-token")
+	assert_eq(s2s_clawback_request.body.gateway_uuid, "abc-def")
+	assert_eq(s2s_clawback_request.body.portal, "psn")
+	assert_eq(s2s_clawback_request.body.refund_reason, "fraud")
+	assert_true(s2s_clawback_request.validation_errors.is_empty())
+
+	var s2s_transactions_request = adapter.build_s2s_monetization_transactions_request({
+		"transaction_type": ["PAID", "CLEARED"],
+		"monetization_type": "external",
+		"buyer": 42,
+		"clawback_uuid": " cb-1 ",
+		"gateway_uuid": " gw-1 ",
+		"line_items": "mod_id:1001",
+		"created_at_start": 1777808400
+	})
+	assert_eq(s2s_transactions_request.path, "/s2s/monetization-teams/88/transactions")
+	assert_eq(s2s_transactions_request.headers.Authorization, "Bearer service-token")
+	assert_eq(s2s_transactions_request.query.transaction_type, ["PAID", "CLEARED"])
+	assert_eq(s2s_transactions_request.query.monetization_type, "EXTERNAL")
+	assert_eq(s2s_transactions_request.query.buyer, "42")
+	assert_eq(s2s_transactions_request.query.clawback_uuid, "cb-1")
+	assert_eq(s2s_transactions_request.query.gateway_uuid, "gw-1")
+	assert_eq(s2s_transactions_request.query.line_items, "mod_id:1001")
+	assert_eq(s2s_transactions_request.query.created_at_start, "1777808400")
+	assert_true(s2s_transactions_request.validation_errors.is_empty())
+
+	var s2s_transaction_request = adapter.build_s2s_monetization_transaction_request("1234")
+	assert_eq(s2s_transaction_request.path, "/s2s/monetization-teams/88/transactions/1234")
+	assert_eq(s2s_transaction_request.headers.Authorization, "Bearer service-token")
+	assert_true(s2s_transaction_request.validation_errors.is_empty())
+
+	var invalid_s2s_request = ModioVendorAdapter.new(
+		ModioClientConfig.new("777", "demo-key", ModioClientConfig.DEFAULT_BASE_URL, "user-token", "en-US", "steam", "WINDOWS"),
+		ModioHttpTransport.new()
+	).build_s2s_transaction_intent_request({"sku": "", "extra": true}, "")
+	assert_true(invalid_s2s_request.validation_errors.size() >= 4)
+	assert_string_contains(invalid_s2s_request.validation_error, "service_token is required for S2S requests")
+	assert_string_contains(invalid_s2s_request.validation_error, "X-Modio-Delegation-Token is required")
+	assert_string_contains(invalid_s2s_request.validation_error, "S 2s Transaction Intent field 'extra' is not documented")
+	assert_string_contains(invalid_s2s_request.validation_error, "sku must be a non-empty string")
+	assert_string_contains(invalid_s2s_request.validation_error, "portal is required")
+
+	var invalid_s2s_history_request = ModioVendorAdapter.new(
+		ModioClientConfig.new("777", "demo-key", ModioClientConfig.DEFAULT_BASE_URL, "user-token", "en-US", "steam", "WINDOWS", ModioClientConfig.HOST_API, "", false, "service-token", ""),
+		ModioHttpTransport.new()
+	).build_s2s_monetization_transactions_request({
+		"transaction_type": "NOPE"
+	})
+	assert_true(invalid_s2s_history_request.validation_errors.size() >= 2)
+	assert_string_contains(invalid_s2s_history_request.validation_error, "monetization_team_id is required")
+	assert_string_contains(invalid_s2s_history_request.validation_error, "transaction_type must be one of")
+
+func test_normalizes_checkout_and_s2s_responses_with_documented_drift_notes() -> void:
+	var adapter := _build_adapter()
+
+	var checkout = adapter.normalize_checkout_response(200, {}, _fixture("checkout_success.json"))
+	assert_true(checkout.ok)
+	assert_true(checkout.completed)
+	assert_eq(checkout.data.transaction_id, 654321)
+	assert_eq(checkout.data.wallet_type, "TOKEN")
+	assert_eq(checkout.data.balance, 9501)
+	assert_eq(checkout.data.mod.name_id, "cardio-pack")
+
+	var s2s_intent = adapter.normalize_s2s_transaction_intent_response(200, {}, _fixture("s2s_pay_success.json"))
+	assert_true(s2s_intent.ok)
+	assert_true(s2s_intent.created)
+	assert_eq(s2s_intent.data.transaction_id, 123456789)
+	assert_eq(s2s_intent.data.meta[0].token_name, "beats")
+
+	var s2s_commit = adapter.normalize_s2s_transaction_commit_response(200, {}, _fixture("s2s_pay_success.json"))
+	assert_true(s2s_commit.committed)
+
+	var s2s_clawback = adapter.normalize_s2s_transaction_clawback_response(200, {}, _fixture("s2s_refund_success.json"))
+	assert_true(s2s_clawback.clawed_back)
+	assert_eq(s2s_clawback.data.tax, 150)
+	assert_eq(s2s_clawback.data.tax_type, "GST")
+
+	var s2s_transactions = adapter.normalize_s2s_monetization_transactions_response(_fixture("s2s_transactions.json"))
+	assert_eq(s2s_transactions.data.size(), 1)
+	assert_eq(s2s_transactions.data[0].gateway_name, "tilia")
+	assert_eq(s2s_transactions.pagination.current_page, "/v1/s2s/monetization-teams/88/transactions?cursor=current")
+	assert_eq(s2s_transactions.drift_notes.size(), 2)
+
+	var s2s_transaction = adapter.normalize_s2s_monetization_transaction_response(_fixture("s2s_transaction.json"))
+	assert_eq(s2s_transaction.data.size(), 1)
+	assert_eq(s2s_transaction.transaction.id, 1234)
+	assert_eq(s2s_transaction.transaction.items.size(), 1)
+	assert_eq(s2s_transaction.transaction.items[0].line_items[0].mod_id, 1001)
+	assert_eq(s2s_transaction.drift_notes.size(), 1)
+
 func test_builds_guide_requests_with_documented_filter_and_sort_support() -> void:
 	var public_adapter := _build_adapter()
 	var auth_adapter := _build_adapter_with_token()
