@@ -40,6 +40,7 @@ const GUIDE_COMMUNITY_OPTION_VALUES := [0, 2048]
 const COLLECTION_STATUS_VALUES := [0, 1]
 const COLLECTION_VISIBILITY_VALUES := [0, 1]
 const COLLECTION_TAG_VALUES := ["ANIMATION", "AUDIO", "BUGFIXES", "CHEATING", "ENVIRONMENT", "GAMEPLAY", "QUALITY_OF_LIFE", "UI", "VISUAL"]
+const MODFILE_PLATFORM_VALUES := ["ALL", "WINDOWS", "MAC", "LINUX", "ANDROID", "IOS", "XBOXONE", "XBOXSERIESX", "PLAYSTATION4", "PLAYSTATION5", "SWITCH", "OCULUS", "SOURCE", "SWITCH2", "WINDOWSSERVER", "LINUXSERVER"]
 
 var _config: ModioClientConfig
 var _transport: ModioHttpTransport
@@ -398,6 +399,51 @@ func build_modfile_request(mod_id: String, file_id: String) -> Dictionary:
 		{},
 		_build_read_headers(false),
 		{"auth_mode": _resolve_read_auth_mode(false)}
+	)
+
+func build_add_modfile_request(mod_id: String, fields: Dictionary) -> Dictionary:
+	var errors: Array = []
+	_append_required_positive_id_error(mod_id, "mod_id", errors)
+	var normalized := _normalize_add_modfile_fields(fields)
+	errors.append_array(normalized.errors)
+	return _build_validated_request(
+		"POST",
+		"/games/%s/mods/%s/files" % [_config.game_id, mod_id.strip_edges()],
+		{},
+		normalized.body,
+		_build_multipart_headers(true),
+		{"content_type": ModioHttpTransport.CONTENT_TYPE_MULTIPART, "auth_mode": "bearer"},
+		errors
+	)
+
+func build_update_modfile_request(mod_id: String, file_id: String, fields: Dictionary) -> Dictionary:
+	var errors: Array = []
+	_append_required_positive_id_error(mod_id, "mod_id", errors)
+	_append_required_positive_id_error(file_id, "file_id", errors)
+	var normalized := _normalize_update_modfile_fields(fields)
+	errors.append_array(normalized.errors)
+	return _build_validated_request(
+		"PUT",
+		"/games/%s/mods/%s/files/%s" % [_config.game_id, mod_id.strip_edges(), file_id.strip_edges()],
+		{},
+		normalized.body,
+		_build_form_headers(true),
+		{"content_type": ModioHttpTransport.CONTENT_TYPE_FORM, "auth_mode": "bearer"},
+		errors
+	)
+
+func build_delete_modfile_request(mod_id: String, file_id: String) -> Dictionary:
+	var errors: Array = []
+	_append_required_positive_id_error(mod_id, "mod_id", errors)
+	_append_required_positive_id_error(file_id, "file_id", errors)
+	return _build_validated_request(
+		"DELETE",
+		"/games/%s/mods/%s/files/%s" % [_config.game_id, mod_id.strip_edges(), file_id.strip_edges()],
+		{},
+		{},
+		_build_form_headers(true),
+		{"content_type": ModioHttpTransport.CONTENT_TYPE_FORM, "auth_mode": "bearer"},
+		errors
 	)
 
 func build_mod_stats_request(mod_id: String) -> Dictionary:
@@ -1196,6 +1242,25 @@ func normalize_user_modfiles_response(payload: Dictionary) -> Dictionary:
 func normalize_modfile_response(payload: Dictionary) -> Dictionary:
 	return _normalize_modfile_object(payload)
 
+func normalize_add_modfile_response(status_code: int, headers: Dictionary, payload: Dictionary) -> Dictionary:
+	var response := _normalize_modfile_write_response(status_code, headers, payload)
+	if not response.ok:
+		return response
+	response["created"] = status_code == 201
+	return response
+
+func normalize_update_modfile_response(status_code: int, headers: Dictionary, payload: Dictionary) -> Dictionary:
+	var response := _normalize_modfile_write_response(status_code, headers, payload)
+	if not response.ok:
+		return response
+	response["updated"] = status_code == 200
+	return response
+
+func normalize_delete_modfile_response(status_code: int, headers: Dictionary = {}) -> Dictionary:
+	var response := _normalize_no_content_write_response(status_code, headers)
+	response["deleted"] = response.ok and status_code == 204
+	return response
+
 func normalize_mod_stats_response(payload: Dictionary) -> Dictionary:
 	var normalized := _normalize_stats_object(payload)
 	var now := Time.get_unix_time_from_system()
@@ -1417,6 +1482,14 @@ func _normalize_no_content_write_response(status_code: int, headers: Dictionary 
 	if not response.ok:
 		return response
 	response["data"] = {}
+	return response
+
+func _normalize_modfile_write_response(status_code: int, headers: Dictionary, payload: Dictionary) -> Dictionary:
+	var response := _transport.normalize_response(status_code, headers, payload)
+	if not response.ok:
+		return response
+	response["data"] = _normalize_modfile_object(payload)
+	response["location"] = response.headers.get("location", "")
 	return response
 
 func _normalize_collection_write_response(status_code: int, headers: Dictionary, payload: Dictionary) -> Dictionary:
@@ -2160,6 +2233,34 @@ func _normalize_collection_authoring_fields(fields: Dictionary, is_update: bool)
 		_append_optional_boolean_field(fields, body, "sync", errors)
 	return {"body": body, "errors": errors}
 
+func _normalize_add_modfile_fields(fields: Dictionary) -> Dictionary:
+	var body := {}
+	var errors: Array = []
+	_validate_allowed_fields(fields, ["filedata", "upload_id", "version", "changelog", "active", "filehash", "metadata_blob", "platforms"], errors, "modfile")
+	_append_raw_multipart_field(fields, body, "filedata", errors, false)
+	_append_required_non_empty_string_field(fields, body, "upload_id", errors, false)
+	_append_optional_string_field(fields, body, "version", errors)
+	_append_optional_string_field(fields, body, "changelog", errors)
+	_append_optional_boolean_field(fields, body, "active", errors)
+	_append_optional_string_field(fields, body, "filehash", errors)
+	_append_optional_string_field(fields, body, "metadata_blob", errors)
+	_append_modfile_platforms_field(fields, body, errors)
+	var has_filedata := body.has("filedata")
+	var has_upload_id := body.has("upload_id")
+	if has_filedata == has_upload_id:
+		errors.append("Exactly one of filedata or upload_id must be supplied")
+	return {"body": body, "errors": errors}
+
+func _normalize_update_modfile_fields(fields: Dictionary) -> Dictionary:
+	var body := {}
+	var errors: Array = []
+	_validate_allowed_fields(fields, ["version", "changelog", "active", "metadata_blob"], errors, "modfile")
+	_append_optional_string_field(fields, body, "version", errors)
+	_append_optional_string_field(fields, body, "changelog", errors)
+	_append_optional_boolean_field(fields, body, "active", errors)
+	_append_optional_string_field(fields, body, "metadata_blob", errors)
+	return {"body": body, "errors": errors}
+
 func _normalize_collection_delete_fields(fields: Dictionary) -> Dictionary:
 	var body := {}
 	var errors: Array = []
@@ -2218,6 +2319,30 @@ func _append_raw_multipart_field(fields: Dictionary, body: Dictionary, field_nam
 		errors.append("%s must be a non-empty raw multipart value" % field_name)
 		return
 	body[field_name] = str(value).strip_edges() if value is String else value
+
+func _append_required_non_empty_string_field(fields: Dictionary, body: Dictionary, field_name: String, errors: Array, required: bool) -> void:
+	if not fields.has(field_name):
+		if required:
+			errors.append("%s is required" % field_name)
+		return
+	var value = fields[field_name]
+	if value == null:
+		errors.append("%s must be a non-empty string" % field_name)
+		return
+	var sanitized := str(value).strip_edges()
+	if sanitized.is_empty():
+		errors.append("%s must be a non-empty string" % field_name)
+		return
+	body[field_name] = sanitized
+
+func _append_optional_string_field(fields: Dictionary, body: Dictionary, field_name: String, errors: Array) -> void:
+	if not fields.has(field_name):
+		return
+	var value = fields[field_name]
+	if value == null:
+		errors.append("%s must be a string" % field_name)
+		return
+	body[field_name] = str(value).strip_edges()
 
 func _append_optional_enum_int_field(fields: Dictionary, body: Dictionary, field_name: String, allowed_values: Array, errors: Array) -> void:
 	if not fields.has(field_name):
@@ -2311,6 +2436,30 @@ func _append_int_array_field(fields: Dictionary, body: Dictionary, field_name: S
 		normalized.append(parsed)
 	body[field_name] = normalized
 
+func _append_modfile_platforms_field(fields: Dictionary, body: Dictionary, errors: Array) -> void:
+	if not fields.has("platforms"):
+		return
+	var value = fields["platforms"]
+	if not (value is Array):
+		errors.append("platforms must be an array of documented platform strings")
+		return
+	if value.is_empty():
+		errors.append("platforms must contain at least one documented platform string")
+		return
+	var normalized: Array = []
+	for item in value:
+		if item == null:
+			errors.append("platforms must contain only documented platform strings")
+			return
+		var platform := str(item).strip_edges()
+		if platform.is_empty():
+			errors.append("platforms must contain only documented platform strings")
+			return
+		if not MODFILE_PLATFORM_VALUES.has(platform):
+			errors.append("platforms contains undocumented platform '%s'" % platform)
+		normalized.append(platform)
+	body["platforms"] = normalized
+
 func _normalize_string_array_field(value: Variant, field_name: String, errors: Array, max_item_length: int, max_items: int, distinct_required: bool):
 	if not (value is Array):
 		errors.append("%s must be an array" % field_name)
@@ -2344,6 +2493,11 @@ func _parse_int_like(value: Variant) -> Variant:
 	if as_string.is_empty() or not as_string.is_valid_int():
 		return null
 	return int(as_string)
+
+func _append_required_positive_id_error(value: Variant, field_name: String, errors: Array) -> void:
+	var parsed = _parse_int_like(value)
+	if parsed == null or int(parsed) <= 0:
+		errors.append("%s must be a positive integer path id" % field_name)
 
 func _build_public_query() -> Dictionary:
 	var query := {}

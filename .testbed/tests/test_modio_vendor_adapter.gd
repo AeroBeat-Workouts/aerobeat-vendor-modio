@@ -184,6 +184,88 @@ func test_builds_browse_and_detail_requests_with_endpoint_aware_query_shapes() -
 	var mod_stats_request = adapter.build_mod_stats_request("1001")
 	assert_eq(mod_stats_request.path, "/games/777/mods/1001/stats")
 
+func test_builds_modfile_write_requests_with_documented_validation() -> void:
+	var adapter := _build_adapter_with_token()
+
+	var add_request = adapter.build_add_modfile_request("1001", {
+		"filedata": "@/tmp/cardio-blaster-v2.zip",
+		"version": "1.2.0",
+		"changelog": " Added a harder warmup track. ",
+		"active": true,
+		"filehash": "938c2cc0dcc05f2b68c4287040cfcf71",
+		"metadata_blob": "client_signature:9VbZccpR",
+		"platforms": ["WINDOWS", "SWITCH2"]
+	})
+	assert_eq(add_request.method, "POST")
+	assert_eq(add_request.path, "/games/777/mods/1001/files")
+	assert_eq(add_request.auth_mode, "bearer")
+	assert_eq(add_request.content_type, ModioHttpTransport.CONTENT_TYPE_MULTIPART)
+	assert_eq(add_request.headers.Authorization, "Bearer user-token")
+	assert_eq(add_request.body.filedata, "@/tmp/cardio-blaster-v2.zip")
+	assert_eq(add_request.body.version, "1.2.0")
+	assert_eq(add_request.body.changelog, "Added a harder warmup track.")
+	assert_true(add_request.body.active)
+	assert_eq(add_request.body.filehash, "938c2cc0dcc05f2b68c4287040cfcf71")
+	assert_eq(add_request.body.metadata_blob, "client_signature:9VbZccpR")
+	assert_eq(add_request.body.platforms, ["WINDOWS", "SWITCH2"])
+	assert_true(add_request.validation_errors.is_empty())
+
+	var add_upload_request = adapter.build_add_modfile_request("1001", {
+		"upload_id": "123e4567-e89b-12d3-a456-426614174000",
+		"active": false
+	})
+	assert_false(add_upload_request.body.has("filedata"))
+	assert_eq(add_upload_request.body.upload_id, "123e4567-e89b-12d3-a456-426614174000")
+	assert_false(add_upload_request.body.active)
+	assert_true(add_upload_request.validation_errors.is_empty())
+
+	var update_request = adapter.build_update_modfile_request("1001", "5002", {
+		"version": " 1.2.1 ",
+		"changelog": " Tightened timing windows. ",
+		"active": "0",
+		"metadata_blob": " game_version:1.2.1 "
+	})
+	assert_eq(update_request.method, "PUT")
+	assert_eq(update_request.path, "/games/777/mods/1001/files/5002")
+	assert_eq(update_request.auth_mode, "bearer")
+	assert_eq(update_request.content_type, ModioHttpTransport.CONTENT_TYPE_FORM)
+	assert_eq(update_request.headers.Authorization, "Bearer user-token")
+	assert_eq(update_request.body.version, "1.2.1")
+	assert_eq(update_request.body.changelog, "Tightened timing windows.")
+	assert_false(update_request.body.active)
+	assert_eq(update_request.body.metadata_blob, "game_version:1.2.1")
+	assert_true(update_request.validation_errors.is_empty())
+
+	var delete_request = adapter.build_delete_modfile_request("1001", "5002")
+	assert_eq(delete_request.method, "DELETE")
+	assert_eq(delete_request.path, "/games/777/mods/1001/files/5002")
+	assert_eq(delete_request.auth_mode, "bearer")
+	assert_eq(delete_request.content_type, ModioHttpTransport.CONTENT_TYPE_FORM)
+	assert_eq(delete_request.headers.Authorization, "Bearer user-token")
+	assert_eq(delete_request.body, {})
+	assert_true(delete_request.validation_errors.is_empty())
+
+	var invalid_add_request = adapter.build_add_modfile_request("not-a-mod", {
+		"filedata": "@/tmp/mod.zip",
+		"upload_id": "123e4567-e89b-12d3-a456-426614174000",
+		"platforms": ["INVALID"],
+		"extra": true
+	})
+	assert_true(invalid_add_request.validation_errors.size() >= 4)
+	assert_string_contains(invalid_add_request.validation_error, "mod_id must be a positive integer path id")
+	assert_string_contains(invalid_add_request.validation_error, "Exactly one of filedata or upload_id must be supplied")
+	assert_string_contains(invalid_add_request.validation_error, "platforms contains undocumented platform 'INVALID'")
+	assert_string_contains(invalid_add_request.validation_error, "Modfile field 'extra' is not documented")
+
+	var invalid_update_request = adapter.build_update_modfile_request("1001", "0", {
+		"active": "maybe",
+		"filehash": "nope"
+	})
+	assert_true(invalid_update_request.validation_errors.size() >= 2)
+	assert_string_contains(invalid_update_request.validation_error, "file_id must be a positive integer path id")
+	assert_string_contains(invalid_update_request.validation_error, "active must be a boolean")
+	assert_string_contains(invalid_update_request.validation_error, "Modfile field 'filehash' is not documented")
+
 func test_builds_authenticated_subscription_requests_and_gates_unsupported_filters() -> void:
 	var adapter := _build_adapter_with_token()
 
@@ -1708,6 +1790,26 @@ func test_builds_guide_and_collection_authoring_requests_with_documented_validat
 		"sync": "maybe"
 	})
 	assert_true(invalid_collection_request.validation_errors.size() >= 2)
+
+func test_normalizes_modfile_write_responses() -> void:
+	var adapter := _build_adapter_with_token()
+
+	var created_modfile = adapter.normalize_add_modfile_response(201, {"Location": "/games/777/mods/1001/files/5002"}, _fixture("modfile_detail.json"))
+	assert_true(created_modfile.ok)
+	assert_true(created_modfile.created)
+	assert_eq(created_modfile.location, "/games/777/mods/1001/files/5002")
+	assert_eq(created_modfile.data.id, 5002)
+	assert_eq(created_modfile.data.filename, "cardio-blaster-v1.1.zip")
+
+	var updated_modfile = adapter.normalize_update_modfile_response(200, {}, _fixture("modfile_detail.json"))
+	assert_true(updated_modfile.ok)
+	assert_true(updated_modfile.updated)
+	assert_eq(updated_modfile.data.metadata_blob, "{\"songCount\":14}")
+
+	var deleted_modfile = adapter.normalize_delete_modfile_response(204)
+	assert_true(deleted_modfile.ok)
+	assert_true(deleted_modfile.deleted)
+	assert_eq(deleted_modfile.data, {})
 
 func test_normalizes_guide_and_collection_authoring_write_responses() -> void:
 	var adapter := _build_adapter_with_token()
