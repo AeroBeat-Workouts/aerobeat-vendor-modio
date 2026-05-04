@@ -1195,6 +1195,78 @@ func build_mod_metadata_kvp_request(mod_id: String, query: ModioListingQuery = M
 		{"auth_mode": _resolve_read_auth_mode(false)}
 	)
 
+func build_add_mod_tags_request(mod_id: String, fields: Dictionary) -> Dictionary:
+	var normalized := _normalize_mod_tags_write_fields(mod_id, fields)
+	return _build_validated_request(
+		"POST",
+		"/games/%s/mods/%s/tags" % [_config.game_id, mod_id.strip_edges()],
+		{},
+		normalized.body,
+		_build_form_headers(true),
+		{"content_type": ModioHttpTransport.CONTENT_TYPE_FORM, "auth_mode": "bearer"},
+		normalized.errors
+	)
+
+func build_delete_mod_tags_request(mod_id: String, fields: Dictionary) -> Dictionary:
+	var normalized := _normalize_mod_tags_write_fields(mod_id, fields)
+	return _build_validated_request(
+		"DELETE",
+		"/games/%s/mods/%s/tags" % [_config.game_id, mod_id.strip_edges()],
+		{},
+		normalized.body,
+		_build_form_headers(true),
+		{"content_type": ModioHttpTransport.CONTENT_TYPE_FORM, "auth_mode": "bearer"},
+		normalized.errors
+	)
+
+func build_add_mod_metadata_kvp_request(mod_id: String, fields: Dictionary) -> Dictionary:
+	var normalized := _normalize_mod_metadata_kvp_write_fields(mod_id, fields)
+	return _build_validated_request(
+		"POST",
+		"/games/%s/mods/%s/metadatakvp" % [_config.game_id, mod_id.strip_edges()],
+		{},
+		normalized.body,
+		_build_form_headers(true),
+		{"content_type": ModioHttpTransport.CONTENT_TYPE_FORM, "auth_mode": "bearer"},
+		normalized.errors
+	)
+
+func build_delete_mod_metadata_kvp_request(mod_id: String, fields: Dictionary) -> Dictionary:
+	var normalized := _normalize_mod_metadata_kvp_write_fields(mod_id, fields)
+	return _build_validated_request(
+		"DELETE",
+		"/games/%s/mods/%s/metadatakvp" % [_config.game_id, mod_id.strip_edges()],
+		{},
+		normalized.body,
+		_build_form_headers(true),
+		{"content_type": ModioHttpTransport.CONTENT_TYPE_FORM, "auth_mode": "bearer"},
+		normalized.errors
+	)
+
+func build_add_mod_dependencies_request(mod_id: String, fields: Dictionary) -> Dictionary:
+	var normalized := _normalize_mod_dependencies_write_fields(mod_id, fields, true)
+	return _build_validated_request(
+		"POST",
+		"/games/%s/mods/%s/dependencies" % [_config.game_id, mod_id.strip_edges()],
+		{},
+		normalized.body,
+		_build_form_headers(true),
+		{"content_type": ModioHttpTransport.CONTENT_TYPE_FORM, "auth_mode": "bearer"},
+		normalized.errors
+	)
+
+func build_delete_mod_dependencies_request(mod_id: String, fields: Dictionary) -> Dictionary:
+	var normalized := _normalize_mod_dependencies_write_fields(mod_id, fields, false)
+	return _build_validated_request(
+		"DELETE",
+		"/games/%s/mods/%s/dependencies" % [_config.game_id, mod_id.strip_edges()],
+		{},
+		normalized.body,
+		_build_form_headers(true),
+		{"content_type": ModioHttpTransport.CONTENT_TYPE_FORM, "auth_mode": "bearer"},
+		normalized.errors
+	)
+
 func build_mod_team_request(mod_id: String, query: ModioListingQuery = ModioListingQuery.new()) -> Dictionary:
 	var full_query := _build_public_query()
 	full_query.merge(query.to_query_dict(ModioListingQuery.ENDPOINT_MOD_TEAM), true)
@@ -1814,6 +1886,42 @@ func normalize_mod_tags_response(payload: Dictionary) -> Dictionary:
 func normalize_mod_metadata_kvp_response(payload: Dictionary) -> Dictionary:
 	return _normalize_list_payload(payload, Callable(self, "_normalize_metadata_kvp_object"))
 
+func normalize_add_mod_tags_response(status_code: int, headers: Dictionary, payload: Dictionary) -> Dictionary:
+	var response := _normalize_message_write_response(status_code, headers, payload)
+	if not response.ok:
+		return response
+	response["created"] = status_code == 201
+	return response
+
+func normalize_delete_mod_tags_response(status_code: int, headers: Dictionary = {}) -> Dictionary:
+	var response := _normalize_no_content_write_response(status_code, headers)
+	response["deleted"] = response.ok and status_code == 204
+	return response
+
+func normalize_add_mod_metadata_kvp_response(status_code: int, headers: Dictionary, payload: Dictionary) -> Dictionary:
+	var response := _normalize_message_write_response(status_code, headers, payload)
+	if not response.ok:
+		return response
+	response["created"] = status_code == 201
+	return response
+
+func normalize_delete_mod_metadata_kvp_response(status_code: int, headers: Dictionary = {}) -> Dictionary:
+	var response := _normalize_no_content_write_response(status_code, headers)
+	response["deleted"] = response.ok and status_code == 204
+	return response
+
+func normalize_add_mod_dependencies_response(status_code: int, headers: Dictionary, payload: Dictionary) -> Dictionary:
+	var response := _normalize_message_write_response(status_code, headers, payload)
+	if not response.ok:
+		return response
+	response["created"] = status_code == 201
+	return response
+
+func normalize_delete_mod_dependencies_response(status_code: int, headers: Dictionary = {}) -> Dictionary:
+	var response := _normalize_no_content_write_response(status_code, headers)
+	response["deleted"] = response.ok and status_code == 204
+	return response
+
 func normalize_mod_team_response(payload: Dictionary) -> Dictionary:
 	return _normalize_list_payload(payload, Callable(self, "_normalize_team_member_object"))
 
@@ -1949,6 +2057,14 @@ func _normalize_collection_write_response(status_code: int, headers: Dictionary,
 	if not response.ok:
 		return response
 	response["data"] = _normalize_collection_object(payload)
+	response["location"] = response.headers.get("location", "")
+	return response
+
+func _normalize_message_write_response(status_code: int, headers: Dictionary, payload: Dictionary) -> Dictionary:
+	var response := _transport.normalize_response(status_code, headers, payload)
+	if not response.ok:
+		return response
+	response["data"] = normalize_message_response(payload)
 	response["location"] = response.headers.get("location", "")
 	return response
 
@@ -2960,6 +3076,35 @@ func _normalize_collection_delete_fields(fields: Dictionary) -> Dictionary:
 	_append_validated_string_field(fields, body, "reason", 1000, errors, false)
 	return {"body": body, "errors": errors}
 
+func _normalize_mod_tags_write_fields(mod_id: String, fields: Dictionary) -> Dictionary:
+	var body := {}
+	var errors: Array = []
+	_append_required_positive_id_error(mod_id, "mod_id", errors)
+	_validate_allowed_fields(fields, ["tags"], errors, "mod tags")
+	_append_required_string_array_field(fields, body, "tags", errors)
+	return {"body": body, "errors": errors}
+
+func _normalize_mod_metadata_kvp_write_fields(mod_id: String, fields: Dictionary) -> Dictionary:
+	var body := {}
+	var errors: Array = []
+	_append_required_positive_id_error(mod_id, "mod_id", errors)
+	_validate_allowed_fields(fields, ["metadata"], errors, "mod metadata")
+	_append_required_string_array_field(fields, body, "metadata", errors)
+	return {"body": body, "errors": errors}
+
+func _normalize_mod_dependencies_write_fields(mod_id: String, fields: Dictionary, allow_sync: bool) -> Dictionary:
+	var body := {}
+	var errors: Array = []
+	var allowed_fields := ["dependencies"]
+	if allow_sync:
+		allowed_fields.append("sync")
+	_append_required_positive_id_error(mod_id, "mod_id", errors)
+	_validate_allowed_fields(fields, allowed_fields, errors, "mod dependencies")
+	_append_optional_int_array_field(fields, body, "dependencies", errors)
+	if allow_sync:
+		_append_optional_boolean_field(fields, body, "sync", errors)
+	return {"body": body, "errors": errors}
+
 func _validate_allowed_fields(fields: Dictionary, allowed_fields: Array, errors: Array, label: String) -> void:
 	for key in fields.keys():
 		if not allowed_fields.has(str(key)):
@@ -3151,6 +3296,20 @@ func _append_collection_tags_field(fields: Dictionary, body: Dictionary, errors:
 		if not COLLECTION_TAG_VALUES.has(tag):
 			errors.append("tags contains undocumented collection tag '%s'" % tag)
 	body["tags"] = normalized_tags
+
+func _append_required_string_array_field(fields: Dictionary, body: Dictionary, field_name: String, errors: Array) -> void:
+	if not fields.has(field_name):
+		errors.append("%s is required" % field_name)
+		return
+	var normalized = _normalize_string_array_field(fields[field_name], field_name, errors, -1, -1, false)
+	if normalized == null:
+		return
+	body[field_name] = normalized
+
+func _append_optional_int_array_field(fields: Dictionary, body: Dictionary, field_name: String, errors: Array) -> void:
+	if not fields.has(field_name):
+		return
+	_append_int_array_field(fields, body, field_name, errors)
 
 func _append_int_array_field(fields: Dictionary, body: Dictionary, field_name: String, errors: Array) -> void:
 	if not fields.has(field_name):

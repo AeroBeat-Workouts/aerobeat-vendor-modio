@@ -17,6 +17,7 @@ Keep **provider-native** concerns in this repo while allowing `aerobeat-tool-api
 - provider subscription/user-state mapping via `GET /me/games`, `GET /me/mods`, `GET /me/files`, `GET /me/subscribed`, `GET /me/wallets`, `GET /me/purchased`, `POST /me/entitlements`, `GET /me/ratings`, `GET /me/followers`, `GET /me/users/muted`, `GET /me/collections`, and `GET /me/following/collections`
 - provider monetization-team transport/query/normalization via bearer-authenticated `GET /games/{game-id}/mods/{mod-id}/monetization/team` and `POST /games/{game-id}/mods/{mod-id}/monetization/team`
 - provider mod + guide + collection community transport/query/normalization via `GET/POST/PUT/DELETE /games/{game-id}/mods/{mod-id}/comments...`, `GET /games/{game-id}/guides...`, guide authoring (`POST /games/{game-id}/guides`, `POST /games/{game-id}/guides/{guide-id}`, `DELETE /games/{game-id}/guides/{guide-id}`), `GET /games/{game-id}/collections...`, collection authoring (`POST /games/{game-id}/collections`, `POST /games/{game-id}/collections/{collection-id}`, `DELETE /games/{game-id}/collections/{collection-id}`), read-only `GET /users/{user-id}/followers|following|collections`, and bearer-only social mutation writes for user follow/unfollow, mute/unmute, and collection follow/unfollow
+- provider mod maintenance writes for `POST/DELETE /games/{game-id}/mods/{mod-id}/tags`, `POST/DELETE /games/{game-id}/mods/{mod-id}/metadatakvp`, and `POST/DELETE /games/{game-id}/mods/{mod-id}/dependencies`
 - provider rating/report writes via `POST /games/{game-id}/mods/{mod-id}/ratings`, `POST /games/{game-id}/mods/{mod-id}/comments/{comment-id}/karma`, `POST /games/{game-id}/guides/{guide-id}/comments/{comment-id}/karma`, `POST /games/{game-id}/collections/{collection-id}/comments/{comment-id}/karma`, `POST /games/{game-id}/collections/{collection-id}/compatibility`, and `POST /report`
 - provider download metadata resolution from `modfile.download`
 - canonical artifact/cache metadata resolution derived from `provider + game_id + mod_id + modfile.id`
@@ -68,6 +69,12 @@ The current slice now exposes a larger request-builder and normalization seam:
     - `build_mod_tags_request(...)`
     - `build_mod_metadata_kvp_request(...)`
     - `build_mod_team_request(...)`
+    - `build_add_mod_tags_request(...)`
+    - `build_delete_mod_tags_request(...)`
+    - `build_add_mod_metadata_kvp_request(...)`
+    - `build_delete_mod_metadata_kvp_request(...)`
+    - `build_add_mod_dependencies_request(...)`
+    - `build_delete_mod_dependencies_request(...)`
     - `build_collections_request(...)`
     - `build_collection_request(...)`
     - `build_add_collection_request(...)`
@@ -130,7 +137,7 @@ The current slice now exposes a larger request-builder and normalization seam:
     - `build_subscribe_request(...)`
     - `build_unsubscribe_request(...)`
   - normalization helpers
-    - auth/logout/message/user/game/games/game-stats/game-tags/game-token-packs/game-mod-stats/guide-tags/mod/modfile/mod-stats/mod-dependants/mod-tags/mod-metadata-kvp/mod-team/mod-monetization-team/mod-comment/guide/guide-comment/collection/collection-comment/user-inventory list/user-wallet/user-purchased/user-entitlement/user-social list/user-collection list/user-social mutation/user-ratings/subscription/dependency/report/collection-compatibility responses
+    - auth/logout/message/user/game/games/game-stats/game-tags/game-token-packs/game-mod-stats/guide-tags/mod/modfile/mod-stats/mod-dependants/mod-tags/mod-metadata-kvp/mod-team/mod-tag write/mod-metadata write/mod-dependency write/mod-monetization-team/mod-comment/guide/guide-comment/collection/collection-comment/user-inventory list/user-wallet/user-purchased/user-entitlement/user-social list/user-collection list/user-social mutation/user-ratings/subscription/dependency/report/collection-compatibility responses
     - page-state helpers derived from `result_count`, `result_offset`, `result_limit`, and `result_total`
     - no-content write responses plus subscription and collection-follow write responses
     - download metadata resolution helpers
@@ -170,6 +177,7 @@ That keeps transient CDN delivery behavior local to the vendor seam and out of A
 - `GET /games/{game-id}/mods/{mod-id}/dependants` and `GET /games/{game-id}/mods/{mod-id}/metadatakvp` now serialize paging only (`_limit`, `_offset`)
 - `GET /games/{game-id}/mods/{mod-id}/tags` now serializes only the documented `date_added` and `tag` filters plus paging
 - `GET /games/{game-id}/mods/{mod-id}/team` now serializes only the documented `id`, `user_id`, `username`, `level`, `date_added`, and `pending` filters plus paging
+- the approved mod-maintenance write seam stays thin and docs-first: `POST/DELETE /games/{game-id}/mods/{mod-id}/tags` preserve repeated `tags[]` form fields, `POST/DELETE /games/{game-id}/mods/{mod-id}/metadatakvp` preserve repeated `metadata[]` form fields including the REST-documented key-only delete behavior, and `POST/DELETE /games/{game-id}/mods/{mod-id}/dependencies` preserve repeated `dependencies[]` integer fields with the documented optional `sync` boolean on add only
 - the refreshed local corpus corrected the stale gap wording for authenticated user inventory/profile reads: this seam wraps `/me/games`, `/me/mods`, and `/me/files`, not undocumented `/users/{user-id}/games|mods|modfiles` aliases
 - `GET /me/games` now serializes only the current documented game filters (`id`, `status`, `submitted_by`, `date_added`, `date_updated`, `date_live`, `name`, `name_id`, `summary`, `instructions_url`, `ugc_name`, `presentation_option`, `submission_option`, `curation_option`, `profanity_option`, `dependency_option`, `community_options`, `monetization_options`, `api_access_options`, `maturity_options`, `show_hidden_tags`) plus paging and the current documented game sort keys
 - `GET /me/mods` now serializes only the documented authenticated user-mod filters (`tags`, `metadata_blob`, `metadata_kvp`, `id`, `name_id`, `status`, `visible`, `submitted_by`, `game_id`, `date_added`, `date_updated`, `date_live`, `name`, `modfile`, `maturity_option`, `monetization_options`, `platform_status`) plus paging and the documented user-mod sort keys

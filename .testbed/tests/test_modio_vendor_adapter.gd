@@ -1651,6 +1651,88 @@ func test_builds_mod_adjacent_read_enrichment_requests_with_documented_filter_su
 	assert_eq(team_request.query._offset, "40")
 	assert_false(team_request.query.has("submitted_by"))
 
+func test_builds_mod_adjacent_write_requests_with_documented_form_shapes() -> void:
+	var adapter := _build_adapter_with_token()
+
+	var add_tags_request = adapter.build_add_mod_tags_request("1001", {
+		"tags": ["  Featured  ", "Cardio"]
+	})
+	assert_eq(add_tags_request.method, "POST")
+	assert_eq(add_tags_request.path, "/games/777/mods/1001/tags")
+	assert_eq(add_tags_request.auth_mode, "bearer")
+	assert_eq(add_tags_request.content_type, ModioHttpTransport.CONTENT_TYPE_FORM)
+	assert_eq(add_tags_request.headers.Authorization, "Bearer user-token")
+	assert_eq(add_tags_request.body.tags[0], "Featured")
+	assert_eq(add_tags_request.body.tags[1], "Cardio")
+
+	var delete_tags_request = adapter.build_delete_mod_tags_request("1001", {"tags": ["Featured"]})
+	assert_eq(delete_tags_request.method, "DELETE")
+	assert_eq(delete_tags_request.path, "/games/777/mods/1001/tags")
+	assert_eq(delete_tags_request.body.tags[0], "Featured")
+
+	var add_metadata_request = adapter.build_add_mod_metadata_kvp_request("1001", {
+		"metadata": [" difficulty:expert ", "gravity:9.8"]
+	})
+	assert_eq(add_metadata_request.method, "POST")
+	assert_eq(add_metadata_request.path, "/games/777/mods/1001/metadatakvp")
+	assert_eq(add_metadata_request.headers.Authorization, "Bearer user-token")
+	assert_eq(add_metadata_request.body.metadata[0], "difficulty:expert")
+	assert_eq(add_metadata_request.body.metadata[1], "gravity:9.8")
+
+	var delete_metadata_request = adapter.build_delete_mod_metadata_kvp_request("1001", {
+		"metadata": ["difficulty", "intensity:high"]
+	})
+	assert_eq(delete_metadata_request.method, "DELETE")
+	assert_eq(delete_metadata_request.body.metadata[0], "difficulty")
+	assert_eq(delete_metadata_request.body.metadata[1], "intensity:high")
+
+	var add_dependencies_request = adapter.build_add_mod_dependencies_request("1001", {
+		"dependencies": ["2001", 2002],
+		"sync": "true"
+	})
+	assert_eq(add_dependencies_request.method, "POST")
+	assert_eq(add_dependencies_request.path, "/games/777/mods/1001/dependencies")
+	assert_eq(add_dependencies_request.headers.Authorization, "Bearer user-token")
+	assert_eq(add_dependencies_request.body.dependencies[0], 2001)
+	assert_eq(add_dependencies_request.body.dependencies[1], 2002)
+	assert_true(add_dependencies_request.body.sync)
+
+	var sync_only_dependencies_request = adapter.build_add_mod_dependencies_request("1001", {"sync": true})
+	assert_eq(sync_only_dependencies_request.method, "POST")
+	assert_false(sync_only_dependencies_request.body.has("dependencies"))
+	assert_true(sync_only_dependencies_request.body.sync)
+
+	var delete_dependencies_request = adapter.build_delete_mod_dependencies_request("1001", {
+		"dependencies": [2001]
+	})
+	assert_eq(delete_dependencies_request.method, "DELETE")
+	assert_eq(delete_dependencies_request.body.dependencies[0], 2001)
+	assert_false(delete_dependencies_request.body.has("sync"))
+
+	var invalid_add_tags_request = adapter.build_add_mod_tags_request("0", {"extra": true})
+	assert_true(invalid_add_tags_request.validation_errors.size() >= 3)
+	assert_string_contains(invalid_add_tags_request.validation_error, "mod_id must be a positive integer path id")
+	assert_string_contains(invalid_add_tags_request.validation_error, "Mod Tags field 'extra' is not documented")
+	assert_string_contains(invalid_add_tags_request.validation_error, "tags is required")
+
+	var invalid_add_metadata_request = adapter.build_add_mod_metadata_kvp_request("1001", {"metadata": "difficulty:expert"})
+	assert_true(invalid_add_metadata_request.validation_errors.size() >= 1)
+	assert_string_contains(invalid_add_metadata_request.validation_error, "metadata must be an array")
+
+	var invalid_add_dependencies_request = adapter.build_add_mod_dependencies_request("1001", {
+		"dependencies": ["bad-id"],
+		"sync": "sometimes",
+		"extra": true
+	})
+	assert_true(invalid_add_dependencies_request.validation_errors.size() >= 3)
+	assert_string_contains(invalid_add_dependencies_request.validation_error, "Mod Dependencies field 'extra' is not documented")
+	assert_string_contains(invalid_add_dependencies_request.validation_error, "dependencies must contain only integers")
+	assert_string_contains(invalid_add_dependencies_request.validation_error, "sync must be a boolean")
+
+	var invalid_delete_dependencies_request = adapter.build_delete_mod_dependencies_request("1001", {"sync": true})
+	assert_true(invalid_delete_dependencies_request.validation_errors.size() >= 1)
+	assert_string_contains(invalid_delete_dependencies_request.validation_error, "Mod Dependencies field 'sync' is not documented")
+
 func test_builds_mod_monetization_team_requests_with_documented_auth_and_nested_body_shape() -> void:
 	var adapter := _build_adapter_with_token()
 
@@ -2188,6 +2270,41 @@ func test_normalizes_auth_failure_variants_and_terms_handling() -> void:
 	assert_false(account_locked.ok)
 	assert_eq(account_locked.error.category, "account_locked")
 	assert_true(account_locked.error.is_account_locked)
+
+func test_normalizes_mod_adjacent_write_success_variants() -> void:
+	var adapter := _build_adapter_with_token()
+	var payload := _fixture("add_mod_rating_success.json")
+
+	var added_tags = adapter.normalize_add_mod_tags_response(201, {"Location": "/games/777/mods/1001/tags"}, payload)
+	assert_true(added_tags.ok)
+	assert_true(added_tags.created)
+	assert_eq(added_tags.location, "/games/777/mods/1001/tags")
+	assert_eq(added_tags.data.code, 201)
+	assert_eq(added_tags.data.message, "response_mod_rating_add")
+
+	var deleted_tags = adapter.normalize_delete_mod_tags_response(204)
+	assert_true(deleted_tags.ok)
+	assert_true(deleted_tags.deleted)
+	assert_eq(deleted_tags.data, {})
+
+	var added_metadata = adapter.normalize_add_mod_metadata_kvp_response(201, {"Location": "/games/777/mods/1001/metadatakvp"}, payload)
+	assert_true(added_metadata.ok)
+	assert_true(added_metadata.created)
+	assert_eq(added_metadata.location, "/games/777/mods/1001/metadatakvp")
+	assert_true(added_metadata.data.success)
+
+	var deleted_metadata = adapter.normalize_delete_mod_metadata_kvp_response(204)
+	assert_true(deleted_metadata.ok)
+	assert_true(deleted_metadata.deleted)
+
+	var added_dependencies = adapter.normalize_add_mod_dependencies_response(201, {"Location": "/games/777/mods/1001/dependencies"}, payload)
+	assert_true(added_dependencies.ok)
+	assert_true(added_dependencies.created)
+	assert_eq(added_dependencies.location, "/games/777/mods/1001/dependencies")
+
+	var deleted_dependencies = adapter.normalize_delete_mod_dependencies_response(204)
+	assert_true(deleted_dependencies.ok)
+	assert_true(deleted_dependencies.deleted)
 
 func test_normalizes_subscription_write_success_variants() -> void:
 	var adapter := _build_adapter_with_token()
