@@ -163,9 +163,9 @@ Decision check:
 - implementation/tests/docs as needed
 - `.plans/2026-05-03-aerobeat-vendor-modio-modfile-crud.md`
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** Independently verified the dedicated modfile CRUD slice against `REF-06` through `REF-08` and confirmed the implementation matches the refreshed local official corpus without requiring code changes. Verified `POST /games/{game-id}/mods/{mod-id}/files` stays bearer-authenticated `multipart/form-data` with documented fields only plus enforced `filedata` xor `upload_id`; verified `PUT /games/{game-id}/mods/{mod-id}/files/{file-id}` stays bearer-authenticated `application/x-www-form-urlencoded` and allows exactly the documented editable fields `version`, `changelog`, `active`, and `metadata_blob`; verified `DELETE /games/{game-id}/mods/{mod-id}/files/{file-id}` remains a path-id-only delete that normalizes `204 No Content` with an empty outgoing body. Confirmed README and seam docs truthfully describe the slice and its deliberate exclusions, and confirmed vendor-local boundaries remain intact: no source-modfile coverage, multipart-session orchestration, cook/cloud-cook behavior, platform-status management, or local file assistance leaked into this slice. Re-ran repo-local validation successfully: `godot --headless --path .testbed --import`, `godot --headless --path .testbed --script res://tests/validate_scaffold.gd`, and `godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit` (51/51 tests passed).
 
 ---
 
