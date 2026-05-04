@@ -181,6 +181,11 @@ func test_builds_browse_and_detail_requests_with_endpoint_aware_query_shapes() -
 	var modfile_request = adapter.build_modfile_request("1001", "5002")
 	assert_eq(modfile_request.path, "/games/777/mods/1001/files/5002")
 
+	var cooks_request = adapter.build_modfile_cooks_request("1001")
+	assert_eq(cooks_request.path, "/games/777/mods/1001/cooks")
+	assert_eq(cooks_request.auth_mode, "api_key_query")
+	assert_true(cooks_request.validation_errors.is_empty())
+
 	var mod_stats_request = adapter.build_mod_stats_request("1001")
 	assert_eq(mod_stats_request.path, "/games/777/mods/1001/stats")
 
@@ -245,6 +250,26 @@ func test_builds_modfile_write_requests_with_documented_validation() -> void:
 	assert_eq(delete_request.body, {})
 	assert_true(delete_request.validation_errors.is_empty())
 
+	var manage_platforms_request = adapter.build_manage_modfile_platforms_request("1001", "5002", {
+		"approved": ["WINDOWS", "PLAYSTATION5"],
+		"denied": ["SWITCH2"]
+	})
+	assert_eq(manage_platforms_request.method, "POST")
+	assert_eq(manage_platforms_request.path, "/games/777/mods/1001/files/5002/platforms")
+	assert_eq(manage_platforms_request.auth_mode, "bearer")
+	assert_eq(manage_platforms_request.content_type, ModioHttpTransport.CONTENT_TYPE_FORM)
+	assert_eq(manage_platforms_request.body["approved[]"], ["WINDOWS", "PLAYSTATION5"])
+	assert_eq(manage_platforms_request.body["denied[]"], ["SWITCH2"])
+	assert_true(manage_platforms_request.validation_errors.is_empty())
+
+	var finalize_request = adapter.build_finalize_cloud_cooking_request()
+	assert_eq(finalize_request.method, "POST")
+	assert_eq(finalize_request.path, "/games/777/cloud-cooking/finalization")
+	assert_eq(finalize_request.auth_mode, "bearer")
+	assert_eq(finalize_request.content_type, ModioHttpTransport.CONTENT_TYPE_FORM)
+	assert_eq(finalize_request.body, {})
+	assert_true(finalize_request.validation_errors.is_empty())
+
 	var invalid_add_request = adapter.build_add_modfile_request("not-a-mod", {
 		"filedata": "@/tmp/mod.zip",
 		"upload_id": "123e4567-e89b-12d3-a456-426614174000",
@@ -265,6 +290,19 @@ func test_builds_modfile_write_requests_with_documented_validation() -> void:
 	assert_string_contains(invalid_update_request.validation_error, "file_id must be a positive integer path id")
 	assert_string_contains(invalid_update_request.validation_error, "active must be a boolean")
 	assert_string_contains(invalid_update_request.validation_error, "Modfile field 'filehash' is not documented")
+
+	var invalid_manage_platforms_request = adapter.build_manage_modfile_platforms_request("1001", "0", {
+		"approved": ["INVALID"],
+		"extra": true
+	})
+	assert_true(invalid_manage_platforms_request.validation_errors.size() >= 3)
+	assert_string_contains(invalid_manage_platforms_request.validation_error, "file_id must be a positive integer path id")
+	assert_string_contains(invalid_manage_platforms_request.validation_error, "approved contains undocumented platform 'INVALID'")
+	assert_string_contains(invalid_manage_platforms_request.validation_error, "Platform Status field 'extra' is not documented")
+
+	var empty_manage_platforms_request = adapter.build_manage_modfile_platforms_request("1001", "5002", {})
+	assert_true(empty_manage_platforms_request.validation_errors.size() >= 1)
+	assert_string_contains(empty_manage_platforms_request.validation_error, "At least one of approved or denied must be supplied")
 
 func test_builds_source_and_multipart_upload_requests_with_documented_validation() -> void:
 	var adapter := _build_adapter_with_token()
@@ -1355,6 +1393,12 @@ func test_normalizes_fixture_payloads_for_richer_slice() -> void:
 	assert_eq(modfiles.data[0].platforms[1].platform, "SOURCE")
 	assert_eq(modfiles.page.page_count, 1)
 
+	var modfile_cooks = adapter.normalize_modfile_cooks_response(_fixture("modfile_cooks.json"))
+	assert_eq(modfile_cooks.result_total, 2)
+	assert_eq(modfile_cooks.data[0].cook_uuid, "123e4567-e89b-12d3-a456-426614174000")
+	assert_eq(modfile_cooks.data[0].metadata[1], "addressables")
+	assert_eq(modfile_cooks.data[1].platform, "switch2")
+
 	var modfile_detail = adapter.normalize_modfile_response(_fixture("modfile_detail.json"))
 	assert_eq(modfile_detail.id, 5002)
 	assert_eq(modfile_detail.filehash.md5, "def456md5")
@@ -1976,6 +2020,17 @@ func test_normalizes_modfile_write_responses() -> void:
 	assert_true(updated_modfile.ok)
 	assert_true(updated_modfile.updated)
 	assert_eq(updated_modfile.data.metadata_blob, "{\"songCount\":14}")
+
+	var managed_platforms = adapter.normalize_manage_modfile_platforms_response(200, {}, _fixture("modfile_platform_status_updated.json"))
+	assert_true(managed_platforms.ok)
+	assert_true(managed_platforms.updated)
+	assert_eq(managed_platforms.data.platforms[1].platform, "PLAYSTATION5")
+	assert_eq(managed_platforms.data.platforms[2].status, 2)
+
+	var finalized_cloud_cooking = adapter.normalize_finalize_cloud_cooking_response(204)
+	assert_true(finalized_cloud_cooking.ok)
+	assert_true(finalized_cloud_cooking.finalized)
+	assert_eq(finalized_cloud_cooking.data, {})
 
 	var deleted_modfile = adapter.normalize_delete_modfile_response(204)
 	assert_true(deleted_modfile.ok)

@@ -402,6 +402,46 @@ func build_modfile_request(mod_id: String, file_id: String) -> Dictionary:
 		{"auth_mode": _resolve_read_auth_mode(false)}
 	)
 
+func build_modfile_cooks_request(mod_id: String) -> Dictionary:
+	var errors: Array = []
+	_append_required_positive_id_error(mod_id, "mod_id", errors)
+	return _build_validated_request(
+		"GET",
+		"/games/%s/mods/%s/cooks" % [_config.game_id, mod_id.strip_edges()],
+		_build_public_query(),
+		{},
+		_build_read_headers(false),
+		{"auth_mode": _resolve_read_auth_mode(false)},
+		errors
+	)
+
+func build_manage_modfile_platforms_request(mod_id: String, file_id: String, fields: Dictionary) -> Dictionary:
+	var errors: Array = []
+	_append_required_positive_id_error(mod_id, "mod_id", errors)
+	_append_required_positive_id_error(file_id, "file_id", errors)
+	var normalized := _normalize_manage_modfile_platforms_fields(fields)
+	errors.append_array(normalized.errors)
+	return _build_validated_request(
+		"POST",
+		"/games/%s/mods/%s/files/%s/platforms" % [_config.game_id, mod_id.strip_edges(), file_id.strip_edges()],
+		{},
+		normalized.body,
+		_build_form_headers(true),
+		{"content_type": ModioHttpTransport.CONTENT_TYPE_FORM, "auth_mode": "bearer"},
+		errors
+	)
+
+func build_finalize_cloud_cooking_request() -> Dictionary:
+	return _build_validated_request(
+		"POST",
+		"/games/%s/cloud-cooking/finalization" % _config.game_id,
+		{},
+		{},
+		_build_form_headers(true),
+		{"content_type": ModioHttpTransport.CONTENT_TYPE_FORM, "auth_mode": "bearer"},
+		[]
+	)
+
 func build_add_modfile_request(mod_id: String, fields: Dictionary) -> Dictionary:
 	var errors: Array = []
 	_append_required_positive_id_error(mod_id, "mod_id", errors)
@@ -1366,6 +1406,21 @@ func normalize_user_modfiles_response(payload: Dictionary) -> Dictionary:
 func normalize_modfile_response(payload: Dictionary) -> Dictionary:
 	return _normalize_modfile_object(payload)
 
+func normalize_modfile_cooks_response(payload: Dictionary) -> Dictionary:
+	return _normalize_list_payload(payload, Callable(self, "_normalize_modfile_cook_object"))
+
+func normalize_manage_modfile_platforms_response(status_code: int, headers: Dictionary, payload: Dictionary) -> Dictionary:
+	var response := _normalize_modfile_write_response(status_code, headers, payload)
+	if not response.ok:
+		return response
+	response["updated"] = status_code == 200
+	return response
+
+func normalize_finalize_cloud_cooking_response(status_code: int, headers: Dictionary = {}) -> Dictionary:
+	var response := _normalize_no_content_write_response(status_code, headers)
+	response["finalized"] = response.ok and status_code == 204
+	return response
+
 func normalize_add_modfile_response(status_code: int, headers: Dictionary, payload: Dictionary) -> Dictionary:
 	var response := _normalize_modfile_write_response(status_code, headers, payload)
 	if not response.ok:
@@ -2059,6 +2114,21 @@ func _normalize_modfile_object(payload: Dictionary) -> Dictionary:
 		"platforms": _normalize_file_platforms(payload.get("platforms", []))
 	}
 
+func _normalize_modfile_cook_object(payload: Dictionary) -> Dictionary:
+	return {
+		"cook_uuid": str(payload.get("cook_uuid", "")),
+		"modfile": int(payload.get("modfile", 0)),
+		"platform": str(payload.get("platform", "")),
+		"status": int(payload.get("status", 0)),
+		"date_added": int(payload.get("date_added", 0)),
+		"date_updated": int(payload.get("date_updated", 0)),
+		"metadata": _normalize_string_array(payload.get("metadata", [])),
+		"logs": _normalize_string_array(payload.get("logs", [])),
+		"filename": str(payload.get("filename", "")),
+		"filesize": int(payload.get("filesize", 0)),
+		"version": str(payload.get("version", ""))
+	}
+
 func _normalize_multipart_upload_object(payload: Dictionary) -> Dictionary:
 	var status := int(payload.get("status", 0))
 	return {
@@ -2457,6 +2527,21 @@ func _normalize_update_modfile_fields(fields: Dictionary) -> Dictionary:
 	_append_optional_string_field(fields, body, "metadata_blob", errors)
 	return {"body": body, "errors": errors}
 
+func _normalize_manage_modfile_platforms_fields(fields: Dictionary) -> Dictionary:
+	var body := {}
+	var errors: Array = []
+	_validate_allowed_fields(fields, ["approved", "denied"], errors, "platform status")
+	var provided_field_count := 0
+	if fields.has("approved"):
+		provided_field_count += 1
+		_append_platform_status_array_field(fields["approved"], body, "approved[]", "approved", errors)
+	if fields.has("denied"):
+		provided_field_count += 1
+		_append_platform_status_array_field(fields["denied"], body, "denied[]", "denied", errors)
+	if provided_field_count == 0:
+		errors.append("At least one of approved or denied must be supplied")
+	return {"body": body, "errors": errors}
+
 func _normalize_create_multipart_upload_session_fields(fields: Dictionary) -> Dictionary:
 	var body := {}
 	var errors: Array = []
@@ -2701,26 +2786,37 @@ func _append_int_array_field(fields: Dictionary, body: Dictionary, field_name: S
 func _append_modfile_platforms_field(fields: Dictionary, body: Dictionary, errors: Array) -> void:
 	if not fields.has("platforms"):
 		return
-	var value = fields["platforms"]
+	var normalized: Variant = _normalize_documented_platform_array(fields["platforms"], "platforms", errors)
+	if normalized == null:
+		return
+	body["platforms"] = normalized
+
+func _append_platform_status_array_field(value: Variant, body: Dictionary, body_field_name: String, error_field_name: String, errors: Array) -> void:
+	var normalized: Variant = _normalize_documented_platform_array(value, error_field_name, errors)
+	if normalized == null:
+		return
+	body[body_field_name] = normalized
+
+func _normalize_documented_platform_array(value: Variant, field_name: String, errors: Array):
 	if not (value is Array):
-		errors.append("platforms must be an array of documented platform strings")
-		return
+		errors.append("%s must be an array of documented platform strings" % field_name)
+		return null
 	if value.is_empty():
-		errors.append("platforms must contain at least one documented platform string")
-		return
+		errors.append("%s must contain at least one documented platform string" % field_name)
+		return null
 	var normalized: Array = []
 	for item in value:
 		if item == null:
-			errors.append("platforms must contain only documented platform strings")
-			return
+			errors.append("%s must contain only documented platform strings" % field_name)
+			return null
 		var platform := str(item).strip_edges()
 		if platform.is_empty():
-			errors.append("platforms must contain only documented platform strings")
-			return
+			errors.append("%s must contain only documented platform strings" % field_name)
+			return null
 		if not MODFILE_PLATFORM_VALUES.has(platform):
-			errors.append("platforms contains undocumented platform '%s'" % platform)
+			errors.append("%s contains undocumented platform '%s'" % [field_name, platform])
 		normalized.append(platform)
-	body["platforms"] = normalized
+	return normalized
 
 func _normalize_string_array_field(value: Variant, field_name: String, errors: Array, max_item_length: int, max_items: int, distinct_required: bool):
 	if not (value is Array):

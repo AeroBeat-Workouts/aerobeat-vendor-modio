@@ -1,0 +1,28 @@
+{
+  "id": 5002,
+  "mod_id": 1001,
+  "date_added": 1777800001,
+  "date_updated": 1777807200,
+  "date_scanned": 1777801800,
+  "virus_status": 1,
+  "virus_positive": 0,
+  "virustotal_hash": "",
+  "filesize": 15181,
+  "filesize_uncompressed": 16384,
+  "filehash": {
+    "md5": "def456md5"
+  },
+  "filename": "cardio-blaster-v1.1.zip",
+  "version": "1.1.0",
+  "changelog": "Platform review completed.",
+  "metadata_blob": "{\"songCount\":14}",
+  "download": {
+    "binary_url": "https://api.mod.io/v1/games/777/mods/1001/files/5002/download/hash456",
+    "date_expires": 1777886400
+  },
+  "platforms": [
+    {"platform": "WINDOWS", "status": 1},
+    {"platform": "PLAYSTATION5", "status": 1},
+    {"platform": "SWITCH2", "status": 2}
+  ]
+}

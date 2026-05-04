@@ -327,9 +327,17 @@ func test_executes_modfile_stats_ratings_and_report_requests_with_documented_sha
 	assert_eq(_recorded_requests[4].headers.Authorization, "Bearer user-token")
 
 func test_executes_modfile_write_requests_with_documented_multipart_form_and_delete_shapes() -> void:
+	var public_config := ModioClientConfig.new("777", "demo-key", "https://api.mod.io/v1/", "", "en-US", "steam", "WINDOWS")
 	var auth_config := ModioClientConfig.new("777", "demo-key", "", "user-token", "en-US", "steam", "WINDOWS", ModioClientConfig.HOST_GAME)
 	var transport := ModioHttpTransport.new(Callable(self, "_transport_double"))
+	var public_adapter := ModioVendorAdapter.new(public_config, transport)
 	var auth_adapter := ModioVendorAdapter.new(auth_config, transport)
+
+	_queue_json_response(200, _fixture("modfile_cooks.json"))
+	var cooks_response := transport.execute(public_adapter.build_modfile_cooks_request("1001"), public_config)
+	assert_true(cooks_response.ok)
+	assert_eq(_recorded_requests[0].method, "GET")
+	assert_eq(_recorded_requests[0].url, "https://api.mod.io/v1/games/777/mods/1001/cooks?api_key=demo-key")
 
 	_queue_json_response(201, _fixture("modfile_detail.json"), {"Location": "/games/777/mods/1001/files/5002"})
 	var add_response := transport.execute(auth_adapter.build_add_modfile_request("1001", {
@@ -342,17 +350,17 @@ func test_executes_modfile_write_requests_with_documented_multipart_form_and_del
 		"platforms": ["WINDOWS", "SWITCH2"]
 	}), auth_config, {"multipart_boundary": "TEST-BOUNDARY"})
 	assert_true(add_response.ok)
-	assert_eq(_recorded_requests[0].method, "POST")
-	assert_eq(_recorded_requests[0].url, "https://g-777.modapi.io/v1/games/777/mods/1001/files")
-	assert_eq(_recorded_requests[0].headers.Authorization, "Bearer user-token")
-	assert_eq(_recorded_requests[0].headers["Content-Type"], "multipart/form-data; boundary=TEST-BOUNDARY")
-	assert_string_contains(_recorded_requests[0].body_string, 'name="filedata"')
-	assert_string_contains(_recorded_requests[0].body_string, '@/tmp/cardio-blaster-v1-1.zip')
-	assert_string_contains(_recorded_requests[0].body_string, 'name="platforms[]"')
-	assert_string_contains(_recorded_requests[0].body_string, 'WINDOWS')
-	assert_string_contains(_recorded_requests[0].body_string, 'SWITCH2')
-	assert_string_contains(_recorded_requests[0].body_string, 'name="active"')
-	assert_string_contains(_recorded_requests[0].body_string, 'true')
+	assert_eq(_recorded_requests[1].method, "POST")
+	assert_eq(_recorded_requests[1].url, "https://g-777.modapi.io/v1/games/777/mods/1001/files")
+	assert_eq(_recorded_requests[1].headers.Authorization, "Bearer user-token")
+	assert_eq(_recorded_requests[1].headers["Content-Type"], "multipart/form-data; boundary=TEST-BOUNDARY")
+	assert_string_contains(_recorded_requests[1].body_string, 'name="filedata"')
+	assert_string_contains(_recorded_requests[1].body_string, '@/tmp/cardio-blaster-v1-1.zip')
+	assert_string_contains(_recorded_requests[1].body_string, 'name="platforms[]"')
+	assert_string_contains(_recorded_requests[1].body_string, 'WINDOWS')
+	assert_string_contains(_recorded_requests[1].body_string, 'SWITCH2')
+	assert_string_contains(_recorded_requests[1].body_string, 'name="active"')
+	assert_string_contains(_recorded_requests[1].body_string, 'true')
 
 	_queue_json_response(200, _fixture("modfile_detail.json"))
 	var update_response := transport.execute(auth_adapter.build_update_modfile_request("1001", "5002", {
@@ -362,20 +370,41 @@ func test_executes_modfile_write_requests_with_documented_multipart_form_and_del
 		"metadata_blob": "game_version:1.1.1"
 	}), auth_config)
 	assert_true(update_response.ok)
-	assert_eq(_recorded_requests[1].method, "PUT")
-	assert_eq(_recorded_requests[1].url, "https://g-777.modapi.io/v1/games/777/mods/1001/files/5002")
-	assert_eq(_recorded_requests[1].headers.Authorization, "Bearer user-token")
-	assert_eq(_recorded_requests[1].headers["Content-Type"], ModioHttpTransport.CONTENT_TYPE_FORM)
-	assert_eq(_recorded_requests[1].body_string, "active=false&changelog=Timing%20cleanup&metadata_blob=game_version%3A1.1.1&version=1.1.1")
+	assert_eq(_recorded_requests[2].method, "PUT")
+	assert_eq(_recorded_requests[2].url, "https://g-777.modapi.io/v1/games/777/mods/1001/files/5002")
+	assert_eq(_recorded_requests[2].headers.Authorization, "Bearer user-token")
+	assert_eq(_recorded_requests[2].headers["Content-Type"], ModioHttpTransport.CONTENT_TYPE_FORM)
+	assert_eq(_recorded_requests[2].body_string, "active=false&changelog=Timing%20cleanup&metadata_blob=game_version%3A1.1.1&version=1.1.1")
+
+	_queue_json_response(200, _fixture("modfile_platform_status_updated.json"))
+	var manage_platforms_response := transport.execute(auth_adapter.build_manage_modfile_platforms_request("1001", "5002", {
+		"approved": ["WINDOWS", "PLAYSTATION5"],
+		"denied": ["SWITCH2"]
+	}), auth_config)
+	assert_true(manage_platforms_response.ok)
+	assert_eq(_recorded_requests[3].method, "POST")
+	assert_eq(_recorded_requests[3].url, "https://g-777.modapi.io/v1/games/777/mods/1001/files/5002/platforms")
+	assert_eq(_recorded_requests[3].headers.Authorization, "Bearer user-token")
+	assert_eq(_recorded_requests[3].headers["Content-Type"], ModioHttpTransport.CONTENT_TYPE_FORM)
+	assert_eq(_recorded_requests[3].body_string, "approved%5B%5D=WINDOWS&approved%5B%5D=PLAYSTATION5&denied%5B%5D=SWITCH2")
+
+	_queue_response({"status_code": 204, "headers": {}, "body": ""})
+	var finalize_response := transport.execute(auth_adapter.build_finalize_cloud_cooking_request(), auth_config)
+	assert_true(finalize_response.ok)
+	assert_eq(_recorded_requests[4].method, "POST")
+	assert_eq(_recorded_requests[4].url, "https://g-777.modapi.io/v1/games/777/cloud-cooking/finalization")
+	assert_eq(_recorded_requests[4].headers.Authorization, "Bearer user-token")
+	assert_eq(_recorded_requests[4].headers["Content-Type"], ModioHttpTransport.CONTENT_TYPE_FORM)
+	assert_eq(_recorded_requests[4].body_string, "")
 
 	_queue_response({"status_code": 204, "headers": {}, "body": ""})
 	var delete_response := transport.execute(auth_adapter.build_delete_modfile_request("1001", "5002"), auth_config)
 	assert_true(delete_response.ok)
-	assert_eq(_recorded_requests[2].method, "DELETE")
-	assert_eq(_recorded_requests[2].url, "https://g-777.modapi.io/v1/games/777/mods/1001/files/5002")
-	assert_eq(_recorded_requests[2].headers.Authorization, "Bearer user-token")
-	assert_eq(_recorded_requests[2].headers["Content-Type"], ModioHttpTransport.CONTENT_TYPE_FORM)
-	assert_eq(_recorded_requests[2].body_string, "")
+	assert_eq(_recorded_requests[5].method, "DELETE")
+	assert_eq(_recorded_requests[5].url, "https://g-777.modapi.io/v1/games/777/mods/1001/files/5002")
+	assert_eq(_recorded_requests[5].headers.Authorization, "Bearer user-token")
+	assert_eq(_recorded_requests[5].headers["Content-Type"], ModioHttpTransport.CONTENT_TYPE_FORM)
+	assert_eq(_recorded_requests[5].body_string, "")
 
 	var invalid_add_response := transport.execute(auth_adapter.build_add_modfile_request("1001", {
 		"filedata": "@/tmp/mod.zip",
