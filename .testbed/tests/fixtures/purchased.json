@@ -1,0 +1,250 @@
+{
+  "data": [
+    {
+      "id": 1001,
+      "game_id": 777,
+      "status": 1,
+      "visible": 1,
+      "submitted_by": {
+        "id": 42,
+        "name_id": "coach-chip",
+        "username": "Coach Chip",
+        "display_name_portal": "Coach Chip",
+        "date_online": 1777807600,
+        "date_joined": 1777700000,
+        "avatar": {
+          "filename": "avatar.png",
+          "original": "https://assets.modcdn.io/images/avatar.png",
+          "thumb_50x50": "https://assets.modcdn.io/images/avatar_50.png",
+          "thumb_100x100": "https://assets.modcdn.io/images/avatar_100.png"
+        },
+        "profile_url": "https://mod.io/u/coach-chip"
+      },
+      "date_added": 1777800001,
+      "date_updated": 1777803600,
+      "date_live": 1777807200,
+      "maturity_option": 0,
+      "community_options": 1,
+      "monetization_options": 3,
+      "credit_options": 1,
+      "stock": 0,
+      "price": 499,
+      "tax": 25,
+      "logo": {
+        "filename": "cardio-blaster.png",
+        "original": "https://assets.modcdn.io/images/cardio-blaster.png",
+        "thumb_320x180": "https://assets.modcdn.io/images/cardio-blaster_320.png",
+        "thumb_640x360": "https://assets.modcdn.io/images/cardio-blaster_640.png",
+        "thumb_1280x720": "https://assets.modcdn.io/images/cardio-blaster_1280.png"
+      },
+      "homepage_url": "https://example.com/cardio-blaster",
+      "name": "Cardio Blaster",
+      "name_id": "cardio-blaster",
+      "summary": "Premium rhythm workout mod.",
+      "description": "<p>Premium rhythm workout mod.</p>",
+      "description_plaintext": "Premium rhythm workout mod.",
+      "metadata_blob": "{\"tier\":\"premium\"}",
+      "profile_url": "https://mod.io/g/aerobeat/m/cardio-blaster",
+      "media": {
+        "youtube": [],
+        "sketchfab": [],
+        "images": []
+      },
+      "modfile": {
+        "id": 5001,
+        "mod_id": 1001,
+        "date_added": 1777800001,
+        "date_updated": 1777803600,
+        "date_scanned": 1777803800,
+        "virus_status": 1,
+        "virus_positive": 0,
+        "filesize": 15181,
+        "filesize_uncompressed": 16384,
+        "filehash": {
+          "md5": "abc123md5"
+        },
+        "filename": "cardio-blaster-v1.zip",
+        "version": "1.0.0",
+        "changelog": "Initial premium release.",
+        "metadata_blob": "premium",
+        "download": {
+          "binary_url": "https://api.mod.io/v1/games/777/mods/1001/files/5001/download/hash123",
+          "date_expires": 1777900000
+        },
+        "platforms": [
+          {
+            "platform": "WINDOWS",
+            "status": 1
+          }
+        ]
+      },
+      "dependencies": false,
+      "platforms": [
+        {
+          "platform": "WINDOWS",
+          "modfile_live": 5001
+        }
+      ],
+      "metadata_kvp": [
+        {
+          "metakey": "tier",
+          "metavalue": "premium"
+        }
+      ],
+      "tags": [
+        {
+          "name": "Featured",
+          "name_localized": "Featured",
+          "date_added": 1777800001
+        }
+      ],
+      "stats": {
+        "mod_id": 1001,
+        "popularity_rank_position": 1,
+        "popularity_rank_total_mods": 44,
+        "downloads_today": 20,
+        "downloads_total": 2048,
+        "subscribers_total": 256,
+        "ratings_total": 32,
+        "ratings_positive": 30,
+        "ratings_negative": 2,
+        "ratings_percentage_positive": 94,
+        "ratings_weighted_aggregate": 91.5,
+        "ratings_display_text": "Very Positive",
+        "date_expires": 1777900000
+      },
+      "skus": [
+        {
+          "id": 901,
+          "sku": "AEROBEAT_MOD_PREMIUM_01",
+          "portal": "steam"
+        }
+      ]
+    },
+    {
+      "id": 1002,
+      "game_id": 777,
+      "status": 1,
+      "visible": 1,
+      "submitted_by": {
+        "id": 43,
+        "name_id": "designer-dash",
+        "username": "Designer Dash",
+        "display_name_portal": null,
+        "date_online": 1777807601,
+        "date_joined": 1777700001,
+        "avatar": {
+          "filename": "dash.png",
+          "original": "https://assets.modcdn.io/images/dash.png",
+          "thumb_50x50": "https://assets.modcdn.io/images/dash_50.png",
+          "thumb_100x100": "https://assets.modcdn.io/images/dash_100.png"
+        },
+        "profile_url": "https://mod.io/u/designer-dash"
+      },
+      "date_added": 1777800100,
+      "date_updated": 1777804100,
+      "date_live": 1777807300,
+      "maturity_option": 0,
+      "community_options": 1,
+      "monetization_options": 1,
+      "credit_options": 1,
+      "stock": 0,
+      "price": 0,
+      "tax": 0,
+      "logo": {
+        "filename": "recovery-pack.png",
+        "original": "https://assets.modcdn.io/images/recovery-pack.png",
+        "thumb_320x180": "https://assets.modcdn.io/images/recovery-pack_320.png",
+        "thumb_640x360": "https://assets.modcdn.io/images/recovery-pack_640.png",
+        "thumb_1280x720": "https://assets.modcdn.io/images/recovery-pack_1280.png"
+      },
+      "homepage_url": "https://example.com/recovery-pack",
+      "name": "Recovery Pack",
+      "name_id": "recovery-pack",
+      "summary": "Token pack purchase reward.",
+      "description": "<p>Token pack purchase reward.</p>",
+      "description_plaintext": "Token pack purchase reward.",
+      "metadata_blob": "{\"tier\":\"token\"}",
+      "profile_url": "https://mod.io/g/aerobeat/m/recovery-pack",
+      "media": {
+        "youtube": [],
+        "sketchfab": [],
+        "images": []
+      },
+      "modfile": {
+        "id": 5002,
+        "mod_id": 1002,
+        "date_added": 1777800100,
+        "date_updated": 1777804100,
+        "date_scanned": 1777804300,
+        "virus_status": 1,
+        "virus_positive": 0,
+        "filesize": 12181,
+        "filesize_uncompressed": 13384,
+        "filehash": {
+          "md5": "def456md5"
+        },
+        "filename": "recovery-pack-v1.zip",
+        "version": "1.0.0",
+        "changelog": "Initial release.",
+        "metadata_blob": "token",
+        "download": {
+          "binary_url": "https://api.mod.io/v1/games/777/mods/1002/files/5002/download/hash456",
+          "date_expires": 1777900100
+        },
+        "platforms": [
+          {
+            "platform": "WINDOWS",
+            "status": 1
+          }
+        ]
+      },
+      "dependencies": false,
+      "platforms": [
+        {
+          "platform": "WINDOWS",
+          "modfile_live": 5002
+        }
+      ],
+      "metadata_kvp": [
+        {
+          "metakey": "tier",
+          "metavalue": "token"
+        }
+      ],
+      "tags": [
+        {
+          "name": "Premium",
+          "name_localized": "Premium",
+          "date_added": 1777800100
+        }
+      ],
+      "stats": {
+        "mod_id": 1002,
+        "popularity_rank_position": 2,
+        "popularity_rank_total_mods": 44,
+        "downloads_today": 12,
+        "downloads_total": 1024,
+        "subscribers_total": 128,
+        "ratings_total": 16,
+        "ratings_positive": 15,
+        "ratings_negative": 1,
+        "ratings_percentage_positive": 93,
+        "ratings_weighted_aggregate": 88.1,
+        "ratings_display_text": "Very Positive",
+        "date_expires": 1777900100
+      },
+      "skus": [
+        {
+          "id": 902,
+          "sku": "AEROBEAT_TOKEN_PACK_A",
+          "portal": "steam"
+        }
+      ]
+    }
+  ],
+  "result_count": 2,
+  "result_offset": 0,
+  "result_limit": 100,
+  "result_total": 2
+}

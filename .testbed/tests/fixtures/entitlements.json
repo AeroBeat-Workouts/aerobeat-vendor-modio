@@ -1,0 +1,16 @@
+{
+  "data": [
+    {
+      "sku_id": "AEROBEAT_TOKEN_PACK_A",
+      "entitlement_type": 0
+    },
+    {
+      "sku_id": "AEROBEAT_MOD_PREMIUM_01",
+      "entitlement_type": 1
+    }
+  ],
+  "result_count": 2,
+  "result_offset": 0,
+  "result_limit": 100,
+  "result_total": 2
+}

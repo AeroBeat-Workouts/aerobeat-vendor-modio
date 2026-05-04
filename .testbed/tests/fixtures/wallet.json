@@ -1,0 +1,10 @@
+{
+  "type": "game_wallet",
+  "payment_method_id": "pm_steam_wallet",
+  "game_id": "777",
+  "currency": "USD",
+  "balance": 1200,
+  "pending_balance": 300,
+  "deficit": 0,
+  "monetization_status": 16
+}

@@ -21,6 +21,7 @@ const ENDPOINT_COLLECTION_MODS := "collection_mods"
 const ENDPOINT_COLLECTION_COMMENTS := "collection_comments"
 const ENDPOINT_USER_SOCIAL := "user_social"
 const ENDPOINT_USER_COLLECTIONS := "user_collections"
+const ENDPOINT_USER_PURCHASED := "user_purchased"
 
 var search_term: String
 var tags_all: PackedStringArray
@@ -67,6 +68,7 @@ var filename: String = ""
 var version: String = ""
 var changelog: String = ""
 var platform_status: String = ""
+var platforms: String = ""
 var show_hidden_mods: bool
 var summary: String = ""
 var instructions_url: String = ""
@@ -126,7 +128,8 @@ func _init(
 	p_filename: String = "",
 	p_version: String = "",
 	p_changelog: String = "",
-	p_platform_status: String = ""
+	p_platform_status: String = "",
+	p_platforms: String = ""
 ) -> void:
 	search_term = p_search_term.strip_edges()
 	tags_all = p_tags_all
@@ -173,6 +176,7 @@ func _init(
 	version = p_version.strip_edges()
 	changelog = p_changelog.strip_edges()
 	platform_status = p_platform_status.strip_edges()
+	platforms = p_platforms.strip_edges()
 	show_hidden_mods = p_show_hidden_mods
 
 func to_query_dict(endpoint: String = ENDPOINT_MODS) -> Dictionary:
@@ -295,6 +299,8 @@ func to_query_dict(endpoint: String = ENDPOINT_MODS) -> Dictionary:
 		query["changelog"] = changelog
 	if capabilities.has("platform_status") and not platform_status.is_empty():
 		query["platform_status"] = platform_status
+	if capabilities.has("platforms") and not platforms.is_empty():
+		query["platforms"] = platforms
 	if capabilities.has("show_hidden_mods") and show_hidden_mods:
 		if endpoint == ENDPOINT_GAMES or endpoint == ENDPOINT_USER_GAMES:
 			query["show_hidden_tags"] = true
@@ -473,6 +479,28 @@ func _get_capabilities(endpoint: String) -> PackedStringArray:
 				"visible",
 				"submitted_by"
 			])
+		ENDPOINT_USER_PURCHASED:
+			return PackedStringArray([
+				"id",
+				"game_id",
+				"status",
+				"visible",
+				"submitted_by",
+				"date_added",
+				"date_updated",
+				"date_live",
+				"name",
+				"name_id",
+				"modfile",
+				"metadata_kvp",
+				"metadata_blob",
+				"tags_all",
+				"maturity_option",
+				"monetization_options",
+				"platform_status",
+				"platforms",
+				"sort"
+			])
 		_:
 			return PackedStringArray([
 				"search_term",
@@ -556,6 +584,17 @@ func _get_allowed_sorts(endpoint: String) -> PackedStringArray:
 				"downloads_today",
 				"downloads_total",
 				"subscribers_total"
+			])
+		ENDPOINT_USER_PURCHASED:
+			return PackedStringArray([
+				"name",
+				"date_live",
+				"date_updated",
+				"submitted_by",
+				"downloads_today",
+				"downloads_total",
+				"subscribers_total",
+				"ratings_weighted_aggregate"
 			])
 		ENDPOINT_GUIDES:
 			return PackedStringArray([

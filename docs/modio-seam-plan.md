@@ -14,7 +14,7 @@ Keep **provider-native** concerns in this repo while allowing `aerobeat-tool-api
 - auth/session request-shape support for email, OpenID, and documented external provider flows (Apple, Discord, Epic Games, GOG Galaxy, Google, Meta Quest/Oculus, PSN, Steam, Switch, UDT, and Xbox Live)
 - provider listing/search/detail/dependency query mapping
 - endpoint-aware filter serialization per wrapped endpoint
-- provider subscription/user-state mapping via `GET /me/games`, `GET /me/mods`, `GET /me/files`, `GET /me/subscribed`, `GET /me/ratings`, `GET /me/followers`, `GET /me/users/muted`, `GET /me/collections`, and `GET /me/following/collections`
+- provider subscription/user-state mapping via `GET /me/games`, `GET /me/mods`, `GET /me/files`, `GET /me/subscribed`, `GET /me/wallets`, `GET /me/purchased`, `POST /me/entitlements`, `GET /me/ratings`, `GET /me/followers`, `GET /me/users/muted`, `GET /me/collections`, and `GET /me/following/collections`
 - provider mod + guide + collection community transport/query/normalization via `GET/POST/PUT/DELETE /games/{game-id}/mods/{mod-id}/comments...`, `GET /games/{game-id}/guides...`, guide authoring (`POST /games/{game-id}/guides`, `POST /games/{game-id}/guides/{guide-id}`, `DELETE /games/{game-id}/guides/{guide-id}`), `GET /games/{game-id}/collections...`, collection authoring (`POST /games/{game-id}/collections`, `POST /games/{game-id}/collections/{collection-id}`, `DELETE /games/{game-id}/collections/{collection-id}`), read-only `GET /users/{user-id}/followers|following|collections`, and bearer-only social mutation writes for user follow/unfollow, mute/unmute, and collection follow/unfollow
 - provider rating/report writes via `POST /games/{game-id}/mods/{mod-id}/ratings`, `POST /games/{game-id}/mods/{mod-id}/comments/{comment-id}/karma`, `POST /games/{game-id}/guides/{guide-id}/comments/{comment-id}/karma`, `POST /games/{game-id}/collections/{collection-id}/comments/{comment-id}/karma`, `POST /games/{game-id}/collections/{collection-id}/compatibility`, and `POST /report`
 - provider download metadata resolution from `modfile.download`
@@ -91,6 +91,9 @@ The current slice now exposes a larger request-builder and normalization seam:
     - `build_dependencies_request(...)`
   - subscription/user-rating/report/comment/social-mutation request builders
     - `build_user_subscriptions_request(...)`
+    - `build_user_wallet_request(...)`
+    - `build_user_purchased_request(...)`
+    - `build_user_entitlements_request(...)`
     - `build_user_ratings_request(...)`
     - `build_follow_user_request(...)`
     - `build_unfollow_user_request(...)`
@@ -124,7 +127,7 @@ The current slice now exposes a larger request-builder and normalization seam:
     - `build_subscribe_request(...)`
     - `build_unsubscribe_request(...)`
   - normalization helpers
-    - auth/logout/message/user/game/games/game-stats/game-tags/game-token-packs/game-mod-stats/guide-tags/mod/modfile/mod-stats/mod-dependants/mod-tags/mod-metadata-kvp/mod-team/mod-comment/guide/guide-comment/collection/collection-comment/user-inventory list/user-social list/user-collection list/user-social mutation/user-ratings/subscription/dependency/report/collection-compatibility responses
+    - auth/logout/message/user/game/games/game-stats/game-tags/game-token-packs/game-mod-stats/guide-tags/mod/modfile/mod-stats/mod-dependants/mod-tags/mod-metadata-kvp/mod-team/mod-comment/guide/guide-comment/collection/collection-comment/user-inventory list/user-wallet/user-purchased/user-entitlement/user-social list/user-collection list/user-social mutation/user-ratings/subscription/dependency/report/collection-compatibility responses
     - page-state helpers derived from `result_count`, `result_offset`, `result_limit`, and `result_total`
     - no-content write responses plus subscription and collection-follow write responses
     - download metadata resolution helpers
@@ -156,7 +159,7 @@ That keeps transient CDN delivery behavior local to the vendor seam and out of A
 ## Query/auth stance
 
 - public/read flows default to query-based `api_key` injection
-- authenticated `GET /me`, `GET /me/games`, `GET /me/mods`, `GET /me/files`, `GET /me/subscribed`, `GET /games/{game-id}/monetization/token-packs`, logout, subscription writes, collection-subscription writes, and the social-mutation writes (`POST/DELETE /users/{user-id}/following...`, `POST/DELETE /users/{user-id}/mute`, `POST/DELETE /games/{game-id}/collections/{collection-id}/followers`) require bearer-token headers
+- authenticated `GET /me`, `GET /me/games`, `GET /me/mods`, `GET /me/files`, `GET /me/subscribed`, `GET /me/wallets`, `GET /me/purchased`, `POST /me/entitlements`, `GET /games/{game-id}/monetization/token-packs`, logout, subscription writes, collection-subscription writes, and the social-mutation writes (`POST/DELETE /users/{user-id}/following...`, `POST/DELETE /users/{user-id}/mute`, `POST/DELETE /games/{game-id}/collections/{collection-id}/followers`) require bearer-token headers
 - endpoint query serialization is intentionally capability-gated so unsupported filters do not leak onto the wrong wrapped endpoint
 - `GET /games` now serializes only the current documented game listing filters (`id`, `status`, `submitted_by`, `date_added`, `date_updated`, `date_live`, `name`, `name_id`, `summary`, `instructions_url`, `ugc_name`, `presentation_option`, `submission_option`, `curation_option`, `profanity_option`, `dependency_option`, `community_options`, `monetization_options`, `api_access_options`, `maturity_options`, `show_hidden_tags`) plus paging and the current documented game sort keys
 - `GET /games/{game-id}/mods/stats` now serializes only paging plus the documented optional `mod_id` filter
@@ -167,6 +170,10 @@ That keeps transient CDN delivery behavior local to the vendor seam and out of A
 - `GET /me/games` now serializes only the current documented game filters (`id`, `status`, `submitted_by`, `date_added`, `date_updated`, `date_live`, `name`, `name_id`, `summary`, `instructions_url`, `ugc_name`, `presentation_option`, `submission_option`, `curation_option`, `profanity_option`, `dependency_option`, `community_options`, `monetization_options`, `api_access_options`, `maturity_options`, `show_hidden_tags`) plus paging and the current documented game sort keys
 - `GET /me/mods` now serializes only the documented authenticated user-mod filters (`tags`, `metadata_blob`, `metadata_kvp`, `id`, `name_id`, `status`, `visible`, `submitted_by`, `game_id`, `date_added`, `date_updated`, `date_live`, `name`, `modfile`, `maturity_option`, `monetization_options`, `platform_status`) plus paging and the documented user-mod sort keys
 - `GET /me/files` now serializes only the documented authenticated user-modfile filters (`id`, `mod_id`, `date_added`, `date_scanned`, `virus_status`, `virus_positive`, `filesize`, `filehash`, `filename`, `version`, `changelog`, `metadata_blob`, `platform_status`) plus paging
+- `GET /me/wallets` now preserves the documented `game_id` requirement unless the caller is using a g-url host and normalizes only the raw provider wallet fields (`type`, `payment_method_id`, `game_id`, `currency`, `balance`, `pending_balance`, `deficit`, `monetization_status`)
+- `GET /me/purchased` now serializes only the documented purchased-mod filters (`id`, `game_id`, `status`, `visible`, `submitted_by`, `date_added`, `date_updated`, `date_live`, `name`, `name_id`, `modfile`, `metadata_kvp`, `metadata_blob`, `tags`, `maturity_option`, `monetization_options`, `platform_status`, `platforms`) plus paging and the documented purchased-mod sort keys; platform-targeted requests must include `game_id`, so this seam injects the configured game id when needed
+- `POST /me/entitlements` now preserves the required `X-Modio-Portal` header, validates only the documented request-body fields (`game_id`, `psn_token`, `psn_env`, `psn_service_label`, `xbox_token`, `epicgames_token`, `epicgames_sandbox_id`), enforces the PSN-only `X-Modio-Platform` requirement, and normalizes only the minimal entitlement row shape (`sku_id`, `entitlement_type`)
+- the drifted `/me/iap/*/sync` family remains intentionally deferred in this slice because the refreshed docs, SDK, and Unity corpus do not provide a clean enough docs-first contract to wrap without guessing
 - `GET /games/{game-id}/guides` now serializes only the current documented guide filters (`id`, `game_id`, `status`, `submitted_by`, `submitted_by_display_name`, `date_added`, `date_updated`, `date_live`, `name_id`, `tags`, `tags-in`, `tags-not-in`) plus paging and documented sort keys
 - `GET /games/{game-id}/guides/{guide-id}/comments` now serializes only the current documented guide-comment filters (`id`, `resource_id`, `submitted_by`, `date_added`, `reply_id`, `thread_position`, `karma`, `content`) plus paging
 - `GET /games/{game-id}/collections` now serializes only the current documented collection filters (`id`, `status`, `mod_id`, `category`, `submitted_by`, `submitted_by_display_name`, `date_added`, `date_updated`, `date_live`, `name`, `name_id`, `maturity_option`, `tags`, `tags-in`, `tags-not-in`) plus paging and documented sort keys

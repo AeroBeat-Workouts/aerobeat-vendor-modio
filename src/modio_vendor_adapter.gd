@@ -1216,6 +1216,50 @@ func build_user_subscriptions_request(query: ModioListingQuery = ModioListingQue
 		{"auth_mode": _resolve_read_auth_mode(true)}
 	)
 
+func build_user_wallet_request(game_id: String = "") -> Dictionary:
+	var query := _build_authenticated_query()
+	var resolved_game_id := _resolve_requested_game_id(game_id)
+	var validation_errors: Array = []
+	if resolved_game_id.is_empty():
+		validation_errors.append("game_id is required unless using a g-url host")
+	else:
+		query["game_id"] = resolved_game_id
+	return _build_validated_request(
+		"GET",
+		"/me/wallets",
+		query,
+		{},
+		_build_read_headers(true),
+		{"auth_mode": _resolve_read_auth_mode(true)},
+		validation_errors
+	)
+
+func build_user_purchased_request(query: ModioListingQuery = ModioListingQuery.new()) -> Dictionary:
+	var full_query := _build_authenticated_query()
+	full_query.merge(query.to_query_dict(ModioListingQuery.ENDPOINT_USER_PURCHASED), true)
+	if not _config.platform.is_empty() and not full_query.has("game_id") and not _config.game_id.is_empty():
+		full_query["game_id"] = _config.game_id
+	return _transport.build_request(
+		"GET",
+		"/me/purchased",
+		full_query,
+		{},
+		_build_read_headers(true),
+		{"auth_mode": _resolve_read_auth_mode(true)}
+	)
+
+func build_user_entitlements_request(fields: Dictionary, portal: String = "", platform: String = "") -> Dictionary:
+	var normalized := _normalize_user_entitlements_fields(fields, portal, platform)
+	return _build_validated_request(
+		"POST",
+		"/me/entitlements",
+		{},
+		normalized.body,
+		normalized.headers,
+		{"content_type": ModioHttpTransport.CONTENT_TYPE_FORM, "auth_mode": "bearer"},
+		normalized.errors
+	)
+
 func build_user_ratings_request(query: ModioListingQuery = ModioListingQuery.new()) -> Dictionary:
 	var full_query := _build_authenticated_query()
 	full_query.merge(query.to_query_dict(ModioListingQuery.ENDPOINT_USER_RATINGS), true)
@@ -1673,6 +1717,15 @@ func normalize_mod_team_response(payload: Dictionary) -> Dictionary:
 
 func normalize_subscriptions_response(payload: Dictionary) -> Dictionary:
 	return normalize_mod_list_response(payload)
+
+func normalize_user_wallet_response(payload: Dictionary) -> Dictionary:
+	return _normalize_user_wallet_object(payload)
+
+func normalize_user_purchased_response(payload: Dictionary) -> Dictionary:
+	return normalize_mod_list_response(payload)
+
+func normalize_user_entitlements_response(payload: Dictionary) -> Dictionary:
+	return _normalize_list_payload(payload, Callable(self, "_normalize_entitlement_object"))
 
 func normalize_logout_response(payload: Dictionary) -> Dictionary:
 	return normalize_message_response(payload)
@@ -2376,6 +2429,24 @@ func _normalize_game_token_pack_object(payload: Dictionary) -> Dictionary:
 		"date_updated": int(payload.get("date_updated", 0))
 	}
 
+func _normalize_user_wallet_object(payload: Dictionary) -> Dictionary:
+	return {
+		"type": str(payload.get("type", "")),
+		"payment_method_id": str(payload.get("payment_method_id", "")),
+		"game_id": str(payload.get("game_id", "")),
+		"currency": str(payload.get("currency", "")),
+		"balance": int(payload.get("balance", 0)),
+		"pending_balance": int(payload.get("pending_balance", 0)),
+		"deficit": int(payload.get("deficit", 0)),
+		"monetization_status": int(payload.get("monetization_status", 0))
+	}
+
+func _normalize_entitlement_object(payload: Dictionary) -> Dictionary:
+	return {
+		"sku_id": str(payload.get("sku_id", "")),
+		"entitlement_type": int(payload.get("entitlement_type", 0))
+	}
+
 func _normalize_collection_stats(payload: Variant) -> Dictionary:
 	var source: Dictionary = {}
 	if payload is Array:
@@ -2856,6 +2927,76 @@ func _append_required_positive_id_error(value: Variant, field_name: String, erro
 	var parsed = _parse_int_like(value)
 	if parsed == null or int(parsed) <= 0:
 		errors.append("%s must be a positive integer path id" % field_name)
+
+func _normalize_user_entitlements_fields(fields: Dictionary, portal: String, platform: String) -> Dictionary:
+	var errors: Array = []
+	var body := {}
+	var headers := _build_form_headers(true)
+	var resolved_portal := portal.strip_edges().to_lower()
+	if resolved_portal.is_empty():
+		resolved_portal = _config.portal.to_lower()
+	if resolved_portal.is_empty():
+		errors.append("X-Modio-Portal is required")
+	else:
+		headers["X-Modio-Portal"] = resolved_portal
+
+	var resolved_platform := platform.strip_edges()
+	if resolved_platform.is_empty():
+		headers.erase("X-Modio-Platform")
+	else:
+		headers["X-Modio-Platform"] = resolved_platform
+
+	var allowed_fields := ["game_id", "psn_token", "psn_env", "psn_service_label", "xbox_token", "epicgames_token", "epicgames_sandbox_id"]
+	_validate_allowed_fields(fields, allowed_fields, errors, "User Entitlement")
+
+	var resolved_game_id := _resolve_requested_game_id(str(fields.get("game_id", "")))
+	if resolved_game_id.is_empty():
+		errors.append("game_id is required unless using a g-url host")
+	else:
+		body["game_id"] = resolved_game_id
+
+	match resolved_portal:
+		"psn":
+			if resolved_platform.is_empty():
+				errors.append("X-Modio-Platform is required when portal is psn")
+			var psn_token := str(fields.get("psn_token", "")).strip_edges()
+			if psn_token.is_empty():
+				errors.append("psn_token is required when portal is psn")
+			else:
+				body["psn_token"] = psn_token
+			if fields.has("psn_env"):
+				var psn_env = _parse_int_like(fields["psn_env"])
+				if psn_env == null:
+					errors.append("psn_env must be an integer")
+				else:
+					body["psn_env"] = int(psn_env)
+			if fields.has("psn_service_label"):
+				var psn_service_label = _parse_int_like(fields["psn_service_label"])
+				if psn_service_label == null:
+					errors.append("psn_service_label must be an integer")
+				else:
+					body["psn_service_label"] = int(psn_service_label)
+		"xboxlive":
+			var xbox_token := str(fields.get("xbox_token", "")).strip_edges()
+			if xbox_token.is_empty():
+				errors.append("xbox_token is required when portal is xboxlive")
+			else:
+				body["xbox_token"] = xbox_token
+		"epicgames":
+			var epicgames_token := str(fields.get("epicgames_token", "")).strip_edges()
+			if epicgames_token.is_empty():
+				errors.append("epicgames_token is required when portal is epicgames")
+			else:
+				body["epicgames_token"] = epicgames_token
+			var epicgames_sandbox_id := str(fields.get("epicgames_sandbox_id", "")).strip_edges()
+			if epicgames_sandbox_id.is_empty():
+				errors.append("epicgames_sandbox_id is required when portal is epicgames")
+			else:
+				body["epicgames_sandbox_id"] = epicgames_sandbox_id
+		_:
+			pass
+
+	return {"body": body, "headers": headers, "errors": errors}
 
 func _build_public_query() -> Dictionary:
 	var query := {}

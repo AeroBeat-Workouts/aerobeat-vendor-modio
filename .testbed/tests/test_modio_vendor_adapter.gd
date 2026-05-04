@@ -523,6 +523,133 @@ func test_builds_authenticated_subscription_requests_and_gates_unsupported_filte
 	assert_eq(logout_request.path, "/oauth/logout")
 	assert_eq(logout_request.headers.Authorization, "Bearer user-token")
 
+func test_builds_wallet_purchase_and_entitlement_requests_with_documented_semantics() -> void:
+	var adapter := _build_adapter_with_token()
+
+	var wallet_request = adapter.build_user_wallet_request()
+	assert_eq(wallet_request.method, "GET")
+	assert_eq(wallet_request.path, "/me/wallets")
+	assert_eq(wallet_request.auth_mode, "bearer")
+	assert_eq(wallet_request.headers.Authorization, "Bearer user-token")
+	assert_eq(wallet_request.query.game_id, "777")
+	assert_false(wallet_request.query.has("api_key"))
+
+	var purchased_query := ModioListingQuery.new()
+	purchased_query.id = "1001"
+	purchased_query.game_id = "888"
+	purchased_query.status = 1
+	purchased_query.visible = 1
+	purchased_query.submitted_by = "55"
+	purchased_query.date_added = 1777800001
+	purchased_query.date_updated = 1777803600
+	purchased_query.date_live = 1777807200
+	purchased_query.name = "Cardio Blaster"
+	purchased_query.name_id = "cardio-blaster"
+	purchased_query.modfile = "5002"
+	purchased_query.metadata_blob = "{\"intensity\":\"high\"}"
+	purchased_query.metadata_kvp = {"difficulty": "expert", "workout_type": "cardio"}
+	purchased_query.tags_all = PackedStringArray(["Featured", "Cardio"])
+	purchased_query.maturity_option = 4
+	purchased_query.monetization_options = 3
+	purchased_query.platform_status = "live_and_pending"
+	purchased_query.platforms = "PLAYSTATION5,WINDOWS"
+	purchased_query.limit = 15
+	purchased_query.offset = 45
+	purchased_query.sort = "-ratings_weighted_aggregate"
+
+	var purchased_request = adapter.build_user_purchased_request(purchased_query)
+	assert_eq(purchased_request.method, "GET")
+	assert_eq(purchased_request.path, "/me/purchased")
+	assert_eq(purchased_request.auth_mode, "bearer")
+	assert_eq(purchased_request.headers.Authorization, "Bearer user-token")
+	assert_eq(purchased_request.query.id, "1001")
+	assert_eq(purchased_request.query.game_id, "888")
+	assert_eq(purchased_request.query.status, "1")
+	assert_eq(purchased_request.query.visible, "1")
+	assert_eq(purchased_request.query.submitted_by, "55")
+	assert_eq(purchased_request.query.date_added, "1777800001")
+	assert_eq(purchased_request.query.date_updated, "1777803600")
+	assert_eq(purchased_request.query.date_live, "1777807200")
+	assert_eq(purchased_request.query.name, "Cardio Blaster")
+	assert_eq(purchased_request.query.name_id, "cardio-blaster")
+	assert_eq(purchased_request.query.modfile, "5002")
+	assert_eq(purchased_request.query.metadata_blob, "{\"intensity\":\"high\"}")
+	assert_eq(purchased_request.query.metadata_kvp, "difficulty:expert,workout_type:cardio")
+	assert_eq(purchased_request.query.tags, "Featured,Cardio")
+	assert_eq(purchased_request.query.maturity_option, "4")
+	assert_eq(purchased_request.query.monetization_options, "3")
+	assert_eq(purchased_request.query.platform_status, "live_and_pending")
+	assert_eq(purchased_request.query.platforms, "PLAYSTATION5,WINDOWS")
+	assert_eq(purchased_request.query._limit, "15")
+	assert_eq(purchased_request.query._offset, "45")
+	assert_eq(purchased_request.query._sort, "-ratings_weighted_aggregate")
+	assert_false(purchased_request.query.has("api_key"))
+	assert_false(purchased_request.query.has("_q"))
+	assert_false(purchased_request.query.has("tags-in"))
+	assert_false(purchased_request.query.has("tags-not-in"))
+
+	var default_platform_purchased_request = adapter.build_user_purchased_request()
+	assert_eq(default_platform_purchased_request.query.game_id, "777")
+
+	var invalid_purchased_sort_query := ModioListingQuery.new()
+	invalid_purchased_sort_query.sort = "-comments_total"
+	var invalid_purchased_sort_request = adapter.build_user_purchased_request(invalid_purchased_sort_query)
+	assert_false(invalid_purchased_sort_request.query.has("_sort"))
+
+	var entitlements_request = adapter.build_user_entitlements_request({
+		"game_id": "888",
+		"epicgames_token": " epic-token ",
+		"epicgames_sandbox_id": " sandbox-id "
+	}, "epicgames")
+	assert_eq(entitlements_request.method, "POST")
+	assert_eq(entitlements_request.path, "/me/entitlements")
+	assert_eq(entitlements_request.auth_mode, "bearer")
+	assert_eq(entitlements_request.content_type, ModioHttpTransport.CONTENT_TYPE_FORM)
+	assert_eq(entitlements_request.headers.Authorization, "Bearer user-token")
+	assert_eq(entitlements_request.headers["X-Modio-Portal"], "epicgames")
+	assert_false(entitlements_request.headers.has("X-Modio-Platform"))
+	assert_eq(entitlements_request.body.game_id, "888")
+	assert_eq(entitlements_request.body.epicgames_token, "epic-token")
+	assert_eq(entitlements_request.body.epicgames_sandbox_id, "sandbox-id")
+	assert_true(entitlements_request.validation_errors.is_empty())
+
+	var psn_entitlements_request = adapter.build_user_entitlements_request({
+		"game_id": "777",
+		"psn_token": " v3.AbCdE ",
+		"psn_env": 256,
+		"psn_service_label": 0
+	}, "psn", "PLAYSTATION5")
+	assert_eq(psn_entitlements_request.headers["X-Modio-Portal"], "psn")
+	assert_eq(psn_entitlements_request.headers["X-Modio-Platform"], "PLAYSTATION5")
+	assert_eq(psn_entitlements_request.body.psn_token, "v3.AbCdE")
+	assert_eq(psn_entitlements_request.body.psn_env, "256")
+	assert_eq(psn_entitlements_request.body.psn_service_label, "0")
+	assert_true(psn_entitlements_request.validation_errors.is_empty())
+
+	var invalid_wallet_request = ModioVendorAdapter.new(
+		ModioClientConfig.new("", "demo-key", ModioClientConfig.DEFAULT_BASE_URL, "user-token", "en-US", "steam", "WINDOWS"),
+		ModioHttpTransport.new()
+	).build_user_wallet_request()
+	assert_true(invalid_wallet_request.validation_errors.size() >= 1)
+	assert_string_contains(invalid_wallet_request.validation_error, "game_id is required unless using a g-url host")
+
+	var invalid_entitlements_request = adapter.build_user_entitlements_request({
+		"extra": true,
+		"psn_env": "nope"
+	}, "psn")
+	assert_true(invalid_entitlements_request.validation_errors.size() >= 4)
+	assert_string_contains(invalid_entitlements_request.validation_error, "User Entitlement field 'extra' is not documented")
+	assert_string_contains(invalid_entitlements_request.validation_error, "psn_token is required when portal is psn")
+	assert_string_contains(invalid_entitlements_request.validation_error, "psn_env must be an integer")
+	assert_string_contains(invalid_entitlements_request.validation_error, "X-Modio-Platform is required when portal is psn")
+
+	var missing_portal_entitlements_request = ModioVendorAdapter.new(
+		ModioClientConfig.new("777", "demo-key", ModioClientConfig.DEFAULT_BASE_URL, "user-token", "en-US", "", ""),
+		ModioHttpTransport.new()
+	).build_user_entitlements_request({"game_id": "777"})
+	assert_true(missing_portal_entitlements_request.validation_errors.size() >= 1)
+	assert_string_contains(missing_portal_entitlements_request.validation_error, "X-Modio-Portal is required")
+
 func test_builds_guide_requests_with_documented_filter_and_sort_support() -> void:
 	var public_adapter := _build_adapter()
 	var auth_adapter := _build_adapter_with_token()
@@ -1037,6 +1164,29 @@ func test_builds_user_social_and_account_state_requests_with_paging_only_query_s
 
 func test_normalizes_user_inventory_fixture_payloads() -> void:
 	var adapter := _build_adapter_with_token()
+
+	var wallet := adapter.normalize_user_wallet_response(_fixture("wallet.json"))
+	assert_eq(wallet.type, "game_wallet")
+	assert_eq(wallet.payment_method_id, "pm_steam_wallet")
+	assert_eq(wallet.game_id, "777")
+	assert_eq(wallet.currency, "USD")
+	assert_eq(wallet.balance, 1200)
+	assert_eq(wallet.pending_balance, 300)
+	assert_eq(wallet.deficit, 0)
+	assert_eq(wallet.monetization_status, 16)
+
+	var purchased := adapter.normalize_user_purchased_response(_fixture("purchased.json"))
+	assert_eq(purchased.result_total, 2)
+	assert_eq(purchased.data[0].price, 499)
+	assert_eq(purchased.data[0].tax, 25)
+	assert_eq(purchased.data[0].skus[0].portal, "steam")
+
+	var entitlements := adapter.normalize_user_entitlements_response(_fixture("entitlements.json"))
+	assert_eq(entitlements.result_total, 2)
+	assert_eq(entitlements.data[0].sku_id, "AEROBEAT_TOKEN_PACK_A")
+	assert_eq(entitlements.data[0].entitlement_type, 0)
+	assert_eq(entitlements.data[1].sku_id, "AEROBEAT_MOD_PREMIUM_01")
+	assert_eq(entitlements.data[1].entitlement_type, 1)
 
 	var user_games := adapter.normalize_user_games_response(_fixture("games.json"))
 	assert_eq(user_games.result_total, 2)
