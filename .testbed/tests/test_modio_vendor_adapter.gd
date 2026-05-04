@@ -266,6 +266,128 @@ func test_builds_modfile_write_requests_with_documented_validation() -> void:
 	assert_string_contains(invalid_update_request.validation_error, "active must be a boolean")
 	assert_string_contains(invalid_update_request.validation_error, "Modfile field 'filehash' is not documented")
 
+func test_builds_source_and_multipart_upload_requests_with_documented_validation() -> void:
+	var adapter := _build_adapter_with_token()
+
+	var source_request = adapter.build_source_modfiles_request("1001")
+	assert_eq(source_request.method, "GET")
+	assert_eq(source_request.path, "/games/777/mods/1001/sources")
+	assert_eq(source_request.auth_mode, "api_key_query")
+	assert_true(source_request.validation_errors.is_empty())
+
+	var add_source_request = adapter.build_add_source_modfile_request("1001", {
+		"upload_id": "123e4567-e89b-12d3-a456-426614174000",
+		"version": "1.2.0",
+		"active": true,
+		"filehash": "938c2cc0dcc05f2b68c4287040cfcf71",
+		"metadata_blob": "client_signature:source",
+		"platforms": ["SOURCE"]
+	})
+	assert_eq(add_source_request.method, "POST")
+	assert_eq(add_source_request.path, "/games/777/mods/1001/sources")
+	assert_eq(add_source_request.auth_mode, "bearer")
+	assert_eq(add_source_request.content_type, ModioHttpTransport.CONTENT_TYPE_MULTIPART)
+	assert_eq(add_source_request.body.upload_id, "123e4567-e89b-12d3-a456-426614174000")
+	assert_eq(add_source_request.body.platforms, ["SOURCE"])
+	assert_true(add_source_request.validation_errors.is_empty())
+
+	var create_session_request = adapter.build_create_multipart_upload_session_request("1001", {
+		"filename": " cardio-pack.zip ",
+		"nonce": "abc123"
+	})
+	assert_eq(create_session_request.method, "POST")
+	assert_eq(create_session_request.path, "/games/777/mods/1001/files/multipart")
+	assert_eq(create_session_request.content_type, ModioHttpTransport.CONTENT_TYPE_FORM)
+	assert_eq(create_session_request.body.filename, "cardio-pack.zip")
+	assert_eq(create_session_request.body.nonce, "abc123")
+	assert_true(create_session_request.validation_errors.is_empty())
+
+	var sessions_request = adapter.build_multipart_upload_sessions_request("1001", {
+		"status": 2,
+		"_limit": 50,
+		"_offset": 10
+	})
+	assert_eq(sessions_request.method, "GET")
+	assert_eq(sessions_request.path, "/games/777/mods/1001/files/multipart/sessions")
+	assert_eq(sessions_request.auth_mode, "bearer")
+	assert_eq(sessions_request.query.status, "2")
+	assert_eq(sessions_request.query._limit, "50")
+	assert_eq(sessions_request.query._offset, "10")
+	assert_false(sessions_request.query.has("api_key"))
+	assert_true(sessions_request.validation_errors.is_empty())
+
+	var parts_request = adapter.build_multipart_upload_parts_request("1001", " 123e4567-e89b-12d3-a456-426614174000 ")
+	assert_eq(parts_request.method, "GET")
+	assert_eq(parts_request.path, "/games/777/mods/1001/files/multipart")
+	assert_eq(parts_request.query.upload_id, "123e4567-e89b-12d3-a456-426614174000")
+	assert_true(parts_request.validation_errors.is_empty())
+
+	var part_bytes := PackedByteArray([0, 1, 2, 3])
+	var upload_part_request = adapter.build_upload_multipart_part_request("1001", "123e4567-e89b-12d3-a456-426614174000", part_bytes, "bytes 0-3/4", "sha-256=:abc=")
+	assert_eq(upload_part_request.method, "PUT")
+	assert_eq(upload_part_request.path, "/games/777/mods/1001/files/multipart")
+	assert_eq(upload_part_request.auth_mode, "bearer")
+	assert_eq(upload_part_request.content_type, "application/octet-stream")
+	assert_eq(upload_part_request.query.upload_id, "123e4567-e89b-12d3-a456-426614174000")
+	assert_eq(upload_part_request.headers["Content-Range"], "bytes 0-3/4")
+	assert_eq(upload_part_request.headers.Digest, "sha-256=:abc=")
+	assert_eq(upload_part_request.raw_body, part_bytes)
+	assert_true(upload_part_request.body.is_empty())
+	assert_true(upload_part_request.validation_errors.is_empty())
+
+	var complete_request = adapter.build_complete_multipart_upload_session_request("1001", "123e4567-e89b-12d3-a456-426614174000")
+	assert_eq(complete_request.method, "POST")
+	assert_eq(complete_request.path, "/games/777/mods/1001/files/multipart/complete")
+	assert_eq(complete_request.query.upload_id, "123e4567-e89b-12d3-a456-426614174000")
+	assert_true(complete_request.validation_errors.is_empty())
+
+	var delete_session_request = adapter.build_delete_multipart_upload_session_request("1001", "123e4567-e89b-12d3-a456-426614174000")
+	assert_eq(delete_session_request.method, "DELETE")
+	assert_eq(delete_session_request.path, "/games/777/mods/1001/files/multipart")
+	assert_eq(delete_session_request.query.upload_id, "123e4567-e89b-12d3-a456-426614174000")
+	assert_true(delete_session_request.validation_errors.is_empty())
+
+	var invalid_source_request = adapter.build_add_source_modfile_request("0", {
+		"metadata": "drift",
+		"filedata": "",
+		"upload_id": "",
+		"platforms": ["INVALID"]
+	})
+	assert_true(invalid_source_request.validation_errors.size() >= 4)
+	assert_string_contains(invalid_source_request.validation_error, "mod_id must be a positive integer path id")
+	assert_string_contains(invalid_source_request.validation_error, "Modfile field 'metadata' is not documented")
+	assert_string_contains(invalid_source_request.validation_error, "filedata must be a non-empty raw multipart value")
+	assert_string_contains(invalid_source_request.validation_error, "upload_id must be a non-empty string")
+	assert_string_contains(invalid_source_request.validation_error, "platforms contains undocumented platform 'INVALID'")
+
+	var invalid_create_session_request = adapter.build_create_multipart_upload_session_request("1001", {
+		"filename": "cardio-pack.rar",
+		"nonce": "x".repeat(65),
+		"extra": true
+	})
+	assert_true(invalid_create_session_request.validation_errors.size() >= 3)
+	assert_string_contains(invalid_create_session_request.validation_error, "Multipart Upload Session field 'extra' is not documented")
+	assert_string_contains(invalid_create_session_request.validation_error, "filename must include the .zip extension")
+	assert_string_contains(invalid_create_session_request.validation_error, "nonce must be at most 64 characters")
+
+	var invalid_sessions_request = adapter.build_multipart_upload_sessions_request("1001", {
+		"status": 9,
+		"_limit": 101,
+		"_offset": -1,
+		"sort": "-date_added"
+	})
+	assert_true(invalid_sessions_request.validation_errors.size() >= 4)
+	assert_string_contains(invalid_sessions_request.validation_error, "Multipart Upload Session Filter field 'sort' is not documented")
+	assert_string_contains(invalid_sessions_request.validation_error, "status must be one of 0, 1, 2, 3, 4")
+	assert_string_contains(invalid_sessions_request.validation_error, "_limit must be an integer between 1 and 100")
+	assert_string_contains(invalid_sessions_request.validation_error, "_offset must be a non-negative integer")
+
+	var invalid_part_request = adapter.build_upload_multipart_part_request("1001", " ", null, "", "")
+	assert_true(invalid_part_request.validation_errors.size() >= 3)
+	assert_string_contains(invalid_part_request.validation_error, "upload_id must be a non-empty string")
+	assert_string_contains(invalid_part_request.validation_error, "Content-Range must be a non-empty string")
+	assert_string_contains(invalid_part_request.validation_error, "part_body must be raw bytes or a string")
+
 func test_builds_authenticated_subscription_requests_and_gates_unsupported_filters() -> void:
 	var adapter := _build_adapter_with_token()
 
@@ -1405,6 +1527,51 @@ func test_normalizes_guides_and_guide_comment_fixture_payloads() -> void:
 	assert_false(guide_karma_downvote_disabled.ok)
 	assert_eq(guide_karma_downvote_disabled.error.category, "forbidden")
 	assert_eq(guide_karma_downvote_disabled.error.error_ref, 19045)
+
+func test_normalizes_source_and_multipart_upload_responses() -> void:
+	var adapter := _build_adapter()
+
+	var source_modfiles = adapter.normalize_source_modfiles_response(_fixture("modfiles.json"))
+	assert_eq(source_modfiles.result_total, 1)
+	assert_eq(source_modfiles.data[0].filename, "cardio-blaster-v1.zip")
+
+	var created_source = adapter.normalize_add_source_modfile_response(201, {"Location": "/games/777/mods/1001/sources/5002"}, _fixture("modfile_detail.json"))
+	assert_true(created_source.ok)
+	assert_true(created_source.created)
+	assert_true(created_source.is_source_modfile)
+	assert_eq(created_source.location, "/games/777/mods/1001/sources/5002")
+	assert_eq(created_source.data.id, 5002)
+
+	var created_session = adapter.normalize_create_multipart_upload_session_response(200, {}, _fixture("multipart_upload_session.json"))
+	assert_true(created_session.ok)
+	assert_true(created_session.created)
+	assert_true(created_session.data.is_complete)
+	assert_eq(created_session.data.status_label, "complete")
+
+	var sessions = adapter.normalize_multipart_upload_sessions_response(_fixture("multipart_upload_sessions.json"))
+	assert_eq(sessions.result_total, 2)
+	assert_eq(sessions.data[0].status_label, "incomplete")
+	assert_true(sessions.data[1].is_processing)
+
+	var parts = adapter.normalize_multipart_upload_parts_response(_fixture("multipart_upload_parts.json"))
+	assert_eq(parts.result_total, 2)
+	assert_eq(parts.data[1].part_number, 2)
+	assert_eq(parts.data[1].part_size, 2819342)
+
+	var uploaded_part = adapter.normalize_upload_multipart_part_response(200, {}, _fixture("multipart_upload_parts.json").data[0])
+	assert_true(uploaded_part.ok)
+	assert_true(uploaded_part.uploaded)
+	assert_eq(uploaded_part.data.part_number, 1)
+
+	var completed_session = adapter.normalize_complete_multipart_upload_session_response(200, {}, _fixture("multipart_upload_session.json"))
+	assert_true(completed_session.ok)
+	assert_true(completed_session.completed)
+	assert_eq(completed_session.data.upload_id, "123e4567-e89b-12d3-a456-426614174000")
+
+	var deleted_session = adapter.normalize_delete_multipart_upload_session_response(204)
+	assert_true(deleted_session.ok)
+	assert_true(deleted_session.deleted)
+	assert_eq(deleted_session.data, {})
 
 func test_resolves_download_requests_from_modfile_metadata_not_download_endpoint() -> void:
 	var adapter := _build_adapter_with_token()

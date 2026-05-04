@@ -38,6 +38,7 @@ const DEPENDENCY_POLICY_SUBSCRIPTION_INCLUDE := "subscription_include_dependenci
 const GUIDE_STATUS_VALUES := [0, 1, 3]
 const GUIDE_COMMUNITY_OPTION_VALUES := [0, 2048]
 const COLLECTION_STATUS_VALUES := [0, 1]
+const MULTIPART_UPLOAD_STATUS_VALUES := [0, 1, 2, 3, 4]
 const COLLECTION_VISIBILITY_VALUES := [0, 1]
 const COLLECTION_TAG_VALUES := ["ANIMATION", "AUDIO", "BUGFIXES", "CHEATING", "ENVIRONMENT", "GAMEPLAY", "QUALITY_OF_LIFE", "UI", "VISUAL"]
 const MODFILE_PLATFORM_VALUES := ["ALL", "WINDOWS", "MAC", "LINUX", "ANDROID", "IOS", "XBOXONE", "XBOXSERIESX", "PLAYSTATION4", "PLAYSTATION5", "SWITCH", "OCULUS", "SOURCE", "SWITCH2", "WINDOWSSERVER", "LINUXSERVER"]
@@ -440,6 +441,129 @@ func build_delete_modfile_request(mod_id: String, file_id: String) -> Dictionary
 		"DELETE",
 		"/games/%s/mods/%s/files/%s" % [_config.game_id, mod_id.strip_edges(), file_id.strip_edges()],
 		{},
+		{},
+		_build_form_headers(true),
+		{"content_type": ModioHttpTransport.CONTENT_TYPE_FORM, "auth_mode": "bearer"},
+		errors
+	)
+
+func build_source_modfiles_request(mod_id: String) -> Dictionary:
+	var errors: Array = []
+	_append_required_positive_id_error(mod_id, "mod_id", errors)
+	return _build_validated_request(
+		"GET",
+		"/games/%s/mods/%s/sources" % [_config.game_id, mod_id.strip_edges()],
+		_build_public_query(),
+		{},
+		_build_read_headers(false),
+		{"auth_mode": _resolve_read_auth_mode(false)},
+		errors
+	)
+
+func build_add_source_modfile_request(mod_id: String, fields: Dictionary) -> Dictionary:
+	var errors: Array = []
+	_append_required_positive_id_error(mod_id, "mod_id", errors)
+	var normalized := _normalize_add_modfile_fields(fields)
+	errors.append_array(normalized.errors)
+	return _build_validated_request(
+		"POST",
+		"/games/%s/mods/%s/sources" % [_config.game_id, mod_id.strip_edges()],
+		{},
+		normalized.body,
+		_build_multipart_headers(true),
+		{"content_type": ModioHttpTransport.CONTENT_TYPE_MULTIPART, "auth_mode": "bearer"},
+		errors
+	)
+
+func build_create_multipart_upload_session_request(mod_id: String, fields: Dictionary) -> Dictionary:
+	var errors: Array = []
+	_append_required_positive_id_error(mod_id, "mod_id", errors)
+	var normalized := _normalize_create_multipart_upload_session_fields(fields)
+	errors.append_array(normalized.errors)
+	return _build_validated_request(
+		"POST",
+		"/games/%s/mods/%s/files/multipart" % [_config.game_id, mod_id.strip_edges()],
+		{},
+		normalized.body,
+		_build_form_headers(true),
+		{"content_type": ModioHttpTransport.CONTENT_TYPE_FORM, "auth_mode": "bearer"},
+		errors
+	)
+
+func build_multipart_upload_sessions_request(mod_id: String, filters: Dictionary = {}) -> Dictionary:
+	var errors: Array = []
+	_append_required_positive_id_error(mod_id, "mod_id", errors)
+	var normalized := _normalize_multipart_upload_session_filters(filters)
+	errors.append_array(normalized.errors)
+	return _build_validated_request(
+		"GET",
+		"/games/%s/mods/%s/files/multipart/sessions" % [_config.game_id, mod_id.strip_edges()],
+		normalized.query,
+		{},
+		_build_read_headers(true),
+		{"auth_mode": "bearer"},
+		errors
+	)
+
+func build_multipart_upload_parts_request(mod_id: String, upload_id: String) -> Dictionary:
+	var errors: Array = []
+	_append_required_positive_id_error(mod_id, "mod_id", errors)
+	var query := _build_multipart_upload_id_query(upload_id, errors)
+	return _build_validated_request(
+		"GET",
+		"/games/%s/mods/%s/files/multipart" % [_config.game_id, mod_id.strip_edges()],
+		query,
+		{},
+		_build_read_headers(true),
+		{"auth_mode": "bearer"},
+		errors
+	)
+
+func build_upload_multipart_part_request(mod_id: String, upload_id: String, part_body: Variant, content_range: String, digest: String = "") -> Dictionary:
+	var errors: Array = []
+	_append_required_positive_id_error(mod_id, "mod_id", errors)
+	var query := _build_multipart_upload_id_query(upload_id, errors)
+	var headers := _build_read_headers(true)
+	var normalized_headers := _normalize_multipart_upload_part_headers(content_range, digest, errors)
+	headers.merge(normalized_headers, true)
+	var normalized_body: Variant = _normalize_multipart_upload_part_body(part_body, errors)
+	var meta := {
+		"content_type": "application/octet-stream",
+		"auth_mode": "bearer",
+		"raw_body": normalized_body
+	}
+	return _build_validated_request(
+		"PUT",
+		"/games/%s/mods/%s/files/multipart" % [_config.game_id, mod_id.strip_edges()],
+		query,
+		{},
+		headers,
+		meta,
+		errors
+	)
+
+func build_complete_multipart_upload_session_request(mod_id: String, upload_id: String) -> Dictionary:
+	var errors: Array = []
+	_append_required_positive_id_error(mod_id, "mod_id", errors)
+	var query := _build_multipart_upload_id_query(upload_id, errors)
+	return _build_validated_request(
+		"POST",
+		"/games/%s/mods/%s/files/multipart/complete" % [_config.game_id, mod_id.strip_edges()],
+		query,
+		{},
+		_build_form_headers(true),
+		{"content_type": ModioHttpTransport.CONTENT_TYPE_FORM, "auth_mode": "bearer"},
+		errors
+	)
+
+func build_delete_multipart_upload_session_request(mod_id: String, upload_id: String) -> Dictionary:
+	var errors: Array = []
+	_append_required_positive_id_error(mod_id, "mod_id", errors)
+	var query := _build_multipart_upload_id_query(upload_id, errors)
+	return _build_validated_request(
+		"DELETE",
+		"/games/%s/mods/%s/files/multipart" % [_config.game_id, mod_id.strip_edges()],
+		query,
 		{},
 		_build_form_headers(true),
 		{"content_type": ModioHttpTransport.CONTENT_TYPE_FORM, "auth_mode": "bearer"},
@@ -1261,6 +1385,50 @@ func normalize_delete_modfile_response(status_code: int, headers: Dictionary = {
 	response["deleted"] = response.ok and status_code == 204
 	return response
 
+func normalize_source_modfiles_response(payload: Dictionary) -> Dictionary:
+	return _normalize_list_payload(payload, Callable(self, "_normalize_modfile_object"))
+
+func normalize_add_source_modfile_response(status_code: int, headers: Dictionary, payload: Dictionary) -> Dictionary:
+	var response := _normalize_modfile_write_response(status_code, headers, payload)
+	if not response.ok:
+		return response
+	response["created"] = status_code == 201
+	response["is_source_modfile"] = true
+	return response
+
+func normalize_create_multipart_upload_session_response(status_code: int, headers: Dictionary, payload: Dictionary) -> Dictionary:
+	var response := _normalize_multipart_upload_write_response(status_code, headers, payload)
+	if not response.ok:
+		return response
+	response["created"] = status_code == 200
+	return response
+
+func normalize_multipart_upload_sessions_response(payload: Dictionary) -> Dictionary:
+	return _normalize_list_payload(payload, Callable(self, "_normalize_multipart_upload_object"))
+
+func normalize_multipart_upload_parts_response(payload: Dictionary) -> Dictionary:
+	return _normalize_list_payload(payload, Callable(self, "_normalize_multipart_upload_part_object"))
+
+func normalize_upload_multipart_part_response(status_code: int, headers: Dictionary, payload: Dictionary) -> Dictionary:
+	var response := _transport.normalize_response(status_code, headers, payload)
+	if not response.ok:
+		return response
+	response["data"] = _normalize_multipart_upload_part_object(payload)
+	response["uploaded"] = status_code == 200
+	return response
+
+func normalize_complete_multipart_upload_session_response(status_code: int, headers: Dictionary, payload: Dictionary) -> Dictionary:
+	var response := _normalize_multipart_upload_write_response(status_code, headers, payload)
+	if not response.ok:
+		return response
+	response["completed"] = status_code == 200
+	return response
+
+func normalize_delete_multipart_upload_session_response(status_code: int, headers: Dictionary = {}) -> Dictionary:
+	var response := _normalize_no_content_write_response(status_code, headers)
+	response["deleted"] = response.ok and status_code == 204
+	return response
+
 func normalize_mod_stats_response(payload: Dictionary) -> Dictionary:
 	var normalized := _normalize_stats_object(payload)
 	var now := Time.get_unix_time_from_system()
@@ -1490,6 +1658,13 @@ func _normalize_modfile_write_response(status_code: int, headers: Dictionary, pa
 		return response
 	response["data"] = _normalize_modfile_object(payload)
 	response["location"] = response.headers.get("location", "")
+	return response
+
+func _normalize_multipart_upload_write_response(status_code: int, headers: Dictionary, payload: Dictionary) -> Dictionary:
+	var response := _transport.normalize_response(status_code, headers, payload)
+	if not response.ok:
+		return response
+	response["data"] = _normalize_multipart_upload_object(payload)
 	return response
 
 func _normalize_collection_write_response(status_code: int, headers: Dictionary, payload: Dictionary) -> Dictionary:
@@ -1884,6 +2059,27 @@ func _normalize_modfile_object(payload: Dictionary) -> Dictionary:
 		"platforms": _normalize_file_platforms(payload.get("platforms", []))
 	}
 
+func _normalize_multipart_upload_object(payload: Dictionary) -> Dictionary:
+	var status := int(payload.get("status", 0))
+	return {
+		"upload_id": str(payload.get("upload_id", "")),
+		"status": status,
+		"status_label": _multipart_upload_status_label(status),
+		"is_incomplete": status == 0,
+		"is_pending": status == 1,
+		"is_processing": status == 2,
+		"is_complete": status == 3,
+		"is_cancelled": status == 4
+	}
+
+func _normalize_multipart_upload_part_object(payload: Dictionary) -> Dictionary:
+	return {
+		"upload_id": str(payload.get("upload_id", "")),
+		"part_number": int(payload.get("part_number", 0)),
+		"part_size": int(payload.get("part_size", 0)),
+		"date_added": int(payload.get("date_added", 0))
+	}
+
 func _normalize_guide_comment_object(payload: Dictionary) -> Dictionary:
 	var normalized := _normalize_comment_object(payload)
 	normalized["resource_type"] = "guide_comment"
@@ -2261,6 +2457,77 @@ func _normalize_update_modfile_fields(fields: Dictionary) -> Dictionary:
 	_append_optional_string_field(fields, body, "metadata_blob", errors)
 	return {"body": body, "errors": errors}
 
+func _normalize_create_multipart_upload_session_fields(fields: Dictionary) -> Dictionary:
+	var body := {}
+	var errors: Array = []
+	_validate_allowed_fields(fields, ["filename", "nonce"], errors, "multipart upload session")
+	_append_validated_string_field(fields, body, "filename", 100, errors, true)
+	if body.has("filename") and not str(body.filename).to_lower().ends_with(".zip"):
+		errors.append("filename must include the .zip extension")
+	_append_validated_string_field(fields, body, "nonce", 64, errors, false)
+	return {"body": body, "errors": errors}
+
+func _normalize_multipart_upload_session_filters(filters: Dictionary) -> Dictionary:
+	var query := _build_authenticated_query()
+	var errors: Array = []
+	_validate_allowed_fields(filters, ["status", "_limit", "_offset"], errors, "multipart upload session filter")
+	if filters.has("status"):
+		var parsed_status = _parse_int_like(filters["status"])
+		if parsed_status == null or not MULTIPART_UPLOAD_STATUS_VALUES.has(int(parsed_status)):
+			errors.append("status must be one of 0, 1, 2, 3, 4")
+		else:
+			query["status"] = str(int(parsed_status))
+	if filters.has("_limit"):
+		var parsed_limit = _parse_int_like(filters["_limit"])
+		if parsed_limit == null or int(parsed_limit) < 1 or int(parsed_limit) > 100:
+			errors.append("_limit must be an integer between 1 and 100")
+		else:
+			query["_limit"] = str(int(parsed_limit))
+	if filters.has("_offset"):
+		var parsed_offset = _parse_int_like(filters["_offset"])
+		if parsed_offset == null or int(parsed_offset) < 0:
+			errors.append("_offset must be a non-negative integer")
+		else:
+			query["_offset"] = str(int(parsed_offset))
+	return {"query": query, "errors": errors}
+
+func _build_multipart_upload_id_query(upload_id: String, errors: Array) -> Dictionary:
+	var query := _build_authenticated_query()
+	var sanitized := upload_id.strip_edges()
+	if sanitized.is_empty():
+		errors.append("upload_id must be a non-empty string")
+	else:
+		query["upload_id"] = sanitized
+	return query
+
+func _normalize_multipart_upload_part_headers(content_range: String, digest: String, errors: Array) -> Dictionary:
+	var headers := {}
+	var sanitized_content_range := content_range.strip_edges()
+	if sanitized_content_range.is_empty():
+		errors.append("Content-Range must be a non-empty string")
+	else:
+		headers["Content-Range"] = sanitized_content_range
+	var sanitized_digest := digest.strip_edges()
+	if not sanitized_digest.is_empty():
+		headers["Digest"] = sanitized_digest
+	return headers
+
+func _normalize_multipart_upload_part_body(part_body: Variant, errors: Array) -> Variant:
+	if part_body == null:
+		errors.append("part_body must be raw bytes or a string")
+		return PackedByteArray()
+	if part_body is PackedByteArray:
+		if part_body.is_empty():
+			errors.append("part_body must not be empty")
+		return part_body
+	if part_body is String:
+		var sanitized := str(part_body)
+		if sanitized.is_empty():
+			errors.append("part_body must not be empty")
+		return sanitized
+	errors.append("part_body must be raw bytes or a string")
+	return PackedByteArray()
+
 func _normalize_collection_delete_fields(fields: Dictionary) -> Dictionary:
 	var body := {}
 	var errors: Array = []
@@ -2530,6 +2797,21 @@ func _build_validated_request(method: String, path: String, query: Dictionary, b
 		effective_meta["validation_errors"] = validation_errors
 		effective_meta["validation_error"] = "Invalid mod.io request: %s" % "; ".join(PackedStringArray(validation_errors))
 	return _transport.build_request(method, path, query, body, headers, effective_meta)
+
+func _multipart_upload_status_label(status: int) -> String:
+	match status:
+		0:
+			return "incomplete"
+		1:
+			return "pending"
+		2:
+			return "processing"
+		3:
+			return "complete"
+		4:
+			return "cancelled"
+		_:
+			return "unknown"
 
 func _resolve_read_auth_mode(requires_bearer: bool) -> String:
 	if requires_bearer:

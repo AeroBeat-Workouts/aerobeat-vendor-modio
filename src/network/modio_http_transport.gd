@@ -29,6 +29,7 @@ func build_request(
 		"auth_mode": meta.get("auth_mode", "none"),
 		"expects": meta.get("expects", "json"),
 		"multipart_boundary": meta.get("multipart_boundary", ""),
+		"raw_body": meta.get("raw_body", null),
 		"validation_error": meta.get("validation_error", ""),
 		"validation_errors": meta.get("validation_errors", [])
 	}
@@ -62,6 +63,7 @@ func prepare_request(request: Dictionary, config: ModioClientConfig = null, opti
 	var query: Dictionary = _stringify_dictionary(final_request.get("query", {}))
 	var headers: Dictionary = _normalize_outbound_headers(final_request.get("headers", {}))
 	var body: Dictionary = _stringify_dictionary(final_request.get("body", {}))
+	var raw_body = final_request.get("raw_body", null)
 	var content_type := str(final_request.get("content_type", ""))
 	var expects := str(final_request.get("expects", "json"))
 	var explicit_base_url := str(options.get("base_url", ""))
@@ -92,16 +94,30 @@ func prepare_request(request: Dictionary, config: ModioClientConfig = null, opti
 	var requested_multipart_boundary := str(final_request.get("multipart_boundary", "")).strip_edges()
 	if requested_multipart_boundary.is_empty():
 		requested_multipart_boundary = str(options.get("multipart_boundary", "")).strip_edges()
-	var encoded_body_result := _encode_request_body(body, content_type, requested_multipart_boundary)
-	if not bool(encoded_body_result.get("ok", false)):
-		return _build_transport_error_result(str(encoded_body_result.get("error", "Failed to encode request body.")), {"method": method, "path": path}, ERR_INVALID_PARAMETER)
-	var encoded_body := str(encoded_body_result.get("body_string", ""))
-	var final_content_type := str(encoded_body_result.get("content_type", content_type))
-	var multipart_boundary := str(encoded_body_result.get("boundary", ""))
+	var encoded_body := ""
+	var encoded_body_bytes := PackedByteArray()
+	var final_content_type := content_type
+	var multipart_boundary := ""
+	var has_raw_body := raw_body != null
+	if has_raw_body:
+		var raw_body_result := _normalize_raw_request_body(raw_body, content_type)
+		if not bool(raw_body_result.get("ok", false)):
+			return _build_transport_error_result(str(raw_body_result.get("error", "Failed to encode raw request body.")), {"method": method, "path": path}, ERR_INVALID_PARAMETER)
+		encoded_body = str(raw_body_result.get("body_string", ""))
+		encoded_body_bytes = raw_body_result.get("body_bytes", PackedByteArray())
+		final_content_type = str(raw_body_result.get("content_type", content_type))
+	else:
+		var encoded_body_result := _encode_request_body(body, content_type, requested_multipart_boundary)
+		if not bool(encoded_body_result.get("ok", false)):
+			return _build_transport_error_result(str(encoded_body_result.get("error", "Failed to encode request body.")), {"method": method, "path": path}, ERR_INVALID_PARAMETER)
+		encoded_body = str(encoded_body_result.get("body_string", ""))
+		encoded_body_bytes = encoded_body.to_utf8_buffer()
+		final_content_type = str(encoded_body_result.get("content_type", content_type))
+		multipart_boundary = str(encoded_body_result.get("boundary", ""))
 	if final_content_type != "" and not headers.has("Content-Type"):
 		headers["Content-Type"] = final_content_type
-	if encoded_body != "" and not headers.has("Content-Length"):
-		headers["Content-Length"] = str(encoded_body.to_utf8_buffer().size())
+	if encoded_body_bytes.size() > 0 and not headers.has("Content-Length"):
+		headers["Content-Length"] = str(encoded_body_bytes.size())
 
 	final_request = {
 		"method": method,
@@ -111,7 +127,10 @@ func prepare_request(request: Dictionary, config: ModioClientConfig = null, opti
 		"query_string": encoded_query,
 		"headers": headers,
 		"body": body,
+		"raw_body": raw_body,
 		"body_string": encoded_body,
+		"body_bytes": encoded_body_bytes,
+		"has_raw_body": has_raw_body,
 		"content_type": final_content_type,
 		"multipart_boundary": multipart_boundary,
 		"auth_mode": auth_mode,
@@ -179,7 +198,11 @@ func _execute_with_http_client(final_request: Dictionary, options: Dictionary) -
 		return {"transport_error": "Timed out connecting to mod.io host.", "code": ERR_TIMEOUT}
 
 	var request_headers := _headers_to_lines(final_request.headers)
-	var request_error := client.request(_http_method_to_constant(final_request.method), parsed.request_path, request_headers, final_request.body_string)
+	var request_error := OK
+	if bool(final_request.get("has_raw_body", false)):
+		request_error = client.request_raw(_http_method_to_constant(final_request.method), parsed.request_path, request_headers, final_request.get("body_bytes", PackedByteArray()))
+	else:
+		request_error = client.request(_http_method_to_constant(final_request.method), parsed.request_path, request_headers, final_request.body_string)
 	if request_error != OK:
 		return {"transport_error": error_string(request_error), "code": request_error}
 
@@ -291,6 +314,21 @@ func _encode_parameters(values: Dictionary) -> String:
 	for key in keys:
 		parts.append("%s=%s" % [str(key).uri_encode(), _parameter_to_string(values[key]).uri_encode()])
 	return "&".join(parts)
+
+func _normalize_raw_request_body(raw_body: Variant, content_type: String) -> Dictionary:
+	var body_bytes := PackedByteArray()
+	if raw_body is PackedByteArray:
+		body_bytes = raw_body
+	elif raw_body is String:
+		body_bytes = str(raw_body).to_utf8_buffer()
+	else:
+		return {"ok": false, "error": "Raw request bodies must be a PackedByteArray or String."}
+	return {
+		"ok": true,
+		"body_string": body_bytes.get_string_from_utf8(),
+		"body_bytes": body_bytes,
+		"content_type": content_type
+	}
 
 func _encode_request_body(values: Dictionary, content_type: String, multipart_boundary: String = "") -> Dictionary:
 	if values.is_empty():

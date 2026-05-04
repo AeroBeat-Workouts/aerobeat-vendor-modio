@@ -1,0 +1,16 @@
+{
+  "data": [
+    {
+      "upload_id": "123e4567-e89b-12d3-a456-426614174000",
+      "status": 0
+    },
+    {
+      "upload_id": "123e4567-e89b-12d3-a456-426614174001",
+      "status": 2
+    }
+  ],
+  "result_count": 2,
+  "result_offset": 0,
+  "result_limit": 100,
+  "result_total": 2
+}

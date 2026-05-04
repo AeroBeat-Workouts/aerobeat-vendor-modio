@@ -1,0 +1,20 @@
+{
+  "data": [
+    {
+      "upload_id": "123e4567-e89b-12d3-a456-426614174000",
+      "part_number": 1,
+      "part_size": 52428800,
+      "date_added": 1777800001
+    },
+    {
+      "upload_id": "123e4567-e89b-12d3-a456-426614174000",
+      "part_number": 2,
+      "part_size": 2819342,
+      "date_added": 1777800061
+    }
+  ],
+  "result_count": 2,
+  "result_offset": 0,
+  "result_limit": 100,
+  "result_total": 2
+}

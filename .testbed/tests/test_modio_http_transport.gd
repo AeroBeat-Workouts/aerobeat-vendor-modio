@@ -122,6 +122,28 @@ func test_executes_form_encoded_logout_and_subscription_writes_with_bearer_auth_
 	assert_eq(_recorded_requests[2].url, "https://g-777.modapi.io/v1/games/777/mods/1001/subscribe")
 	assert_eq(unsubscribe_response.payload, {})
 
+func test_executes_raw_multipart_part_uploads_with_query_headers_and_bytes() -> void:
+	var config := ModioClientConfig.new("777", "demo-key", "", "user-token", "en-US", "steam", "WINDOWS", ModioClientConfig.HOST_GAME)
+	var transport := ModioHttpTransport.new(Callable(self, "_transport_double"))
+	var adapter := ModioVendorAdapter.new(config, transport)
+	var part_bytes := PackedByteArray([0, 1, 2, 3, 4])
+
+	_queue_json_response(200, {"upload_id": "123e4567-e89b-12d3-a456-426614174000", "part_number": 1, "part_size": 5, "date_added": 1777800001})
+	var response := transport.execute(adapter.build_upload_multipart_part_request("1001", "123e4567-e89b-12d3-a456-426614174000", part_bytes, "bytes 0-4/5", "sha-256=:abc="), config)
+
+	assert_true(response.ok)
+	assert_eq(_recorded_requests.size(), 1)
+	assert_eq(_recorded_requests[0].method, "PUT")
+	assert_eq(_recorded_requests[0].url, "https://g-777.modapi.io/v1/games/777/mods/1001/files/multipart?upload_id=123e4567-e89b-12d3-a456-426614174000")
+	assert_eq(_recorded_requests[0].headers.Authorization, "Bearer user-token")
+	assert_eq(_recorded_requests[0].headers["Content-Type"], "application/octet-stream")
+	assert_eq(_recorded_requests[0].headers["Content-Range"], "bytes 0-4/5")
+	assert_eq(_recorded_requests[0].headers.Digest, "sha-256=:abc=")
+	assert_eq(_recorded_requests[0].headers["Content-Length"], "5")
+	assert_true(_recorded_requests[0].has_raw_body)
+	assert_eq(_recorded_requests[0].body_bytes, part_bytes)
+	assert_eq(int(response.payload.part_size), 5)
+
 func test_executes_external_auth_requests_with_documented_paths_bodies_and_headers() -> void:
 	var config := ModioClientConfig.new("777", "demo-key", "", "user-token")
 	var transport := ModioHttpTransport.new(Callable(self, "_transport_double"))
