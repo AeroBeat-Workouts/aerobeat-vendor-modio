@@ -3371,9 +3371,9 @@ func _normalize_add_game_media_fields(fields: Dictionary) -> Dictionary:
 	var body := {}
 	var errors: Array = []
 	_validate_allowed_fields(fields, ["logo", "icon", "header", "redirect_uris"], errors, "game media")
-	_append_raw_multipart_field(fields, body, "logo", errors, false)
-	_append_raw_multipart_field(fields, body, "icon", errors, false)
-	_append_raw_multipart_field(fields, body, "header", errors, false)
+	_append_optional_multipart_file_field(fields, body, "logo", errors)
+	_append_optional_multipart_file_field(fields, body, "icon", errors)
+	_append_optional_multipart_file_field(fields, body, "header", errors)
 	_append_optional_url_array_field(fields, body, "redirect_uris", errors)
 	return {"body": body, "errors": errors}
 
@@ -3432,6 +3432,20 @@ func _append_raw_multipart_field(fields: Dictionary, body: Dictionary, field_nam
 	if normalized == null:
 		return
 	body[field_name] = normalized
+
+func _append_optional_multipart_file_field(fields: Dictionary, body: Dictionary, field_name: String, errors: Array) -> void:
+	if not fields.has(field_name):
+		return
+	var normalized = _normalize_required_multipart_file_part(fields[field_name], field_name, errors)
+	if normalized == null:
+		return
+	body[field_name] = normalized
+
+func _normalize_required_multipart_file_part(value: Variant, field_name: String, errors: Array):
+	if not (value is Dictionary):
+		errors.append("%s must be a multipart file part object with filename and raw byte data" % field_name)
+		return null
+	return _normalize_raw_multipart_value(value, field_name, errors)
 
 func _normalize_raw_multipart_value(value: Variant, field_name: String, errors: Array):
 	if value == null:

@@ -524,6 +524,7 @@ func test_builds_game_media_requests_with_documented_multipart_fields() -> void:
 	var adapter := _build_adapter_with_token()
 	var logo_bytes := PackedByteArray([80, 78, 71])
 	var icon_bytes := PackedByteArray([73, 67, 79])
+	var header_bytes := PackedByteArray([72, 68, 82])
 
 	var request = adapter.build_add_game_media_request({
 		"logo": {
@@ -536,7 +537,11 @@ func test_builds_game_media_requests_with_documented_multipart_fields() -> void:
 			"content_type": "image/png",
 			"data": icon_bytes
 		},
-		"header": "  @/tmp/game-header.png  ",
+		"header": {
+			"filename": "game-header.png",
+			"content_type": "image/png",
+			"data": header_bytes
+		},
 		"redirect_uris": ["https://example.com/auth/callback", "http://localhost:3000/return"]
 	})
 	assert_eq(request.method, "POST")
@@ -545,7 +550,8 @@ func test_builds_game_media_requests_with_documented_multipart_fields() -> void:
 	assert_eq(request.content_type, ModioHttpTransport.CONTENT_TYPE_MULTIPART)
 	assert_eq(request.body.logo.filename, "game-logo.png")
 	assert_eq(request.body.icon.data, icon_bytes)
-	assert_eq(request.body.header, "@/tmp/game-header.png")
+	assert_eq(request.body.header.filename, "game-header.png")
+	assert_eq(request.body.header.data, header_bytes)
 	assert_eq(request.body.redirect_uris, ["https://example.com/auth/callback", "http://localhost:3000/return"])
 	assert_true(request.validation_errors.is_empty())
 
@@ -555,14 +561,16 @@ func test_builds_game_media_requests_with_documented_multipart_fields() -> void:
 			"content_type": " ",
 			"data": "not-bytes"
 		},
+		"header": "@/tmp/game-header.png",
 		"redirect_uris": ["notaurl"],
 		"extra": true
 	})
-	assert_true(invalid_request.validation_errors.size() >= 5)
+	assert_true(invalid_request.validation_errors.size() >= 6)
 	assert_string_contains(invalid_request.validation_error, "Game Media field 'extra' is not documented")
 	assert_string_contains(invalid_request.validation_error, "logo multipart file part filename must be a non-empty string")
 	assert_string_contains(invalid_request.validation_error, "logo multipart file part content_type must be a non-empty string")
 	assert_string_contains(invalid_request.validation_error, "logo multipart file part data must be raw bytes")
+	assert_string_contains(invalid_request.validation_error, "header must be a multipart file part object with filename and raw byte data")
 	assert_string_contains(invalid_request.validation_error, "redirect_uris must contain only valid URL strings")
 
 func test_builds_authenticated_subscription_requests_and_gates_unsupported_filters() -> void:

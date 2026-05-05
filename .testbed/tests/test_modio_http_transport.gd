@@ -1292,7 +1292,11 @@ func test_executes_game_media_and_collection_mod_delete_requests_with_documented
 			"content_type": "image/png",
 			"data": "ICON".to_utf8_buffer()
 		},
-		"header": "@/tmp/game-header.png",
+		"header": {
+			"filename": "game-header.png",
+			"content_type": "image/png",
+			"data": "HEAD".to_utf8_buffer()
+		},
 		"redirect_uris": ["https://example.com/auth/callback", "http://localhost:3000/return"]
 	}), auth_config, {"multipart_boundary": "TEST-BOUNDARY"})
 	assert_true(add_game_media_response.ok)
@@ -1305,9 +1309,16 @@ func test_executes_game_media_and_collection_mod_delete_requests_with_documented
 	assert_string_contains(_recorded_requests[0].body_string, 'LOGO')
 	assert_string_contains(_recorded_requests[0].body_string, 'name="icon"; filename="game-icon.png"')
 	assert_string_contains(_recorded_requests[0].body_string, 'ICON')
-	assert_string_contains(_recorded_requests[0].body_string, 'name="header"')
-	assert_string_contains(_recorded_requests[0].body_string, '@/tmp/game-header.png')
+	assert_string_contains(_recorded_requests[0].body_string, 'name="header"; filename="game-header.png"')
+	assert_string_contains(_recorded_requests[0].body_string, 'HEAD')
 	assert_string_contains(_recorded_requests[0].body_string, 'name="redirect_uris[]"')
+
+	var invalid_game_media_response := transport.execute(auth_adapter.build_add_game_media_request({
+		"header": "@/tmp/game-header.png"
+	}), auth_config)
+	assert_false(invalid_game_media_response.ok)
+	assert_eq(invalid_game_media_response.error.category, "transport")
+	assert_string_contains(invalid_game_media_response.error.message, "header must be a multipart file part object with filename and raw byte data")
 
 	_queue_response({"status_code": 204, "headers": {}, "body": ""})
 	var delete_collection_mods_response := transport.execute(auth_adapter.build_delete_collection_mods_request("3001", {
