@@ -615,6 +615,51 @@ func build_delete_multipart_upload_session_request(mod_id: String, upload_id: St
 		errors
 	)
 
+func build_add_mod_media_request(mod_id: String, fields: Dictionary) -> Dictionary:
+	var errors: Array = []
+	_append_required_positive_id_error(mod_id, "mod_id", errors)
+	var normalized := _normalize_add_mod_media_fields(fields)
+	errors.append_array(normalized.errors)
+	return _build_validated_request(
+		"POST",
+		"/games/%s/mods/%s/media" % [_config.game_id, mod_id.strip_edges()],
+		{},
+		normalized.body,
+		_build_multipart_headers(true),
+		{"content_type": ModioHttpTransport.CONTENT_TYPE_MULTIPART, "auth_mode": "bearer"},
+		errors
+	)
+
+func build_reorder_mod_media_request(mod_id: String, fields: Dictionary) -> Dictionary:
+	var errors: Array = []
+	_append_required_positive_id_error(mod_id, "mod_id", errors)
+	var normalized := _normalize_reorder_or_delete_mod_media_fields(fields, "reorder mod media")
+	errors.append_array(normalized.errors)
+	return _build_validated_request(
+		"PUT",
+		"/games/%s/mods/%s/media/reorder" % [_config.game_id, mod_id.strip_edges()],
+		{},
+		normalized.body,
+		_build_form_headers(true),
+		{"content_type": ModioHttpTransport.CONTENT_TYPE_FORM, "auth_mode": "bearer"},
+		errors
+	)
+
+func build_delete_mod_media_request(mod_id: String, fields: Dictionary) -> Dictionary:
+	var errors: Array = []
+	_append_required_positive_id_error(mod_id, "mod_id", errors)
+	var normalized := _normalize_reorder_or_delete_mod_media_fields(fields, "delete mod media")
+	errors.append_array(normalized.errors)
+	return _build_validated_request(
+		"DELETE",
+		"/games/%s/mods/%s/media" % [_config.game_id, mod_id.strip_edges()],
+		{},
+		normalized.body,
+		_build_form_headers(true),
+		{"content_type": ModioHttpTransport.CONTENT_TYPE_FORM, "auth_mode": "bearer"},
+		errors
+	)
+
 func build_mod_stats_request(mod_id: String) -> Dictionary:
 	return _transport.build_request(
 		"GET",
@@ -1934,6 +1979,23 @@ func normalize_delete_mod_dependencies_response(status_code: int, headers: Dicti
 	response["deleted"] = response.ok and status_code == 204
 	return response
 
+func normalize_add_mod_media_response(status_code: int, headers: Dictionary, payload: Dictionary) -> Dictionary:
+	var response := _normalize_message_write_response(status_code, headers, payload)
+	if not response.ok:
+		return response
+	response["created"] = status_code == 201
+	return response
+
+func normalize_reorder_mod_media_response(status_code: int, headers: Dictionary = {}) -> Dictionary:
+	var response := _normalize_no_content_write_response(status_code, headers)
+	response["reordered"] = response.ok and status_code == 204
+	return response
+
+func normalize_delete_mod_media_response(status_code: int, headers: Dictionary = {}) -> Dictionary:
+	var response := _normalize_no_content_write_response(status_code, headers)
+	response["deleted"] = response.ok and status_code == 204
+	return response
+
 func normalize_mod_team_response(payload: Dictionary) -> Dictionary:
 	return _normalize_list_payload(payload, Callable(self, "_normalize_team_member_object"))
 
@@ -3122,6 +3184,25 @@ func _normalize_mod_dependencies_write_fields(mod_id: String, fields: Dictionary
 		_append_optional_boolean_field(fields, body, "sync", errors)
 	return {"body": body, "errors": errors}
 
+func _normalize_add_mod_media_fields(fields: Dictionary) -> Dictionary:
+	var body := {}
+	var errors: Array = []
+	_validate_allowed_fields(fields, ["images", "sync", "youtube", "sketchfab"], errors, "mod media")
+	_append_mod_media_images_field(fields, body, errors)
+	_append_optional_boolean_field(fields, body, "sync", errors)
+	_append_optional_url_array_field(fields, body, "youtube", errors)
+	_append_optional_url_array_field(fields, body, "sketchfab", errors)
+	return {"body": body, "errors": errors}
+
+func _normalize_reorder_or_delete_mod_media_fields(fields: Dictionary, label: String) -> Dictionary:
+	var body := {}
+	var errors: Array = []
+	_validate_allowed_fields(fields, ["images", "youtube", "sketchfab"], errors, label)
+	_append_optional_string_array_field(fields, body, "images", errors)
+	_append_optional_url_array_field(fields, body, "youtube", errors)
+	_append_optional_url_array_field(fields, body, "sketchfab", errors)
+	return {"body": body, "errors": errors}
+
 func _validate_allowed_fields(fields: Dictionary, allowed_fields: Array, errors: Array, label: String) -> void:
 	for key in fields.keys():
 		if not allowed_fields.has(str(key)):
@@ -3164,14 +3245,46 @@ func _append_raw_multipart_field(fields: Dictionary, body: Dictionary, field_nam
 		if required:
 			errors.append("%s is required" % field_name)
 		return
-	var value = fields[field_name]
+	var normalized = _normalize_raw_multipart_value(fields[field_name], field_name, errors)
+	if normalized == null:
+		return
+	body[field_name] = normalized
+
+func _normalize_raw_multipart_value(value: Variant, field_name: String, errors: Array):
 	if value == null:
 		errors.append("%s must be a non-empty raw multipart value" % field_name)
-		return
-	if value is String and str(value).strip_edges().is_empty():
-		errors.append("%s must be a non-empty raw multipart value" % field_name)
-		return
-	body[field_name] = str(value).strip_edges() if value is String else value
+		return null
+	if value is String:
+		var sanitized := str(value).strip_edges()
+		if sanitized.is_empty():
+			errors.append("%s must be a non-empty raw multipart value" % field_name)
+			return null
+		return sanitized
+	if value is Dictionary:
+		for key in value.keys():
+			if not ["filename", "content_type", "data"].has(str(key)):
+				errors.append("%s multipart file part field '%s' is not documented" % [field_name, str(key)])
+		var filename := str(value.get("filename", "")).strip_edges()
+		if filename.is_empty():
+			errors.append("%s multipart file part filename must be a non-empty string" % field_name)
+		var content_type := str(value.get("content_type", "")).strip_edges()
+		if value.has("content_type") and content_type.is_empty():
+			errors.append("%s multipart file part content_type must be a non-empty string" % field_name)
+		var data = value.get("data", null)
+		if not (data is PackedByteArray):
+			errors.append("%s multipart file part data must be raw bytes" % field_name)
+			return null
+		if data.is_empty():
+			errors.append("%s multipart file part data must not be empty" % field_name)
+			return null
+		if filename.is_empty():
+			return null
+		return {
+			"filename": filename,
+			"content_type": content_type,
+			"data": data
+		}
+	return value
 
 func _append_required_non_empty_string_field(fields: Dictionary, body: Dictionary, field_name: String, errors: Array, required: bool) -> void:
 	if not fields.has(field_name):
@@ -3323,6 +3436,26 @@ func _append_required_string_array_field(fields: Dictionary, body: Dictionary, f
 		return
 	body[field_name] = normalized
 
+func _append_optional_string_array_field(fields: Dictionary, body: Dictionary, field_name: String, errors: Array) -> void:
+	if not fields.has(field_name):
+		return
+	var normalized = _normalize_string_array_field(fields[field_name], field_name, errors, -1, -1, false)
+	if normalized == null:
+		return
+	body[field_name] = normalized
+
+func _append_optional_url_array_field(fields: Dictionary, body: Dictionary, field_name: String, errors: Array) -> void:
+	if not fields.has(field_name):
+		return
+	var normalized = _normalize_string_array_field(fields[field_name], field_name, errors, -1, -1, false)
+	if normalized == null:
+		return
+	for item in normalized:
+		if not (item.begins_with("http://") or item.begins_with("https://")):
+			errors.append("%s must contain only valid URL strings" % field_name)
+			return
+	body[field_name] = normalized
+
 func _append_optional_int_array_field(fields: Dictionary, body: Dictionary, field_name: String, errors: Array) -> void:
 	if not fields.has(field_name):
 		return
@@ -3351,6 +3484,23 @@ func _append_modfile_platforms_field(fields: Dictionary, body: Dictionary, error
 	if normalized == null:
 		return
 	body["platforms"] = normalized
+
+func _append_mod_media_images_field(fields: Dictionary, body: Dictionary, errors: Array) -> void:
+	if not fields.has("images"):
+		return
+	var images = fields["images"]
+	if not (images is Dictionary):
+		errors.append("images must be an object mapping multipart field names to raw multipart values")
+		return
+	for raw_field_name in images.keys():
+		var field_name := str(raw_field_name).strip_edges()
+		if field_name.is_empty():
+			errors.append("images field names must be non-empty strings")
+			continue
+		var normalized = _normalize_raw_multipart_value(images[raw_field_name], field_name, errors)
+		if normalized == null:
+			continue
+		body[field_name] = normalized
 
 func _append_platform_status_array_field(value: Variant, body: Dictionary, body_field_name: String, error_field_name: String, errors: Array) -> void:
 	var normalized: Variant = _normalize_documented_platform_array(value, error_field_name, errors)

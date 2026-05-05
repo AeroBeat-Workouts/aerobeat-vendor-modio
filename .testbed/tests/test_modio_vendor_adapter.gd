@@ -430,6 +430,96 @@ func test_builds_source_and_multipart_upload_requests_with_documented_validation
 	assert_true(string_part_request.validation_errors.size() >= 1)
 	assert_string_contains(string_part_request.validation_error, "part_body must be raw bytes")
 
+func test_builds_mod_media_requests_with_documented_validation() -> void:
+	var adapter := _build_adapter_with_token()
+	var logo_bytes := PackedByteArray([80, 78, 71])
+	var gallery_bytes := PackedByteArray([74, 80, 71])
+
+	var add_request = adapter.build_add_mod_media_request("1001", {
+		"images": {
+			"logo": {
+				"filename": "cover.png",
+				"content_type": "image/png",
+				"data": logo_bytes
+			},
+			"image1": {
+				"filename": "gallery-1.jpg",
+				"content_type": "image/jpeg",
+				"data": gallery_bytes
+			}
+		},
+		"sync": true,
+		"youtube": ["https://www.youtube.com/watch?v=IGVZOLV9SPo"],
+		"sketchfab": ["https://sketchfab.com/models/71f04e390ff54e5f8d9a51b4e1caab7e"]
+	})
+	assert_eq(add_request.method, "POST")
+	assert_eq(add_request.path, "/games/777/mods/1001/media")
+	assert_eq(add_request.auth_mode, "bearer")
+	assert_eq(add_request.content_type, ModioHttpTransport.CONTENT_TYPE_MULTIPART)
+	assert_eq(add_request.body.logo.filename, "cover.png")
+	assert_eq(add_request.body.logo.content_type, "image/png")
+	assert_eq(add_request.body.logo.data, logo_bytes)
+	assert_eq(add_request.body.image1.filename, "gallery-1.jpg")
+	assert_eq(add_request.body.sync, true)
+	assert_eq(add_request.body.youtube, ["https://www.youtube.com/watch?v=IGVZOLV9SPo"])
+	assert_eq(add_request.body.sketchfab, ["https://sketchfab.com/models/71f04e390ff54e5f8d9a51b4e1caab7e"])
+	assert_true(add_request.validation_errors.is_empty())
+
+	var reorder_request = adapter.build_reorder_mod_media_request("1001", {
+		"images": ["gallery-2.jpg", "gallery-1.jpg"],
+		"youtube": ["https://www.youtube.com/watch?v=5nY6fjZ3EUc"],
+		"sketchfab": ["https://sketchfab.com/models/5c85e649dd854cb58c2b9af081ebb0ff"]
+	})
+	assert_eq(reorder_request.method, "PUT")
+	assert_eq(reorder_request.path, "/games/777/mods/1001/media/reorder")
+	assert_eq(reorder_request.content_type, ModioHttpTransport.CONTENT_TYPE_FORM)
+	assert_eq(reorder_request.body.images, ["gallery-2.jpg", "gallery-1.jpg"])
+	assert_eq(reorder_request.body.youtube, ["https://www.youtube.com/watch?v=5nY6fjZ3EUc"])
+	assert_eq(reorder_request.body.sketchfab, ["https://sketchfab.com/models/5c85e649dd854cb58c2b9af081ebb0ff"])
+	assert_true(reorder_request.validation_errors.is_empty())
+
+	var delete_request = adapter.build_delete_mod_media_request("1001", {
+		"images": ["gallery-2.jpg"],
+		"youtube": ["https://www.youtube.com/watch?v=5nY6fjZ3EUc"]
+	})
+	assert_eq(delete_request.method, "DELETE")
+	assert_eq(delete_request.path, "/games/777/mods/1001/media")
+	assert_eq(delete_request.content_type, ModioHttpTransport.CONTENT_TYPE_FORM)
+	assert_eq(delete_request.body.images, ["gallery-2.jpg"])
+	assert_eq(delete_request.body.youtube, ["https://www.youtube.com/watch?v=5nY6fjZ3EUc"])
+	assert_true(delete_request.validation_errors.is_empty())
+
+	var invalid_add_request = adapter.build_add_mod_media_request("0", {
+		"images": {
+			"logo": {
+				"filename": "",
+				"content_type": " ",
+				"data": "not-bytes"
+			}
+		},
+		"sync": "maybe",
+		"youtube": ["notaurl"],
+		"extra": true
+	})
+	assert_true(invalid_add_request.validation_errors.size() >= 6)
+	assert_string_contains(invalid_add_request.validation_error, "mod_id must be a positive integer path id")
+	assert_string_contains(invalid_add_request.validation_error, "Mod Media field 'extra' is not documented")
+	assert_string_contains(invalid_add_request.validation_error, "logo multipart file part filename must be a non-empty string")
+	assert_string_contains(invalid_add_request.validation_error, "logo multipart file part content_type must be a non-empty string")
+	assert_string_contains(invalid_add_request.validation_error, "logo multipart file part data must be raw bytes")
+	assert_string_contains(invalid_add_request.validation_error, "sync must be a boolean")
+	assert_string_contains(invalid_add_request.validation_error, "youtube must contain only valid URL strings")
+
+	var invalid_reorder_request = adapter.build_reorder_mod_media_request("1001", {
+		"images": "gallery-1.jpg",
+		"sketchfab": ["not-a-url"],
+		"unknown": true
+	})
+	assert_true(invalid_reorder_request.validation_errors.size() >= 3)
+	assert_string_contains(invalid_reorder_request.validation_error, "Reorder Mod Media field 'unknown' is not documented")
+	assert_string_contains(invalid_reorder_request.validation_error, "images must be an array")
+	assert_string_contains(invalid_reorder_request.validation_error, "sketchfab must contain only valid URL strings")
+
 func test_builds_authenticated_subscription_requests_and_gates_unsupported_filters() -> void:
 	var adapter := _build_adapter_with_token()
 
@@ -2327,6 +2417,21 @@ func test_normalizes_mod_adjacent_write_success_variants() -> void:
 	var deleted_dependencies = adapter.normalize_delete_mod_dependencies_response(204)
 	assert_true(deleted_dependencies.ok)
 	assert_true(deleted_dependencies.deleted)
+
+	var added_media = adapter.normalize_add_mod_media_response(201, {"Location": "/games/777/mods/1001/media"}, payload)
+	assert_true(added_media.ok)
+	assert_true(added_media.created)
+	assert_eq(added_media.location, "/games/777/mods/1001/media")
+	assert_true(added_media.data.success)
+
+	var reordered_media = adapter.normalize_reorder_mod_media_response(204)
+	assert_true(reordered_media.ok)
+	assert_true(reordered_media.reordered)
+	assert_eq(reordered_media.data, {})
+
+	var deleted_media = adapter.normalize_delete_mod_media_response(204)
+	assert_true(deleted_media.ok)
+	assert_true(deleted_media.deleted)
 
 func test_normalizes_subscription_write_success_variants() -> void:
 	var adapter := _build_adapter_with_token()

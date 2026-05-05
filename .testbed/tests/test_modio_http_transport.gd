@@ -1203,6 +1203,78 @@ func test_executes_mod_adjacent_write_requests_with_documented_form_array_keys()
 	assert_eq(_recorded_requests[6].method, "DELETE")
 	assert_eq(_recorded_requests[6].body_string, "dependencies%5B%5D=2001")
 
+func test_executes_mod_media_requests_with_truthful_multipart_file_parts_and_form_arrays() -> void:
+	var auth_config := ModioClientConfig.new("777", "demo-key", "", "user-token", "en-US", "steam", "WINDOWS", ModioClientConfig.HOST_GAME)
+	var transport := ModioHttpTransport.new(Callable(self, "_transport_double"))
+	var auth_adapter := ModioVendorAdapter.new(auth_config, transport)
+
+	_queue_json_response(201, _fixture("add_mod_rating_success.json"), {"Location": "/games/777/mods/1001/media"})
+	var add_response := transport.execute(auth_adapter.build_add_mod_media_request("1001", {
+		"images": {
+			"logo": {
+				"filename": "cover.png",
+				"content_type": "image/png",
+				"data": "PNGDATA".to_utf8_buffer()
+			},
+			"image1": {
+				"filename": "gallery-1.jpg",
+				"content_type": "image/jpeg",
+				"data": "JPGDATA".to_utf8_buffer()
+			}
+		},
+		"sync": true,
+		"youtube": ["https://www.youtube.com/watch?v=IGVZOLV9SPo"],
+		"sketchfab": ["https://sketchfab.com/models/71f04e390ff54e5f8d9a51b4e1caab7e"]
+	}), auth_config, {"multipart_boundary": "TEST-BOUNDARY"})
+	assert_true(add_response.ok)
+	assert_eq(_recorded_requests[0].method, "POST")
+	assert_eq(_recorded_requests[0].url, "https://g-777.modapi.io/v1/games/777/mods/1001/media")
+	assert_eq(_recorded_requests[0].headers.Authorization, "Bearer user-token")
+	assert_eq(_recorded_requests[0].headers["Content-Type"], "multipart/form-data; boundary=TEST-BOUNDARY")
+	assert_string_contains(_recorded_requests[0].body_string, 'name="logo"; filename="cover.png"')
+	assert_string_contains(_recorded_requests[0].body_string, 'Content-Type: image/png')
+	assert_string_contains(_recorded_requests[0].body_string, 'PNGDATA')
+	assert_string_contains(_recorded_requests[0].body_string, 'name="image1"; filename="gallery-1.jpg"')
+	assert_string_contains(_recorded_requests[0].body_string, 'Content-Type: image/jpeg')
+	assert_string_contains(_recorded_requests[0].body_string, 'JPGDATA')
+	assert_string_contains(_recorded_requests[0].body_string, 'name="youtube[]"')
+	assert_string_contains(_recorded_requests[0].body_string, 'name="sketchfab[]"')
+	assert_string_contains(_recorded_requests[0].body_string, 'name="sync"')
+	assert_string_contains(_recorded_requests[0].body_string, 'true')
+
+	_queue_response({"status_code": 204, "headers": {}, "body": ""})
+	var reorder_response := transport.execute(auth_adapter.build_reorder_mod_media_request("1001", {
+		"images": ["gallery-2.jpg", "gallery-1.jpg"],
+		"youtube": ["https://www.youtube.com/watch?v=5nY6fjZ3EUc"],
+		"sketchfab": ["https://sketchfab.com/models/5c85e649dd854cb58c2b9af081ebb0ff"]
+	}), auth_config)
+	assert_true(reorder_response.ok)
+	assert_eq(_recorded_requests[1].method, "PUT")
+	assert_eq(_recorded_requests[1].url, "https://g-777.modapi.io/v1/games/777/mods/1001/media/reorder")
+	assert_eq(_recorded_requests[1].body_string, "images%5B%5D=gallery-2.jpg&images%5B%5D=gallery-1.jpg&sketchfab%5B%5D=https%3A%2F%2Fsketchfab.com%2Fmodels%2F5c85e649dd854cb58c2b9af081ebb0ff&youtube%5B%5D=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3D5nY6fjZ3EUc")
+
+	_queue_response({"status_code": 204, "headers": {}, "body": ""})
+	var delete_response := transport.execute(auth_adapter.build_delete_mod_media_request("1001", {
+		"images": ["gallery-1.jpg"],
+		"youtube": ["https://www.youtube.com/watch?v=IGVZOLV9SPo"]
+	}), auth_config)
+	assert_true(delete_response.ok)
+	assert_eq(_recorded_requests[2].method, "DELETE")
+	assert_eq(_recorded_requests[2].url, "https://g-777.modapi.io/v1/games/777/mods/1001/media")
+	assert_eq(_recorded_requests[2].body_string, "images%5B%5D=gallery-1.jpg&youtube%5B%5D=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DIGVZOLV9SPo")
+
+	var invalid_response := transport.execute(auth_adapter.build_add_mod_media_request("1001", {
+		"images": {
+			"logo": {
+				"filename": "cover.png",
+				"data": "not-bytes"
+			}
+		}
+	}), auth_config)
+	assert_false(invalid_response.ok)
+	assert_eq(invalid_response.error.category, "transport")
+	assert_string_contains(invalid_response.error.message, "logo multipart file part data must be raw bytes")
+
 func test_executes_guide_authoring_requests_with_documented_multipart_and_validation() -> void:
 	var auth_config := ModioClientConfig.new("777", "demo-key", "", "user-token", "en-US", "steam", "WINDOWS", ModioClientConfig.HOST_GAME)
 	var transport := ModioHttpTransport.new(Callable(self, "_transport_double"))
