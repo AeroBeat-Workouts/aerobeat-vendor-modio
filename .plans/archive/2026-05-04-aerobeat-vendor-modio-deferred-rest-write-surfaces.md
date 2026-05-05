@@ -1,7 +1,7 @@
 # AeroBeat Vendor Mod.io Deferred REST Write Surfaces
 
 **Date:** 2026-05-04  
-**Status:** Draft  
+**Status:** Complete  
 **Agent:** Chip 🐱‍💻
 
 ---
@@ -178,24 +178,45 @@ Files changed during QA:
 - implementation/tests/docs as needed
 - `.plans/2026-05-04-aerobeat-vendor-modio-deferred-rest-write-surfaces.md`
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** Independent audit re-checked the final post-QA slice against the refreshed REST endpoint pages in `REF-03`, the implementation/test seam in `REF-04` / `REF-05`, and Derrick’s locked boundary. Final verdict: **go** for this slice; no further code changes were needed.
+
+Exact audit findings:
+- request truth matches the refreshed REST corpus for all six wrapped routes: `POST`/`DELETE /games/{game-id}/mods/{mod-id}/tags`, `POST`/`DELETE /games/{game-id}/mods/{mod-id}/metadatakvp`, and `POST`/`DELETE /games/{game-id}/mods/{mod-id}/dependencies` all use the documented path/method pairings from `REF-03`
+- transport/auth semantics remain correct and thin: all six writes stay bearer-authenticated and `application/x-www-form-urlencoded`, with no `api_key` fallback leaking into authenticated writes
+- repeated array encoding now lands at the correct seam: `src/network/modio_http_transport.gd` appends `[]` only when a field value is an array **and** the caller did not already supply a bracketed key, so mod-maintenance writes now encode repeated form fields as `tags[]`, `metadata[]`, and `dependencies[]` while preserving existing explicit keys untouched
+- metadata delete preserves exact REST semantics: the adapter still accepts key-only entries like `metadata[]=difficulty` without extra colon/value restrictions, so the documented “delete all values for that key” behavior remains intact
+- dependency add exposes the documented optional `sync` boolean and dependency delete does not expose or forward `sync`; add-only `sync=true` without `dependencies` remains allowed exactly as the REST page describes
+- the QA transport fix did **not** over-broaden the seam in a harmful way: multipart already used the same “append `[]` unless already explicit” rule, so aligning form-urlencoded array encoding to that behavior is the minimum shared correction rather than a broader policy change
+- pre-existing explicit array keys remain preserved correctly: the platform-management seam still constructs `approved[]` / `denied[]` keys explicitly, and the transport encoder leaves those keys bracketed instead of producing `approved[][]` / `denied[][]`
+- write normalization remains thin and boundary-safe: add responses still normalize only message payload + `location` + status-derived `created`, delete responses still normalize only no-content + status-derived `deleted`, and no mod media / collection-removal / drifted `/me/iap/*/sync` surface leaked into this bead
+
+Validation evidence:
+- command: `godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit`
+- result: `39/39` scripts passed, `63/63` tests passed, `2148` asserts
+
+Files changed during audit:
+- `.plans/2026-05-04-aerobeat-vendor-modio-deferred-rest-write-surfaces.md`
+
+No code/test/doc fixes were required during audit, so no new commit was created.
 
 ---
 
 ## Final Results
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**What We Built:** Pending.
+**What We Built:** The repo now truthfully wraps the deferred REST-backed mod-maintenance write family only: tags add/delete, metadata KVP add/delete, and dependency add/delete. The final slice preserves bearer-only authenticated form writes, repeated array-field transport for `tags[]` / `metadata[]` / `dependencies[]`, exact metadata key-only delete semantics, and add-only dependency `sync`, while keeping the vendor seam thin and leaving unrelated REST-confirmed or drifted work out of scope.
 
-**Reference Check:** Pending.
+**Reference Check:** `REF-01` through `REF-05` satisfied. The final audit reconfirmed exact route/method/body/auth behavior against the refreshed REST endpoint pages in `REF-03`, verified the request/normalization seam in `REF-04`, and confirmed the exercised coverage in `REF-05`. No deliberate deviations were introduced in this slice.
 
 **Commits:**
-- Pending.
+- `e6a9125` - Add deferred mod maintenance write surfaces
+- `2ad6676` - Fix mod.io form array key encoding
+- audit pass: no additional commit required
 
-**Lessons Learned:** Pending.
+**Lessons Learned:** For mod.io form writes, array semantics belong in the shared transport seam, not duplicated per endpoint builder. Using the transport rule “append `[]` for array values unless the caller already supplied it” kept the fix minimal, corrected the new mod-maintenance routes, and preserved pre-existing explicit array-key surfaces like `approved[]` / `denied[]`.
 
 ---
 

@@ -1,7 +1,7 @@
 # AeroBeat Vendor Mod.io Next REST Slice and Near-Wrap Audit
 
 **Date:** 2026-05-04  
-**Status:** Draft  
+**Status:** Complete  
 **Agent:** Chip 🐱‍💻
 
 ---
@@ -144,9 +144,32 @@ Remaining frontier notes useful for the next near-wrap pass:
 - implementation/tests/docs as needed
 - `.plans/2026-05-04-aerobeat-vendor-modio-next-rest-slice-and-near-wrap-audit.md`
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** Independently QA-verified the `DELETE /s2s/connections/{portal-id}` slice against the refreshed official REST page in `REF-04` and the shipped repo code/tests/docs in `REF-05`/`REF-06`.
+
+Exact QA findings:
+- request contract matches the refreshed REST page: method `DELETE`, path `/s2s/connections/{portal-id}`, one required integer path parameter, and no documented request body
+- implementation stays a thin raw S2S wrapper: `build_s2s_disconnect_request(portal_id: String)` only trims/validates the documented path id, reuses `_build_service_read_headers()`, and does not introduce repo-local aliasing or extra unlink semantics
+- auth boundary is truthful: the route uses the explicit service-token bearer seam (`Authorization: Bearer <service_token>`) rather than user bearer auth
+- transport behavior is correctly bodyless: the request body is `{}`, `content_type` is empty, and no `Content-Type` header is attached for this route; the transport layer only injects `Content-Type` when `content_type` is non-empty, so this slice does not silently become a form request
+- `portal_id` validation is appropriately strict for the documented path contract: positive integer path id only, with invalid input surfacing `portal_id must be a positive integer path id`
+- 204 handling is thin and correct: `normalize_s2s_disconnect_response(...)` delegates to the existing no-content normalizer, preserves `data = {}`, and adds only a truthful `disconnected` flag keyed to `status_code == 204`
+- no extra S2S semantics leaked in: no delegation-token requirement, no form body, no content-type behavior, and no user-bearer fallback assumptions were added
+
+Fixes made:
+- none; no contract drift was found in implementation, tests, or docs for this slice
+
+Validation evidence:
+- `godot --headless --path .testbed --import` ✅
+- `godot --headless --path .testbed --script res://tests/validate_scaffold.gd` ✅
+- `godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit` ✅ (`63/63` passing, `2161` asserts, `1` pre-existing warning)
+
+Files changed during QA:
+- `.plans/2026-05-04-aerobeat-vendor-modio-next-rest-slice-and-near-wrap-audit.md` only
+
+Commit/push:
+- none needed; QA found no code/doc/test drift to fix
 
 ---
 
@@ -168,9 +191,35 @@ Remaining frontier notes useful for the next near-wrap pass:
 - implementation/tests/docs as needed
 - `.plans/2026-05-04-aerobeat-vendor-modio-next-rest-slice-and-near-wrap-audit.md`
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** Independently audited the `DELETE /s2s/connections/{portal-id}` slice against the refreshed official REST page in `REF-04`, the repo seam docs in `REF-05`, and the shipped implementation/tests in `REF-06`.
+
+Exact audit findings:
+- request contract is truthful to the refreshed REST page: method `DELETE`, path `/s2s/connections/{portal-id}`, one required integer path parameter, and no documented request body
+- implementation stays a thin raw S2S wrapper: `build_s2s_disconnect_request(portal_id: String)` trims and validates only the documented path id, reuses `_build_service_read_headers()`, and does not add repo-local aliasing, unlink helpers, or extra semantics
+- auth boundary remains correctly service-token scoped: the route uses the explicit S2S bearer seam (`Authorization: Bearer <service_token>`) and does not assume ordinary user bearer auth
+- transport behavior remains bodyless and thin: the request body is `{}`, `content_type` is empty, the request omits `Content-Type`, and `ModioHttpTransport` only injects that header when `content_type` is non-empty
+- `portal_id` validation remains truthful for the documented path contract: trimmed positive integer path id only, with invalid input surfacing `portal_id must be a positive integer path id`
+- `204 No Content` normalization is correct and thin: `normalize_s2s_disconnect_response(...)` delegates to `_normalize_no_content_write_response(...)`, preserves `data = {}`, and adds only `disconnected := (response.ok and status_code == 204)`
+- no extra S2S or user-bearer assumptions leaked in: no delegation token requirement, no form/content-type behavior, no body payload, and no fallback to ordinary access-token semantics
+
+Fixes made:
+- none; audit found no code, test, or docs drift for this slice
+
+Changed files during audit:
+- `.plans/2026-05-04-aerobeat-vendor-modio-next-rest-slice-and-near-wrap-audit.md` only
+
+Validation evidence:
+- `godot --headless --path .testbed --import` ✅
+- `godot --headless --path .testbed --script res://tests/validate_scaffold.gd` ✅
+- `godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit` ✅ (`63/63` passing, `2161` asserts, `1` pre-existing warning)
+
+Commit/push:
+- none needed; no implementation fixes were required
+
+Verdict:
+- **Go** — this slice is truthful to the refreshed REST corpus and stays within Derrick’s locked thin-wrapper boundary.
 
 ---
 
@@ -190,24 +239,86 @@ Remaining frontier notes useful for the next near-wrap pass:
 - `.plans/2026-05-04-aerobeat-vendor-modio-next-rest-slice-and-near-wrap-audit.md`
 - optional note(s)
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** Re-ran the near-wrap corpus-vs-repo sweep against `REF-04` first, then re-checked the current shipped seam in `REF-05`, the prior audit trail in `REF-01` / `REF-02` / `REF-03`, and test/docs evidence in `REF-06`.
+
+Exact post-slice frontier:
+- The earlier final-audit frontier had **18 confirmed REST-page-backed unwrapped routes** plus the separately drift-blocked `/me/iap/*/sync` family and SDK-only cook upsert drift.
+- Since then, the repo has landed:
+  - the **six-endpoint mod-maintenance write family** (`tags`, `metadatakvp`, `dependencies` add/delete)
+  - the **S2S disconnect route** `DELETE /s2s/connections/{portal-id}`
+- That reduces the remaining confirmed REST-page-backed frontier to **11 routes**.
+- No new accidentally missed confirmed REST family appeared in this sweep.
+
+### Covered endpoint families
+Confirmed covered at the family level after this pass:
+- auth/session + agreement utility
+- catalog / game-meta / taxonomy utility
+- core mod read + community surface
+- modfile / upload / multipart / cook / platform pipeline
+- guide read/write/comment family
+- user inventory / account-state / social profile family
+- monetization-user / checkout / documented transaction S2S family
+- monetization-team read/create family
+- collection reads, comments, compatibility, authoring create/update/delete, follow/unfollow, and subscribe/unsubscribe
+- mod-maintenance reads **and now writes** for tags, metadata KVP, and dependencies
+- S2S account-link disconnect is now covered and no longer part of the frontier
+
+### Intentionally deferred but confirmed REST-backed families
+These routes are still real official REST endpoint pages, but remain unwrapped **by choice**, not by accident:
+- **Game/mod authoring + admin writes**
+  - `POST /games/{game-id}/media`
+  - `POST /games/{game-id}/mods`
+  - `POST /games/{game-id}/mods/{mod-id}`
+  - `DELETE /games/{game-id}/mods/{mod-id}`
+- **Mod media management**
+  - `POST /games/{game-id}/mods/{mod-id}/media`
+  - `PUT /games/{game-id}/mods/{mod-id}/media/reorder`
+  - `DELETE /games/{game-id}/mods/{mod-id}/media`
+- **Collection membership admin route**
+  - `DELETE /games/{game-id}/collections/{collection-id}/mods`
+  - precise classification: this is still an unwrapped confirmed REST page, but it is **intentionally deferred**, not an accidental capability hole, because the repo already covers broader membership replacement/removal semantics through collection update with documented `sync=true`
+- **Legacy event feeds**
+  - `GET /me/events`
+  - `GET /games/{game-id}/mods/events`
+  - `GET /games/{game-id}/mods/{mod-id}/events`
+  - precise classification: intentionally deferred because the official corpus itself treats `/me/events` as deprecated for in-game use and points integrations toward subscription/state flows instead
+
+### Drift-blocked families
+Still excluded because the refreshed corpus does not provide a clean enough docs-first REST contract:
+- **`/me/iap/*/sync` family**
+  - candidate platform members remain `apple`, `epicgames`, `google`, `meta`, `psn`, `steam`, `xboxlive`
+  - these remain blocked by official-corpus drift across docs/SDK/Unity rather than by repo neglect
+- **SDK-only cook upsert drift**
+  - `POST /games/{game-id}/mods/{mod-id}/cooks`
+  - still SDK-evidenced without a matching local official REST endpoint page
+
+### Truly missing confirmed REST-backed surfaces
+- **None found.**
+- This sweep did **not** uncover any accidentally unwrapped confirmed REST-backed route outside the already-known deferred families above.
+- The remaining 11 REST-page-backed routes are now a deliberate frontier, not a hidden gap.
+
+Docs note:
+- No extra docs note was added. The active plan and current seam doc already capture the useful boundary, and a separate note would not materially improve handoff.
 
 ---
 
 ## Final Results
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**What We Built:** Pending.
+**What We Built:** Landed the smallest confirmed REST-backed follow-up slice (`DELETE /s2s/connections/{portal-id}`) and then reran a corpus-truth near-wrap sweep. The repo now covers the previously deferred mod-maintenance write family plus the S2S disconnect route, and the exact remaining confirmed REST-page-backed frontier is narrowed to **11 intentionally deferred routes** rather than any hidden accidental miss.
 
-**Reference Check:** Pending.
+**Reference Check:** `REF-04` remained the route-existence source of truth, with `REF-01` / `REF-02` / `REF-03` used to classify prior intent and `REF-05` / `REF-06` used to confirm the shipped seam/tests. The updated audit confirms: (1) the new S2S disconnect slice is correctly removed from the frontier, (2) the earlier mod-maintenance write gap is now closed, (3) the only remaining confirmed REST-page-backed routes are the known deferred game/mod authoring, mod-media, collection-member-delete, and legacy-event pages, and (4) `/me/iap/*/sync` plus cook upsert remain drift-blocked rather than silently implementable.
 
 **Commits:**
-- Pending.
+- `e6a9125` - Add deferred mod maintenance write surfaces
+- `2ad6676` - Fix mod.io form array key encoding
+- prior slice commit(s) for S2S disconnect already landed before this audit pass
+- this near-wrap audit updated the plan only; no additional code/doc commit was required
 
-**Lessons Learned:** Pending.
+**Lessons Learned:** Once the surface gets close to wrapped, the important distinction is no longer “wrapped or not” in the abstract. The high-value truth check is whether an unwrapped route is (a) genuinely forgotten, (b) intentionally deferred because it belongs to a different seam batch, or (c) blocked by corpus drift. After this pass, the remainder is clearly (b) or (c); nothing still looks accidentally unwrapped.
 
 ---
 

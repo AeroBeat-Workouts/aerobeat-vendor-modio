@@ -1,7 +1,7 @@
 # AeroBeat Vendor Mod.io Checkout, Sync, and S2S Coverage
 
 **Date:** 2026-05-04
-**Status:** In Progress
+**Status:** Complete
 **Agent:** Chip 🐱‍💻
 
 ---
@@ -406,24 +406,38 @@ Commit/push:
 - implementation/tests/docs as needed
 - `.plans/2026-05-04-aerobeat-vendor-modio-checkout-sync-and-s2s.md`
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** Independent audit re-checked the final slice against the refreshed REST endpoint pages in `REF-06`, the purchase-server guide material in `REF-07`, and the shipped seam/docs in `REF-09` / `REF-10`.
+- `POST /games/{game-id}/mods/{mod-id}/checkout` remains path/method/body/header truthful to the refreshed REST page: bearer-authenticated form body, optional `X-Modio-Portal`, PSN-only required `X-Modio-Platform`, and all documented checkout modes `0..4` are wrapped with only the documented mode-specific required fields.
+- Checkout stays product-policy-honest: the adapter does **not** hardcode non-store / web / PC gating; that boundary remains documentation-only in repo docs, which matches Derrick’s lock.
+- The implementation continues to exclude drifted `/me/iap/*/sync` routes and does not leak partner-team / partner-program claims into this slice.
+- S2S request builders remain explicitly server-side/service-token shaped: they use the dedicated `service_token` config surface plus service-only header helpers, keep the delegation token requirement on intent, and do not reuse ordinary bearer-user assumptions for auth.
+- History reads still require explicit `monetization_team_id` input/config and truthfully serialize the refreshed GET-page filter drift as query params instead of inventing a GET body transport.
+- Response drift handling remains honest and unchanged: list history preserves the `download` pagination envelope while aliasing it to `pagination`, and clawback continues to treat `gateway_uuid` as a string while documenting the refreshed page’s integer-type mismatch.
+- No implementation drift, hidden policy gating, or auth-boundary regressions were found. No code fixes were required.
+- Validation rerun succeeded cleanly:
+  - `godot --headless --path .testbed --import`
+  - `godot --headless --path .testbed --script res://tests/validate_scaffold.gd`
+  - `godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit`
+  - Result: `57/57` tests passed, `1992` asserts, exit code `0`.
 
 ---
 
 ## Final Results
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**What We Built:** Pending.
+**What We Built:** The repo now truthfully ships the approved checkout + monetization S2S vendor seam: documented checkout modes `0..4`, documented monetization `/s2s/*` intent/commit/clawback/history/detail coverage, explicit service-token auth separation, explicit `monetization_team_id` handling for history reads, documented response/query drift notes, and deliberate deferral of the unstable `/me/iap/*/sync` family.
 
-**Reference Check:** Pending.
+**Reference Check:** `REF-06` and `REF-07` were rechecked during audit and matched the shipped implementation/docs in `REF-09` / `REF-10`. No deliberate implementation deviations were added beyond the already documented drift handling: GET history filters modeled as query params despite body-schema docs drift, history pagination aliased from `download`, and clawback `gateway_uuid` treated as a string despite the refreshed page’s integer typing mismatch.
 
 **Commits:**
-- Pending.
+- `deddfce` - coder implementation for checkout + monetization S2S slice
+- `a95fb47` - QA follow-up tightening checkout proof coverage
+- No audit fix commit required; audit was documentation/verification only.
 
-**Lessons Learned:** Pending.
+**Lessons Learned:** For monetization surfaces, the refreshed REST corpus is good enough to ship thin docs-first wrappers when we keep product policy in docs instead of adapter logic, keep server-side S2S auth totally separate from user-bearer flows, and record every corpus drift explicitly instead of normalizing it away.
 
 ---
 

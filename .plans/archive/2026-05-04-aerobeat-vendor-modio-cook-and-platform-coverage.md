@@ -1,7 +1,7 @@
 # AeroBeat Vendor Mod.io Cook and Platform Coverage
 
 **Date:** 2026-05-04  
-**Status:** In Progress  
+**Status:** Complete  
 **Agent:** Chip 🐱‍💻
 
 ---
@@ -206,9 +206,22 @@ Deliberate deferrals preserved:
 - implementation/tests/docs as needed
 - `.plans/2026-05-04-aerobeat-vendor-modio-cook-and-platform-coverage.md`
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** Independently re-verified the cook/platform slice against `REF-06` through `REF-08` and found no implementation drift requiring code changes. Exact QA findings:
+- `GET /games/{game-id}/mods/{mod-id}/cooks` matches the refreshed REST docs exactly: path/method are correct, request is bodyless, auth stays public `api_key_query`, and response normalization preserves the documented `Modfile Cook Object` fields (`cook_uuid`, `modfile`, lowercase cook `platform`, `status`, timestamps, `metadata`, `logs`, `filename`, `filesize`, `version`) using `.testbed/tests/fixtures/modfile_cooks.json`.
+- `POST /games/{game-id}/mods/{mod-id}/files/{file-id}/platforms` matches the refreshed REST docs exactly: bearer-authenticated `application/x-www-form-urlencoded`, documented route/path ids, schema-based wrapper input validation limited to `approved` / `denied`, and on-wire serialization emitted as repeated `approved[]` / `denied[]` keys (`approved%5B%5D=WINDOWS&approved%5B%5D=PLAYSTATION5&denied%5B%5D=SWITCH2`).
+- Platform body validation remains correctly separated from `X-Modio-Platform` header targeting semantics: request-body values are validated against the documented mod/modfile platform enum (`WINDOWS`, `PLAYSTATION5`, `SWITCH2`, etc.) rather than the lowercase header-token values from `REF-06/public/en-us/game-integration/restapi/getting-started/restapi-platforms.md`.
+- `POST /games/{game-id}/cloud-cooking/finalization` remains correctly bodyless on the documented path and normalizes `204 No Content` as `{ ok = true, finalized = true, data = {} }`.
+- Confirmed no undocumented SDK-only cook upsert leaked into the seam: the repo exposes only the documented cook browse wrapper and does **not** add `POST /games/{game-id}/mods/{mod-id}/cooks`.
+- Re-checked the generic form-array transport change and found no regression evidence in existing form-urlencoded semantics: `_encode_parameters()` now repeats array keys, which is required for the documented platform-management wire format, while existing non-array form routes still retain their exact locked body strings in transport coverage (for example modfile update remains `active=false&changelog=Timing%20cleanup&metadata_blob=game_version%3A1.1.1&version=1.1.1`, cloud finalization remains empty-body, and delete/bodyless writes remain empty-body).
+- README/seam docs remain truthful about the slice boundary: raw wrappers only, no release-workflow helper, no undocumented cook upsert, and no broader cloud-cook orchestration beyond the finalization POST.
+
+Validation rerun:
+- `godot --headless --path .testbed --script res://tests/validate_scaffold.gd` ✅
+- `godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit` ✅ (`54/54` tests passed, `1786` asserts)
+
+Minimum code fixes required: none. Commit/push not required beyond this plan update.
 
 ---
 
@@ -230,24 +243,40 @@ Deliberate deferrals preserved:
 - implementation/tests/docs as needed
 - `.plans/2026-05-04-aerobeat-vendor-modio-cook-and-platform-coverage.md`
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** Independent audit pass against `REF-06` through `REF-08` plus the repo seam/docs state in `REF-04`, `REF-05`, `REF-09`, and `REF-10`. Exact audit findings:
+- `GET /games/{game-id}/mods/{mod-id}/cooks` remains docs-correct: public `api_key_query` auth, no request body, exact documented path/method, and response normalization preserves the documented `Modfile Cook Object` fields while keeping the provider’s lowercase cook `platform` values (`ps5`, `switch2`) intact.
+- `POST /games/{game-id}/mods/{mod-id}/files/{file-id}/platforms` remains docs-correct: bearer-authenticated `application/x-www-form-urlencoded`, exact documented route ids, wrapper input limited to `approved` / `denied`, and on-wire encoding uses repeated `approved[]` / `denied[]` keys exactly as the refreshed docs require.
+- Platform-status validation stays anchored to the documented mod/modfile body-schema enum strings (`ALL`, `WINDOWS`, `PLAYSTATION5`, `SWITCH2`, etc.) via `MODFILE_PLATFORM_VALUES`; it does **not** accept the lowercase `X-Modio-Platform` header-targeting tokens from `REF-06/public/en-us/game-integration/restapi/getting-started/restapi-platforms.md` as body aliases.
+- `POST /games/{game-id}/cloud-cooking/finalization` remains a thin bodyless wrapper on the documented path and continues to normalize `204 No Content` as a successful empty-data response with `finalized = true`; no broader cloud-cooking lifecycle helper/orchestration surface leaked into the seam.
+- Reconfirmed the seam does **not** expose the undocumented SDK-only `POST /games/{game-id}/mods/{mod-id}/cooks` upsert route anywhere in the adapter/tests/docs surface; only the documented cook browse wrapper exists.
+- Rechecked the transport-level repeated-form-key change and found no scalar form-urlencoded regression evidence: `_encode_parameters()` now repeats array keys for documented array bodies, while existing scalar form routes still retain their exact locked output strings and bodyless write routes still serialize as empty bodies.
+- README + `docs/modio-seam-plan.md` remain truthful about the boundary: raw wrappers only, no release-workflow convenience helper, no undocumented cook upsert, and no extra cloud-cook orchestration beyond finalization.
+
+Minimum code fixes required: none.
+
+Validation rerun:
+- `godot --headless --path .testbed --script res://tests/validate_scaffold.gd` ✅
+- `godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit` ✅ (`54/54` tests passed, `1786` asserts)
+
+Commit/push: not required because the audit found no implementation drift and made no code fixes.
 
 ---
 
 ## Final Results
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**What We Built:** Pending.
+**What We Built:** The cook/platform slice remains shipped exactly at the locked thin-wrapper boundary: documented cook browse coverage, documented per-platform status management with repeated form keys, and documented cloud-cooking finalization with bodyless `204` normalization.
 
-**Reference Check:** Pending.
+**Reference Check:** Satisfied `REF-06` through `REF-08` for endpoint truth, plus `REF-04`, `REF-05`, `REF-09`, and `REF-10` for repo-scope/documentation/test truth. No deliberate deviations remain beyond the already-locked exclusion of the undocumented SDK-only cook upsert route and any release-workflow helper behavior.
 
 **Commits:**
-- Pending.
+- `1e70494` - coder implementation baseline audited in this pass
+- No new commit required from audit; plan updated locally with exact findings.
 
-**Lessons Learned:** Pending.
+**Lessons Learned:** When the refreshed official REST mirror and generated SDK/Unity surfaces drift, the clean path is to keep the seam docs-first and prove any transport change with locked execute-level body-string coverage so array-form fixes do not silently regress older scalar form routes.
 
 ---
 

@@ -1,7 +1,7 @@
 # AeroBeat Vendor Mod.io Upload Pipeline Coverage
 
 **Date:** 2026-05-04  
-**Status:** In Progress  
+**Status:** Complete  
 **Agent:** Chip 🐱💻
 
 ---
@@ -346,24 +346,55 @@ Commit/push:
 - implementation/tests/docs as needed
 - `.plans/2026-05-04-aerobeat-vendor-modio-upload-pipeline-coverage.md`
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** Independently audited the final upload-side slice against `REF-05` through `REF-11`, the refreshed local REST docs, and the locked repo-boundary rules. No additional code fixes were required beyond QA's raw-bytes regression fix.
+
+Exact audit findings:
+- Re-verified all eight scoped wrappers use the correct documented methods and paths and stay inside the approved seam:
+  - `GET /games/{game-id}/mods/{mod-id}/sources`
+  - `POST /games/{game-id}/mods/{mod-id}/sources`
+  - `POST /games/{game-id}/mods/{mod-id}/files/multipart`
+  - `GET /games/{game-id}/mods/{mod-id}/files/multipart/sessions`
+  - `GET /games/{game-id}/mods/{mod-id}/files/multipart`
+  - `PUT /games/{game-id}/mods/{mod-id}/files/multipart`
+  - `POST /games/{game-id}/mods/{mod-id}/files/multipart/complete`
+  - `DELETE /games/{game-id}/mods/{mod-id}/files/multipart`
+- Confirmed `POST /sources` keeps full docs-first parity from `REF-05`: documented field names only (`filedata`, `upload_id`, `version`, `changelog`, `active`, `filehash`, `metadata_blob`, `platforms`), strong validation, and strict `filedata` xor `upload_id` semantics with no Unity/SDK alias drift.
+- Confirmed multipart create/list/parts/complete/delete wrappers preserve the documented auth, query, and body contracts from `REF-06` through `REF-08`, including required explicit `upload_id` query handling where documented.
+- Specifically verified QA's fix is correct and necessary: multipart part upload now rejects `String` payloads and accepts raw `PackedByteArray` bytes only, which matches Derrick's locked raw-bytes rule and the refreshed REST-doc intent for binary part transport.
+- Confirmed the HTTP seam still executes multipart part uploads as raw bytes with `application/octet-stream`, required `Content-Range`, optional `Digest`, explicit `upload_id` query, and no higher-level chunk/workflow orchestration.
+- Confirmed fixtures, response normalizers, README text, seam docs, and Task 2/Task 3 claims remain truthful after the QA fix.
+- Confirmed no cook/cloud-cook/platform-management/monetization/workflow-helper behavior leaked into this slice; the upload family remains a thin provider wrapper with request-shape validation only.
+
+Fixes made during audit:
+- None. QA's raw-bytes tightening already brought the slice into compliance.
+
+Changed files:
+- `.plans/2026-05-04-aerobeat-vendor-modio-upload-pipeline-coverage.md`
+
+Validation evidence:
+- Command: `~/.local/bin/godot --headless --path .testbed -s res://addons/gut/gut_cmdln.gd -gdir=res://tests -gexit`
+- Result: **54/54 tests passed** during the audit pass.
+
+Commit/push:
+- No new code fix commit was needed from audit.
 
 ---
 
 ## Final Results
 
-**Status:** ⚠️ Partial
+**Status:** ✅ Complete
 
-**What We Built:** Research/audit only so far. Task 1 is complete with an execution-ready endpoint map and pre-slice decision memos; implementation has not started.
+**What We Built:** Added and independently validated the upload-side mod.io coverage slice for source-modfile handling plus multipart upload/session orchestration, with docs-first request validation, truthful response normalization, transport-level raw-byte multipart execution, refreshed fixtures/docs/plan coverage, and no spillover into cook/platform/monetization or broader workflow helpers.
 
-**Reference Check:** Task 1 findings were checked against `REF-05`, `REF-06`, `REF-07`, and written into `REF-11`.
+**Reference Check:** Final implementation and audit findings were checked against `REF-05` through `REF-11`. The final seam matches the refreshed REST corpus for the scoped upload endpoints and preserves the locked docs-first/raw-bytes boundary decisions.
 
 **Commits:**
-- Pending.
+- `a28a765` - coder implementation handoff for upload pipeline coverage
+- `a4ebb4a` - QA follow-up tightening multipart part uploads to raw bytes only
 
-**Lessons Learned:** The remaining upload family is still a clean thin-wrapper target, but the SDK/generator drift around source-upload fields and multipart raw-body semantics is significant enough that the coder should follow docs-first rules explicitly instead of copying helper behavior blindly.
+**Lessons Learned:** The mod.io generated/body-schema surfaces still drift around multipart upload semantics, so the safest rule for this family is to trust the refreshed REST prose and endpoint contracts, keep the wrapper raw and narrow, and enforce binary-only multipart parts explicitly at the adapter boundary.
 
 ---
 

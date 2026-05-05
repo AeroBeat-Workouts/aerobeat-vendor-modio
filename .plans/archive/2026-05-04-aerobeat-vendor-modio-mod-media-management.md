@@ -1,7 +1,7 @@
 # AeroBeat Vendor Mod.io Mod Media Management
 
 **Date:** 2026-05-04  
-**Status:** Draft  
+**Status:** Complete  
 **Agent:** Chip 🐱‍💻
 
 ---
@@ -141,18 +141,29 @@ Deliberate deferrals / non-REST scope kept out:
 **Prompt:** In `aerobeat-vendor-modio`, claim the assigned bead on start. Independently verify the latest mod media implementation against the refreshed official REST corpus. Confirm request shapes, transport behavior, docs, and seam boundaries are truthful; make only minimum necessary fixes; rerun validation/tests; update the plan with exact findings; commit/push if needed; and close the bead.
 
 **Folders Created/Deleted/Modified:**
-- `src/`
-- `.testbed/tests/`
-- `docs/`
 - `.plans/`
 
 **Files Created/Deleted/Modified:**
-- implementation/tests/docs as needed
 - `.plans/2026-05-04-aerobeat-vendor-modio-mod-media-management.md`
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** QA passed with no implementation fixes required.
+
+Exact findings against the refreshed REST corpus and seam rules:
+- Verified `POST /games/{game-id}/mods/{mod-id}/media` matches `REF-01` for method/path and uses bearer-authenticated `multipart/form-data` with truthful binary-capable file parts, plus documented `sync`, `youtube[]`, and `sketchfab[]` handling.
+- Verified the add-media seam stays generic and docs-first: `_append_mod_media_images_field` accepts an `images` dictionary and forwards each caller-supplied multipart field name directly into the final request body, so arbitrary REST image field names are preserved instead of being collapsed to hardcoded slots.
+- Verified truthful multipart transport: `ModioHttpTransport` now detects descriptor dictionaries with `filename` + raw `PackedByteArray data`, emits `Content-Disposition: form-data; name="..."; filename="..."`, emits optional/default `Content-Type`, and writes raw bytes into the multipart body.
+- Verified `PUT /games/{game-id}/mods/{mod-id}/media/reorder` matches `REF-02` for method/path and uses bearer-authenticated `application/x-www-form-urlencoded` arrays encoded as `images[]`, `youtube[]`, and `sketchfab[]` exactly.
+- Verified `DELETE /games/{game-id}/mods/{mod-id}/media` matches `REF-03` for method/path and uses bearer-authenticated `application/x-www-form-urlencoded` arrays encoded as `images[]`, `youtube[]`, and `sketchfab[]` exactly when present.
+- Verified reorder/delete validation remains intentionally thin: local validation checks only documented field allowlists, array shape, and URL shape for `youtube` / `sketchfab`; no client-side full-array mismatch enforcement or remote-state reconstruction was added, which stays aligned with the REST note assigning mismatch rejection to the server.
+- Re-checked multipart regression risk by reviewing and rerunning existing multipart callers. The new transport file-part branch is opt-in for descriptor dictionaries only, so prior text-part multipart flows (guide/collection authoring, monetization-team indexed keys, string-based modfile/source-modfile fields) still serialize as ordinary text parts.
+
+Validation evidence:
+- `godot --headless --path .testbed --script res://tests/validate_scaffold.gd` ✅
+- `godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit` ✅ (`65/65` passing; 1 pre-existing unrelated Float/Int comparison warning remained)
+
+No code/docs fixes were needed, so no commit was created during QA.
 
 ---
 
@@ -174,24 +185,39 @@ Deliberate deferrals / non-REST scope kept out:
 - implementation/tests/docs as needed
 - `.plans/2026-05-04-aerobeat-vendor-modio-mod-media-management.md`
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** Audit passed with no implementation or documentation fixes required.
+
+Exact audit findings against `REF-04` and the locked seam rules:
+- Confirmed `POST /games/{game-id}/mods/{mod-id}/media` matches the refreshed REST page in `REF-04` for method/path and message-object success semantics, and the adapter keeps it bearer-authenticated `multipart/form-data` via `build_add_mod_media_request` + `normalize_add_mod_media_response`.
+- Confirmed add-media remains a truthful multipart file-part wrapper rather than a fake path-string seam: `_append_mod_media_images_field` accepts a generic `images` mapping, `_normalize_raw_multipart_value` requires `filename` plus raw `PackedByteArray data` and optional `content_type`, and `ModioHttpTransport._append_single_multipart_part` emits `Content-Disposition` with `filename`, optional/default `Content-Type`, and raw bytes into the multipart body.
+- Reconfirmed the repo-level add-media seam is intentionally generic and docs-first: caller-provided keys under `images` become the final multipart field names, so arbitrary REST image-body names are preserved and no hardcoded gallery slot assumptions leak into the adapter contract.
+- Confirmed `PUT /games/{game-id}/mods/{mod-id}/media/reorder` and `DELETE /games/{game-id}/mods/{mod-id}/media` stay aligned with the refreshed REST pages by forwarding only the documented repeated arrays `images[]`, `youtube[]`, and `sketchfab[]` using bearer-authenticated `application/x-www-form-urlencoded` transport.
+- Reconfirmed reorder/delete validation remains intentionally thin: the adapter validates allowed fields, array shape, and URL shape for `youtube` / `sketchfab`, but it does not add local full-array mismatch enforcement or remote-state reconstruction; the doc note assigning mismatch rejection to mod.io remains server-owned.
+- Rechecked multipart regression risk against existing text-part callers: the transport’s file-part behavior is opt-in for descriptor dictionaries only, so existing multipart text fields continue to serialize as ordinary text parts and no legacy multipart text-part callers regressed in the full test suite.
+
+Validation evidence rerun during audit:
+- `godot --headless --path .testbed --script res://tests/validate_scaffold.gd` ✅
+- `godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit` ✅ (`65/65` passing; 1 pre-existing unrelated warning remained)
+
+No fixes were needed, so no commit was created during audit.
 
 ---
 
 ## Final Results
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**What We Built:** Pending.
+**What We Built:** Landed the full confirmed REST-backed mod media management family as a thin docs-first seam: bearer-authenticated add-media with truthful multipart file-part support, bearer-authenticated reorder using the documented `images[]` / `youtube[]` / `sketchfab[]` form arrays, and bearer-authenticated delete using the same documented repeated-array contract with `204 No Content` normalization.
 
-**Reference Check:** Pending.
+**Reference Check:** `REF-01` and `REF-02` correctly identified this family as the next smallest confirmed slice. `REF-03` remains satisfied because the seam stayed thin and transport-truthful. `REF-04` matched the final implementation exactly for method/path/content-type/body/response semantics across add, reorder, and delete. `REF-05` and `REF-06` now contain the implementation and validation coverage proving the slice preserves arbitrary add-media multipart field names, uses truthful binary-capable file parts, keeps reorder/delete array names exact, and leaves full-array mismatch enforcement to mod.io.
 
 **Commits:**
-- Pending.
+- `89e9aff` - add confirmed mod media management family
+- Audit: no additional commit required
 
-**Lessons Learned:** Pending.
+**Lessons Learned:** The refreshed REST corpus was stable enough to wrap the whole family once multipart file-part support was made truthful. Keeping the seam generic at the `images` mapping layer avoided hardcoded gallery-slot policy while still preserving exact REST transport semantics.
 
 ---
 
