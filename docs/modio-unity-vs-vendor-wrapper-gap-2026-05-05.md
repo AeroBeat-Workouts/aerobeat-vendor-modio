@@ -1,302 +1,268 @@
-# mod.io Unity SDK vs `aerobeat-vendor-modio` gap audit — 2026-05-05
+# AeroBeat planning note: mod.io Unity SDK vs `aerobeat-vendor-modio`
 
-## Purpose
+## Why this exists
 
-This document explains the remaining gap between the local official mod.io Unity SDK and the Godot-facing `aerobeat-vendor-modio` wrapper **after the final REST audit**.
+This is the practical version of the Unity-vs-wrapper comparison for AeroBeat planning.
 
-The source of truth for normal wrapper scope is the local official REST corpus in `modio-docs`, not Unity parity. Unity is used here as a comparison reference to answer a narrower question:
+The short answer:
 
-> What functionality does the Unity SDK expose that this repo still does not, and which of those gaps are real REST gaps vs. intentional non-goals vs. upstream drift that needs mod.io clarification?
+- `aerobeat-vendor-modio` is now basically **REST-complete** for the public mod.io docs we are treating as source of truth.
+- The main thing AeroBeat still **does not** have is **Unity-style engine/runtime behavior above the REST API**.
+- That means the next work is mostly **Godot product integration work**, not "wrap more ordinary REST endpoints."
 
-## Final wrapper status
+For source material, also see:
+- `/workspace/projects/aerobeat/aerobeat-vendor-modio/.plans/2026-05-05-aerobeat-vendor-modio-deferred-rest-finish.md`
+- `/workspace/projects/modio/modio-docs/`
+- `/workspace/projects/modio/modio-unity/`
 
-- `aerobeat-vendor-modio` now wraps **133 of 134** documented endpoint pages in `modio-docs/public/en-us/restapi/docs/*.api.mdx`.
-- The only documented REST route still intentionally unwrapped is **`GET /me/events`**.
-- That route is a **documented deferral**, not an accidental miss:
-  - the official page marks it **deprecated for in-game use**
-  - the official page says **new games should use `GET /me/subscribed` instead**
-  - Derrick explicitly locked it out of the finish line
-- Result: the remaining Unity-vs-wrapper gap is now mostly about:
-  1. **Unity-only client/runtime features**
-  2. **drift-blocked monetization/IAP surfaces**
-  3. **non-REST orchestration layers** that Unity ships on top of the API
+## Current wrapper status
 
-## Short version
+`aerobeat-vendor-modio` wraps **133 of 134** documented mod.io REST endpoint pages from the local docs mirror.
 
-If the question is **“does the Godot wrapper still miss stable documented REST endpoints that Unity has?”** the truthful answer is:
+The only documented route still intentionally not wrapped is:
+- `GET /me/events`
 
-- **Only one:** deprecated `GET /me/events`, intentionally deferred.
+That is not an accidental miss. The docs mark it deprecated for in-game use and tell new games to use `GET /me/subscribed` instead.
 
-If the question is **“does Unity still do more than this wrapper?”** the truthful answer is also yes, but most of that extra surface is **not** “missing REST coverage.” It is one of:
+## What AeroBeat should actually care about
 
-- Unity-side runtime/state management
-- Unity-specific auth and store integrations
-- install/download lifecycle orchestration
-- monetization abstractions that depend on platform services or drifted endpoints
-- UI / event / service-locator conveniences
+AeroBeat should care about this split:
 
-## Comparison categories
+### 1. Things already handled by `aerobeat-vendor-modio`
 
-### 1. REST-covered functionality now wrapped
-
-These are no longer meaningful Unity parity gaps at the transport seam.
-
-`aerobeat-vendor-modio` now covers the documented REST families Unity depends on for ordinary API access, including:
-
+This repo already gives us the docs-first REST seam for things like:
 - auth/session requests
-- agreements / terms reads
-- game, mod, modfile, guide, and collection browse/detail reads
-- mod authoring CRUD
-- modfile CRUD
-- source modfiles
-- multipart upload sessions and part upload
-- cook inspection, platform-management, and cloud-cooking finalization
-- mod media and game media writes
-- comments / ratings / reports
-- dependencies / dependants / tags / metadata KVP
-- user inventory/profile/social reads
-- subscriptions / purchases / wallet / entitlements query
-- checkout and monetization S2S routes
-- mod monetization-team routes
-- mod event feeds (`/mods/{mod-id}/events`, `/mods/events`)
+- game/mod browsing
+- subscriptions and purchased state reads
+- mod authoring and modfile routes
+- media, metadata, dependencies, tags, comments, ratings
+- collection and guide surfaces
+- wallet, checkout, entitlements query, and other documented monetization REST routes
+- mod event feeds
 
-From a Godot integration angle, this means the vendor wrapper now has essentially full docs-first REST reach for the public corpus. A future Godot higher layer can build product behavior on top of this without needing Unity just to access the documented API.
+In plain terms: if AeroBeat needs to **talk to documented mod.io HTTP endpoints**, this repo is now in good shape.
 
-### 2. Intentional documented deferral
+### 2. Things Unity gives teams that this wrapper intentionally does not
 
-#### `GET /me/events`
+Unity ships a lot more than raw API access. It also ships:
+- client bootstrap and singleton/service wiring
+- cached user/subscription/purchase state
+- install/download/session orchestration
+- UI panels and example flows
+- store/platform-specific auth and monetization helpers
 
-Status:
-- documented in REST
-- generated in Unity (`Modio/API/Generated/Endpoints/GetUserEvents.cs`)
-- **intentionally not wrapped here**
+In plain terms: Unity is part REST client, part game-engine integration layer, part product starter kit.
 
-Why it stays out:
-- the REST page explicitly says it is **deprecated for in-game use**
-- the page says **new games should use `GET /me/subscribed`**
-- wrapping it would add legacy behavior that the docs themselves steer new game clients away from
+`aerobeat-vendor-modio` is only the **REST wrapper** part.
 
-Godot implication:
-- this is not a real blocker
-- if AeroBeat needs “current subscribed state,” `GET /me/subscribed` is the correct path
-- if AeroBeat somehow needs historical legacy user-event semantics, that should be a deliberate exception rather than default wrapper scope
+### 3. What the next AeroBeat work probably is
 
-### 3. Unity-only or non-wrapper surfaces
+The next likely work for AeroBeat is not "add another normal REST endpoint."
+It is:
+- a Godot-side mod.io service layer
+- token/session persistence
+- local cache/repository decisions
+- install/download lifecycle handling
+- Godot UI/UX for login, subscriptions, library, install/update state, and errors
+- safe live integration testing with real mod.io credentials
 
-These are real Unity-vs-wrapper differences, but they are **not** evidence that the Godot wrapper is missing stable REST coverage.
+## Simple difference summary
 
-#### 3.1 Client bootstrap and service binding
+### `aerobeat-vendor-modio`
 
-Unity ships a full client runtime layer around the API:
-- `ModioClient.Init()` / `Shutdown()`
-- service binding via `ModioServices`
-- platform-selected auth service resolution
-- persistent user/data storage integration
+Use this for:
+- truthful request building
+- normalized mod.io REST responses
+- docs-first seam verification
+- keeping engine-agnostic API behavior stable
 
-Representative files:
-- `modio-unity/Modio/ModioClient.cs`
-- `modio-unity/Modio/Authentication/ModioMultiplatformAuthResolver.cs`
+Do **not** expect it to be:
+- a full mod manager runtime
+- a UI kit
+- a store SDK bridge
+- a Unity-style app framework
 
-`aerobeat-vendor-modio` does **not** try to replicate this. It is a thin request-builder/transport/normalizer seam, not a singleton runtime.
+### Unity SDK
 
-Godot implication:
-- Godot should own its own service graph, token persistence, and startup lifecycle
-- copying Unity’s service-locator architecture into the vendor wrapper would be scope drift
+Use Unity as a reference for:
+- what a finished game integration usually needs above REST
+- what UX flows mod.io expects games to support
+- how install/state/monetization flows may be organized
 
-#### 3.2 Local synced user state and repositories
+Do **not** treat Unity as a parity target for this vendor wrapper.
 
-Unity has a richer local user model than this wrapper:
-- `User.Sync()` orchestration
-- cached profile / subscriptions / purchases / collections / ratings / wallet state
-- `ModRepository` and `ModCollectionRepository`
-- local change listeners / events
+## What maps to Godot responsibilities above the wrapper
 
-Representative files:
-- `modio-unity/Modio/Users/User.cs`
-- `modio-unity/Modio/Users/ModRepository.cs`
-- `modio-unity/Modio/Users/ModCollectionRepository.cs`
+This is the most important planning section for AeroBeat.
 
-The wrapper intentionally stops lower in the stack. It returns normalized REST payloads but does not maintain a live client-side shadow model.
+### Godot should own these responsibilities
 
-Godot implication:
-- if AeroBeat wants Unity-style “current user state” objects, that belongs in a Godot integration layer above this repo
-- this is a product/runtime layer, not a transport gap
+#### App/bootstrap layer
+Godot should decide:
+- when mod.io services start and stop
+- where tokens are stored
+- how auth/session refresh is handled
+- how wrapper calls are injected into the rest of the game
 
-#### 3.3 Install/download/session orchestration
+Unity has its own runtime/bootstrap pattern. We should **not** port that structure directly into this repo.
 
-Unity includes substantial mod-installation behavior:
-- installation manager startup/shutdown
-- retry install flows
-- temp mod sessions
+#### Local user state
+Godot should own:
+- current user profile state
+- subscribed mods state
+- purchased/unlocked state
+- collection/library state
+- local caching and refresh policy
+
+Unity has repository/state helpers for this. For AeroBeat, that belongs in a Godot-facing integration layer above the wrapper.
+
+#### Download/install/update workflow
+Godot should own:
+- download queueing
+- install destinations
+- temp file handling
+- retries/resume policy
 - disk-space checks
-- install wake-up behavior after subscription/purchase sync
+- enable/disable/update behavior
 
-Representative file:
-- `modio-unity/Modio/ModInstallationManagement.cs`
+This is one of the biggest functional gaps between "REST wrapper complete" and "game feature complete."
 
-`aerobeat-vendor-modio` deliberately does not implement this. The repo only resolves download metadata and artifact/cache identity; it does not claim to be a full install manager.
+#### UI/UX
+Godot should own:
+- login screens
+- terms/consent prompts
+- browse/search screens
+- subscribed/library/install views
+- progress/error UI
+- purchase/storefront UI if AeroBeat uses it
 
-Godot implication:
-- Godot still needs its own install/download orchestration layer
-- that layer can use this wrapper’s file/download metadata, but it should not live inside the vendor REST seam
+Unity UI/examples/helpers should be treated as:
+- **reference material for product flows and edge cases**
+- **not code to port 1:1**
 
-#### 3.4 UI and engine integration helpers
+A direct UI port would bring Unity assumptions into the Godot stack and likely create more confusion than value.
 
-Unity ships engine-specific UX helpers:
-- auth picker / terms panels / WSS prompt panels
-- example scenes and UI components
-- avatar/UI glue
+#### Platform/store integration
+If AeroBeat needs platform-native purchase or entitlement sync behavior, Godot will likely need:
+- engine/plugin bindings for the target store/platform
+- wrapper calls for the documented mod.io side
+- separate live validation of each platform path
+
+This is not something the current wrapper solves by itself.
+
+## What Unity pieces should be ported vs. treated as references
+
+### Treat as references, not direct port targets
+
+- Unity UI panels
+- Unity example scenes
+- Unity service-locator/bootstrap structure
+- Unity-specific auth display helpers
+- Unity install manager architecture
 - Unity purchasing bridge code
 
-Representative paths:
-- `modio-unity/Unity/UI/`
-- `modio-unity/Unity/Examples/`
+These are useful to **study**, but they should not be blindly copied into Godot.
 
-These are plainly Unity-only and not meaningful parity targets for a Godot vendor wrapper.
+### Reasonable to translate conceptually into Godot
 
-Godot implication:
-- AeroBeat should treat these as design references only
-- any Godot UI should be purpose-built instead of trying to mirror Unity SDK structure
+- which user flows exist
+- which states the game needs to track
+- which install/download edge cases matter
+- what success/failure UX needs to exist
+- what minimum product behavior mod.io expects around auth, subscriptions, installs, and entitlements
 
-### 4. Drift-blocked or ambiguous surfaces
+So the rule of thumb is:
+- **port the product ideas and required behaviors**
+- **do not port the Unity implementation shape**
 
-These are the most important remaining comparison items, because they are the ones most likely to require direct mod.io clarification before a Godot integration should rely on them.
+## Outstanding drift / questions to ask mod.io
 
-#### 4.1 `/me/iap/*/sync`
+These are the items most likely to change AeroBeat scope or reduce integration risk.
 
-This is the largest remaining gap between Unity’s practical capability and the docs-first Godot wrapper.
+### 1. `/me/iap/*/sync` official support and exact contracts
 
-What we know locally:
-- Unity contains generated endpoints and active integration paths for multiple entitlement-sync routes
-- the monetization guide `features/monetization/purchase-servers/modio-as-purchase-server.md` documents several of these flows conceptually and, in some cases, operationally
-- the official mirrored REST endpoint corpus under `public/en-us/restapi/docs/*.api.mdx` does **not** contain matching endpoint pages for this family
+We need a clear answer on:
+- which `/me/iap/*/sync` routes are officially supported today
+- which platforms are truly supported for non-Unity/custom-engine clients
+- exact request body fields per platform
+- exact required headers per platform
+- where the canonical docs live if they are not in `/workspace/projects/modio/modio-docs/`
 
-Examples:
-- `POST /me/iap/steam/sync`
-- `POST /me/iap/xboxlive/sync`
-- `POST /me/iap/psn/sync`
-- `POST /me/iap/meta/sync`
-- `POST /me/iap/epicgames/sync`
-- `POST /me/iap/apple/sync`
-- `POST /me/iap/google/sync`
+This is the biggest remaining drift area.
 
-Why this is blocked:
-- body/header shapes drift across guide vs. SDK vs. Unity
-- some portals are guide-backed, some only SDK/Unity-backed
-- some platforms appear partially supported in code but not consistently in the public corpus
+### 2. Non-Unity monetization model for custom-engine games
 
-Concrete drift already recorded in local research:
-- **PSN:** guide uses `psn_token` / `psn_env` / `psn_service_label`; SDK + Unity use `auth_code` / `env` / `service_label`
-- **Meta:** guide uses `meta_device` + `meta_user_id`; SDK uses `device` + `user_id`; Unity currently sends them as query params on a `POST`
-- **Apple/Google:** present in Unity and/or SDK, but missing from the mirrored REST pages
+We should ask mod.io:
+- for Godot/custom-engine games, should we prefer wallet/checkout flows, platform-native purchase + sync flows, or both?
+- which storefront/platform combinations are considered production-ready outside Unity/Unreal?
+- what client-side enforcement or restrictions do they expect us to own?
 
-Godot implication:
-- do **not** claim parity here yet
-- do **not** implement these in a docs-first wrapper without an explicit policy change
-- if AeroBeat needs store-native entitlement conversion, this is the clearest place where direct mod.io clarification is warranted
+### 3. WSS / device-style auth expectations
 
-#### 4.2 USD marketplace and entitlement service abstractions
+We should ask:
+- is the WSS/device-style auth flow officially supported outside Unity?
+- is there a stable public contract for custom engines?
+- should Godot stick to documented REST auth flows unless mod.io says otherwise?
 
-Unity has service abstractions that imply a broader monetization runtime than the REST wrapper currently provides:
-- `IModioEntitlementService`
-- `IModioUsdMarketplaceService`
-- `ModioMobileStoreService`
+### 4. Install-management expectations for custom engines
 
-Representative files:
-- `modio-unity/Modio/Monetization/IModioEntitlementService.cs`
-- `modio-unity/Modio/Monetization/IModioUsdMarketplaceService.cs`
-- `modio-unity/Unity/Platforms/MobilePurchasing/ModioMobileStoreService.cs`
+We should ask:
+- does mod.io expect custom engines to build install/session management fully themselves?
+- are there reference expectations for temp sessions, retries, enable/disable rules, or local repository semantics?
 
-Important distinction:
-- the wrapper **does** cover the stable REST pieces around wallet, purchases, entitlements query, checkout, token packs, and monetization S2S
-- the wrapper **does not** cover the Unity runtime layer that talks to store SDKs, opens platform-native purchase flows, consumes receipts, syncs entitlements, and refreshes wallet state afterward
+## Testing reality: what is covered now vs. what still needs live testing
 
-Godot implication:
-- if AeroBeat wants platform-store commerce inside Godot, it needs both:
-  1. Godot-side platform/store bindings
-  2. mod.io confirmation about which sync endpoints/contracts are intended for non-Unity clients
+### What current coverage really means
 
-#### 4.3 WSS / device-code-style authentication
+Current coverage is strong for **wrapper truth**, but it is still mostly:
+- mocked/unit-style request-builder tests
+- mocked transport tests
+- fixture/docs-truth validation
+- repo-level validation that the wrapper matches the local REST documentation we have
 
-Unity includes a WSS auth path that is more than a simple REST form post:
-- `Modio/Platforms/WSS/WssAuthService.cs`
-- `IWssCodeDisplayer` UX coupling
+That is valuable, but it is **not the same as real live mod.io integration testing**.
 
-This looks like a device-login / live-code experience rather than plain REST-only email or OpenID exchange.
+### What real live testing will likely require
 
-The current wrapper already covers the documented REST auth routes, but it does not implement a WSS runtime.
+A real live wrapper test pass will likely need a **private local test setup** that is **not committed** to the repo.
 
-Godot implication:
-- if AeroBeat only needs email auth, OpenID, or the documented external auth request shapes, the wrapper is already sufficient
-- if AeroBeat wants the same device-login UX Unity exposes, confirm with mod.io whether WSS auth is an intended cross-engine integration path or just a Unity/plugin-level convenience
+That setup will probably include:
+- mod.io game **public key**
+- mod.io **private/API key** or other auth material needed for the specific flows under test
+- a safe local env/config file such as an untracked `.env`, local test config, or equivalent secret-backed harness input
+- a dedicated low-risk mod.io game/test space or clearly scoped live-test content
+- explicit rules for what the live tests are allowed to create, update, subscribe to, purchase, or delete
 
-### 5. Features most likely to need direct mod.io clarification for Godot
+### Safe live-test scope recommendation
 
-If Derrick wants a short list of “ask mod.io these first,” this is it.
+For AeroBeat, the safest next live-test scope is probably:
+- auth/session smoke testing
+- browse/read endpoints
+- subscription state checks in a controlled test account
+- one or two carefully scoped write flows in a test-only mod/game area
 
-#### Clarification priority 1: official status of `/me/iap/*/sync`
+Do **not** start with destructive or monetization-sensitive live tests unless the env/config and test account boundaries are locked down first.
 
-Questions to ask:
-- Which `/me/iap/*/sync` routes are officially supported for production game clients today?
-- Which exact request field names are canonical for each platform?
-- Which headers are mandatory per platform?
-- Are Apple/Google sync endpoints intentionally supported for third-party engine clients even though they are absent from the mirrored REST endpoint pages?
-- Is there a current docs location that supersedes the missing `.api.mdx` pages?
+### Practical implication for planning
 
-#### Clarification priority 2: intended non-Unity monetization integration model
+Before we claim "real integration verified," AeroBeat likely needs a separate follow-up task to define:
+- local secret/config shape
+- safe test accounts
+- safe test content ownership
+- allowed write/delete scope
+- whether monetization/IAP live tests are in or out for the first pass
 
-Questions to ask:
-- For Godot or custom-engine titles, is the intended path:
-  - direct mod.io checkout / wallet, or
-  - platform-native purchase + entitlement sync, or
-  - both depending on storefront?
-- Which portals are considered first-class for in-game marketplace support outside Unity/Unreal?
-- Are there platform-specific restrictions mod.io expects game teams to enforce client-side?
+## Bottom line for AeroBeat
 
-#### Clarification priority 3: WSS/device auth support outside Unity
+The main gap is no longer "missing public REST wrappers."
 
-Questions to ask:
-- Is the WSS auth flow an officially supported cross-engine integration surface?
-- Is there a public/properly documented non-Unity contract for it?
-- Should custom engines prefer documented REST auth routes unless mod.io explicitly directs otherwise?
+The main gap is:
+- Godot runtime/integration work above the wrapper
+- unresolved mod.io guidance for some monetization/auth paths
+- absence of private credential-backed live integration testing
 
-#### Clarification priority 4: scope boundary for install-management expectations
-
-Questions to ask:
-- Does mod.io expect custom engine clients to build install/session management entirely themselves on top of REST + downloads?
-- Are there any non-Unity reference expectations for temp sessions, retries, enable/disable semantics, or local repository state?
-
-## Godot-facing conclusion
-
-### What is actually missing from the wrapper?
-
-Very little of the documented REST API.
-
-The wrapper is now effectively REST-complete for the current mirrored corpus, with one intentional legacy exception:
-- `GET /me/events` deferred because the docs say not to use it for new games
-
-### What is still missing compared with Unity?
-
-Mostly things that should **not** be solved by blindly copying Unity into the vendor wrapper:
-- client runtime/state management
-- install orchestration
-- UI helpers
-- Unity/store SDK integrations
-- drifted monetization sync routes
-
-### What should happen next for AeroBeat?
-
-From a Godot integration angle, the next honest layer split is:
-
-1. Keep `aerobeat-vendor-modio` as the docs-first REST seam.
-2. Build any Godot-specific session/cache/install/runtime behavior **above** it.
-3. Treat `/me/iap/*/sync`, store-native monetization, and WSS/device auth as **clarification-first** topics with mod.io rather than assumed parity work.
-
-## Bottom line
-
-After the final REST audit, the remaining Unity SDK gap is **not** “we still owe a bunch of missing documented endpoints.”
-
-It is:
-- **one intentional deprecated REST deferral**: `GET /me/events`
-- **several Unity/runtime conveniences** that belong above the vendor wrapper
-- **a small but important set of monetization/auth surfaces** where the local official corpus is incomplete or internally drifted, and where direct mod.io guidance would materially reduce risk for a Godot implementation
+So the honest next plan is:
+1. keep `aerobeat-vendor-modio` as the thin docs-first REST seam
+2. build AeroBeat's Godot-side integration layer above it
+3. ask mod.io for clarification on the drifted monetization/auth surfaces
+4. define a private, safe, live-test setup before claiming production readiness
