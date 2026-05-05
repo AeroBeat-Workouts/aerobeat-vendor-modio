@@ -2650,7 +2650,8 @@ func test_builds_mod_authoring_requests_with_documented_validation() -> void:
 	assert_eq(add_mod_request.auth_mode, "bearer")
 	assert_eq(add_mod_request.body.name, "Graphics Overhaul Mod")
 	assert_eq(add_mod_request.body.logo, "@/tmp/mod-logo.png")
-	assert_eq(add_mod_request.body.metadata_kvp, ["pistol-dmg:800", "gravity:9.8"])
+	assert_eq(add_mod_request.body["metadata[]"], ["pistol-dmg:800", "gravity:9.8"])
+	assert_false(add_mod_request.body.has("metadata_kvp"))
 
 	var update_mod_request = auth_adapter.build_update_mod_request("1001", {
 		"status": 1,

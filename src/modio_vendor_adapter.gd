@@ -3132,6 +3132,9 @@ func _normalize_mod_authoring_fields(fields: Dictionary, is_create: bool) -> Dic
 		_append_required_string_array_field(fields, body, "metadata_kvp", errors)
 	else:
 		_append_optional_string_array_field(fields, body, "metadata_kvp", errors)
+	if body.has("metadata_kvp"):
+		body["metadata[]"] = body["metadata_kvp"]
+		body.erase("metadata_kvp")
 	_append_optional_string_field(fields, body, "metadata_blob", errors)
 	_append_optional_string_array_field(fields, body, "tags", errors)
 	_append_optional_int_like_field(fields, body, "tokenpack_id", errors)

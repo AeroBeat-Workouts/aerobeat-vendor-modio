@@ -1303,7 +1303,7 @@ func test_executes_mod_authoring_requests_with_documented_multipart_and_delete_s
 	assert_eq(_recorded_requests[0].headers["Content-Type"], "multipart/form-data; boundary=TEST-BOUNDARY")
 	assert_string_contains(_recorded_requests[0].body_string, 'name="name"')
 	assert_string_contains(_recorded_requests[0].body_string, "Graphics Overhaul Mod")
-	assert_string_contains(_recorded_requests[0].body_string, 'name="metadata_kvp[]"')
+	assert_string_contains(_recorded_requests[0].body_string, 'name="metadata[]"')
 	assert_string_contains(_recorded_requests[0].body_string, "pistol-dmg:800")
 	assert_string_contains(_recorded_requests[0].body_string, 'name="tags[]"')
 	assert_string_contains(_recorded_requests[0].body_string, "@/tmp/mod-logo.png")
