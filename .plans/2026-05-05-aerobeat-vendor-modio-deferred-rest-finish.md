@@ -338,7 +338,7 @@ Dependency order is explicit and serialized through coder → QA → auditor for
 
 ### Task 5: Write Unity SDK vs vendor wrapper comparison document
 
-**Bead ID:** `Pending`  
+**Bead ID:** `oc-6sm`  
 **SubAgent:** `primary`  
 **Role:** `research`  
 **References:** `REF-01` through `REF-08`  
@@ -349,12 +349,12 @@ Dependency order is explicit and serialized through coder → QA → auditor for
 - `.plans/`
 
 **Files Created/Deleted/Modified:**
-- comparison doc path to be chosen during execution
+- `docs/modio-unity-vs-vendor-wrapper-gap-2026-05-05.md`
 - `.plans/2026-05-05-aerobeat-vendor-modio-deferred-rest-finish.md`
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** Wrote `docs/modio-unity-vs-vendor-wrapper-gap-2026-05-05.md` as the post-audit comparison note between the local official Unity SDK (`REF-05`) and the final REST-audited wrapper (`REF-06`), using the REST corpus in `REF-04` as the source of truth. The document records the final wrapper state accurately: `aerobeat-vendor-modio` now wraps **133 of 134** documented REST endpoint pages, with only deprecated `GET /me/events` left intentionally unwrapped. It explicitly separates three categories that matter for future Godot work: (1) REST-covered functionality already wrapped, so no Unity parity work remains at the transport seam; (2) the intentional documented deferral of `GET /me/events`; and (3) Unity-only / non-wrapper / drift-blocked surfaces such as local client bootstrap, synced repositories, install orchestration, UI helpers, WSS/device-login auth, and especially `/me/iap/*/sync` monetization flows. The document is careful not to overclaim parity: it says the remaining real risk is not missing documented REST endpoints, but incomplete or internally drifted upstream guidance around platform entitlement sync and adjacent monetization/runtime behavior. It also gives a concise “ask mod.io these first” list for Godot, centered on `/me/iap/*/sync`, intended non-Unity monetization support, WSS/device auth expectations, and install-management boundaries. Validation for this research/doc slice was lightweight and appropriate for a docs-only change: `git diff --check` passed cleanly, the new markdown file was spot-checked against the audited wrapper state and the local Unity/doc references, and no code/test rerun was required because this slice changed no runtime behavior. Files touched in this slice: the new comparison doc and this plan file. Commit hash and push status recorded below after commit/push.
 
 ---
 
