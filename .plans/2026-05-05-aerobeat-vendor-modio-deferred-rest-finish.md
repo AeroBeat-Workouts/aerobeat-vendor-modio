@@ -318,25 +318,21 @@ Dependency order is explicit and serialized through coder → QA → auditor for
 
 ### Task 4: Run a final REST coverage audit after all slices land
 
-**Bead ID:** `Pending`  
+**Bead ID:** `oc-wwu`  
 **SubAgent:** `primary`  
 **Role:** `auditor`  
 **References:** `REF-01` through `REF-08`  
 **Prompt:** In `aerobeat-vendor-modio`, claim the assigned bead on start. After all approved remaining REST-backed slices have landed, perform a final independent truth-audit of the repo against the local official mod.io REST docs corpus. Confirm what is covered, identify any truly remaining confirmed REST-backed gaps, and update the plan with exact final REST coverage status. Commit/push if needed, then close the bead.
 
 **Folders Created/Deleted/Modified:**
-- `src/`
-- `.testbed/tests/`
-- `docs/`
 - `.plans/`
 
 **Files Created/Deleted/Modified:**
 - `.plans/2026-05-05-aerobeat-vendor-modio-deferred-rest-finish.md`
-- any minimal audit note files if needed
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** Final docs-first REST audit completed against `REF-04`, `REF-06`, `REF-07`, and this plan after Slice C landed. Rechecked the local official corpus count (`134` endpoint pages under `public/en-us/restapi/docs/*.api.mdx`), verified the formerly missing confirmed REST-backed routes are now represented in `src/modio_vendor_adapter.gd` (`POST /games/{game-id}/media`, `POST /games/{game-id}/mods`, `POST /games/{game-id}/mods/{mod-id}`, `DELETE /games/{game-id}/mods/{mod-id}`, `DELETE /games/{game-id}/collections/{collection-id}/mods`, `GET /games/{game-id}/mods/{mod-id}/events`, and `GET /games/{game-id}/mods/events`), and confirmed there are **no remaining non-deprecated confirmed REST-backed gaps** in the wrapper. Final truthful REST coverage status is therefore **133 of 134 documented endpoint pages implemented**, with the sole unwrapped documented route being **`GET /me/events`**, which remains an **intentional documented deferral** because the official page itself marks it deprecated for in-game use and Derrick explicitly locked that route out of the normal finish line. Drift-blocked Unity/SDK-only comparison items remain separate from REST audit scope, led by `/me/iap/*/sync`-style surfaces that still do not appear in the local official REST corpus and therefore do **not** count as missed REST coverage. Audit also rechecked the current fixture/test corpus path reality: the active repo fixtures are under `.testbed/tests/fixtures/`, not `tests/docs/fixtures`, and the landed event/game-media fixtures align with the docs-shaped payloads used by the normalizers. Independent validation rerun for the final audit: `godot --headless --path .testbed --script res://tests/validate_scaffold.gd` (passed) and `godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit` (73/73 passing, 2413 asserts, same single pre-existing unrelated float/int warning in checkout/S2S coverage). No code changes were required in this pass; only this plan file was updated. Audit commit: `c2c78bd`.
 
 ---
 
@@ -364,16 +360,23 @@ Dependency order is explicit and serialized through coder → QA → auditor for
 
 ## Final Results
 
-**Status:** ⏳ Pending
+**Status:** ⚠️ Partial
 
-**What We Built:** Pending.
+**What We Built:** The remaining confirmed REST-backed wrapper slices are now landed and the final REST audit is complete. `aerobeat-vendor-modio` truthfully wraps **133 of 134** documented mod.io REST endpoint pages from `REF-04`. The only documented route still intentionally left out is deprecated `GET /me/events`, which remains explicitly deferred per Derrick’s decision and the deprecation language on the official page itself. The separate Unity/SDK comparison write-up remains pending as Task 5.
 
-**Reference Check:** Pending.
+**Reference Check:** `REF-04` re-audited against `REF-06` and `REF-07` with no remaining non-deprecated confirmed REST-backed gaps found. Intentional documented deferral: `GET /me/events`. Drift-blocked comparison-only items remain outside REST completion scope, including `/me/iap/*/sync`-style surfaces that are absent from the local official REST corpus.
 
 **Commits:**
-- Pending.
+- `5a2ffbe` - Add REST wrappers for mod authoring CRUD
+- `d8d50c1` - QA fix mod authoring metadata multipart key
+- `3b8ab11` - Add game media and collection mod delete wrappers
+- `f3c2bba` - QA fix game media multipart file enforcement
+- `6a35dfe` - Add mod event feed REST wrappers
+- `fb0a321` - QA fix mods events auth fallback
+- `13b11a1` - Record Slice C audit results
+- `c2c78bd` - Record final REST audit results
 
-**Lessons Learned:** Pending.
+**Lessons Learned:** The local REST corpus is stable enough to finish the vendor wrapper accurately when each slice stays docs-first and thin, but QA/audit still mattered because the last-mile defects were transport/auth truth issues (`metadata[]` multipart naming, binary file-part enforcement, and authenticated `subscribed=true` shaping) rather than missing endpoints.
 
 ---
 
