@@ -205,6 +205,25 @@ This repo uses the AeroBeat GodotEnv package convention.
 
 The repo root remains the published package boundary. Development and validation happen from the hidden `.testbed/` project.
 
+### Private mod.io config (testbed only)
+
+Local credentials live in `.testbed/` and are **ignored by git**. Copy the templates and fill in your real values:
+
+```bash
+cp .testbed/modio.local.example.cfg .testbed/modio.local.cfg
+cp .testbed/modio.session.local.example.cfg .testbed/modio.session.local.cfg
+```
+
+Environment selection precedence (first match wins):
+
+1. explicit harness argument `--env test|live`
+2. `MODIO_ENV=test|live`
+3. `.testbed/modio.session.local.cfg` `[modio] environment`
+4. `.testbed/modio.local.cfg` `[modio] default_environment`
+5. fallback to `test`
+
+Only `test` and `live` are supported. Leave `base_url` blank unless you are intentionally overriding host resolution.
+
 ### Restore dev/test dependencies
 
 From the repo root:
