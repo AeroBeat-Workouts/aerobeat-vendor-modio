@@ -2624,6 +2624,64 @@ func test_builds_catalog_game_meta_and_taxonomy_requests_with_doc_corrected_path
 	assert_eq(ping_request.auth_mode, "none")
 	assert_eq(ping_request.query, {})
 
+func test_builds_mod_authoring_requests_with_documented_validation() -> void:
+	var auth_adapter := _build_adapter_with_token()
+
+	var add_mod_request = auth_adapter.build_add_mod_request({
+		"name": "  Graphics Overhaul Mod  ",
+		"name_id": "graphics-overhaul-mod",
+		"summary": "Short descriptive summary here",
+		"description": "<h2>Getting started with..</h2>",
+		"logo": "  @/tmp/mod-logo.png  ",
+		"homepage_url": "https://www.example.com",
+		"visible": 1,
+		"maturity_option": 4,
+		"community_options": 131072,
+		"credit_options": 32,
+		"stock": 1,
+		"metadata_kvp": ["pistol-dmg:800", "gravity:9.8"],
+		"metadata_blob": '{"version_sig":"abc"}',
+		"tags": ["easy"],
+		"tokenpack_id": 44
+	})
+	assert_eq(add_mod_request.method, "POST")
+	assert_eq(add_mod_request.path, "/games/777/mods")
+	assert_eq(add_mod_request.content_type, ModioHttpTransport.CONTENT_TYPE_MULTIPART)
+	assert_eq(add_mod_request.auth_mode, "bearer")
+	assert_eq(add_mod_request.body.name, "Graphics Overhaul Mod")
+	assert_eq(add_mod_request.body.logo, "@/tmp/mod-logo.png")
+	assert_eq(add_mod_request.body.metadata_kvp, ["pistol-dmg:800", "gravity:9.8"])
+
+	var update_mod_request = auth_adapter.build_update_mod_request("1001", {
+		"status": 1,
+		"visible": 0,
+		"price": 250,
+		"stock": 0,
+		"monetization_options": 2,
+		"name_id": "graphics-overhaul-mod-v2",
+		"homepage_url": "https://mods.example.com/graphics-overhaul",
+		"tags": []
+	})
+	assert_eq(update_mod_request.method, "POST")
+	assert_eq(update_mod_request.path, "/games/777/mods/1001")
+	assert_eq(update_mod_request.body.homepage_url, "https://mods.example.com/graphics-overhaul")
+	assert_eq(update_mod_request.body.tags, [])
+	assert_eq(int(update_mod_request.body.price), 250)
+
+	var delete_mod_request = auth_adapter.build_delete_mod_request("1001")
+	assert_eq(delete_mod_request.method, "DELETE")
+	assert_eq(delete_mod_request.path, "/games/777/mods/1001")
+	assert_eq(delete_mod_request.content_type, ModioHttpTransport.CONTENT_TYPE_FORM)
+
+	var invalid_add_mod_request = auth_adapter.build_add_mod_request({
+		"name": "",
+		"logo": {"filename": "logo.png", "data": "not-bytes"},
+		"metadata_kvp": "bad",
+		"visible": 9,
+		"extra": "nope"
+	})
+	assert_true(invalid_add_mod_request.validation_errors.size() >= 5)
+
 func test_builds_guide_and_collection_authoring_requests_with_documented_validation() -> void:
 	var auth_adapter := _build_adapter_with_token()
 
@@ -2712,6 +2770,25 @@ func test_builds_guide_and_collection_authoring_requests_with_documented_validat
 		"sync": "maybe"
 	})
 	assert_true(invalid_collection_request.validation_errors.size() >= 2)
+
+func test_normalizes_mod_authoring_write_responses() -> void:
+	var adapter := _build_adapter_with_token()
+
+	var created_mod = adapter.normalize_add_mod_response(201, {"Location": "/games/777/mods/1001"}, _fixture("mod_detail.json"))
+	assert_true(created_mod.ok)
+	assert_true(created_mod.created)
+	assert_eq(created_mod.location, "/games/777/mods/1001")
+	assert_eq(created_mod.data.id, 1001)
+
+	var updated_mod = adapter.normalize_update_mod_response(200, {}, _fixture("mod_detail.json"))
+	assert_true(updated_mod.ok)
+	assert_true(updated_mod.updated)
+	assert_eq(updated_mod.data.name_id, "cardio-blaster")
+
+	var deleted_mod = adapter.normalize_delete_mod_response(204)
+	assert_true(deleted_mod.ok)
+	assert_true(deleted_mod.deleted)
+	assert_eq(deleted_mod.data, {})
 
 func test_normalizes_modfile_write_responses() -> void:
 	var adapter := _build_adapter_with_token()

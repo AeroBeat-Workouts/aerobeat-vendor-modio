@@ -37,6 +37,13 @@ const DEPENDENCY_POLICY_SUBSCRIPTION_INCLUDE := "subscription_include_dependenci
 
 const GUIDE_STATUS_VALUES := [0, 1, 3]
 const GUIDE_COMMUNITY_OPTION_VALUES := [0, 2048]
+const MOD_STATUS_VALUES := [0, 1, 3]
+const MOD_VISIBILITY_VALUES := [0, 1]
+const MOD_STOCK_VALUES := [0, 1]
+const MOD_MONETIZATION_OPTION_VALUES := [0, 1, 2, 8]
+const MOD_MATURITY_OPTION_VALUES := [0, 1, 2, 4, 8]
+const MOD_COMMUNITY_OPTION_VALUES := [0, 1, 64, 128, 1024, 131072]
+const MOD_CREDIT_OPTION_VALUES := [0, 1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024]
 const COLLECTION_STATUS_VALUES := [0, 1]
 const MULTIPART_UPLOAD_STATUS_VALUES := [0, 1, 2, 3, 4]
 const COLLECTION_VISIBILITY_VALUES := [0, 1]
@@ -383,6 +390,46 @@ func build_mod_detail_request(mod_id: String) -> Dictionary:
 		{},
 		_build_read_headers(false),
 		{"auth_mode": _resolve_read_auth_mode(false)}
+	)
+
+func build_add_mod_request(fields: Dictionary) -> Dictionary:
+	var normalized := _normalize_mod_authoring_fields(fields, true)
+	return _build_validated_request(
+		"POST",
+		"/games/%s/mods" % _config.game_id,
+		{},
+		normalized.body,
+		_build_multipart_headers(true),
+		{"content_type": ModioHttpTransport.CONTENT_TYPE_MULTIPART, "auth_mode": "bearer"},
+		normalized.errors
+	)
+
+func build_update_mod_request(mod_id: String, fields: Dictionary) -> Dictionary:
+	var errors: Array = []
+	_append_required_positive_id_error(mod_id, "mod_id", errors)
+	var normalized := _normalize_mod_authoring_fields(fields, false)
+	errors.append_array(normalized.errors)
+	return _build_validated_request(
+		"POST",
+		"/games/%s/mods/%s" % [_config.game_id, mod_id.strip_edges()],
+		{},
+		normalized.body,
+		_build_multipart_headers(true),
+		{"content_type": ModioHttpTransport.CONTENT_TYPE_MULTIPART, "auth_mode": "bearer"},
+		errors
+	)
+
+func build_delete_mod_request(mod_id: String) -> Dictionary:
+	var errors: Array = []
+	_append_required_positive_id_error(mod_id, "mod_id", errors)
+	return _build_validated_request(
+		"DELETE",
+		"/games/%s/mods/%s" % [_config.game_id, mod_id.strip_edges()],
+		{},
+		{},
+		_build_form_headers(true),
+		{"content_type": ModioHttpTransport.CONTENT_TYPE_FORM, "auth_mode": "bearer"},
+		errors
 	)
 
 func build_modfiles_request(mod_id: String, query: ModioListingQuery = ModioListingQuery.new()) -> Dictionary:
@@ -1672,6 +1719,25 @@ func normalize_user_mods_response(payload: Dictionary) -> Dictionary:
 func normalize_mod_detail_response(payload: Dictionary) -> Dictionary:
 	return _normalize_mod_object(payload)
 
+func normalize_add_mod_response(status_code: int, headers: Dictionary, payload: Dictionary) -> Dictionary:
+	var response := _normalize_mod_write_response(status_code, headers, payload)
+	if not response.ok:
+		return response
+	response["created"] = status_code == 201
+	return response
+
+func normalize_update_mod_response(status_code: int, headers: Dictionary, payload: Dictionary) -> Dictionary:
+	var response := _normalize_mod_write_response(status_code, headers, payload)
+	if not response.ok:
+		return response
+	response["updated"] = status_code == 200
+	return response
+
+func normalize_delete_mod_response(status_code: int, headers: Dictionary = {}) -> Dictionary:
+	var response := _normalize_no_content_write_response(status_code, headers)
+	response["deleted"] = response.ok and status_code == 204
+	return response
+
 func normalize_modfiles_response(payload: Dictionary) -> Dictionary:
 	return _normalize_list_payload(payload, Callable(self, "_normalize_modfile_object"))
 
@@ -2114,6 +2180,14 @@ func _normalize_no_content_write_response(status_code: int, headers: Dictionary 
 	if not response.ok:
 		return response
 	response["data"] = {}
+	return response
+
+func _normalize_mod_write_response(status_code: int, headers: Dictionary, payload: Dictionary) -> Dictionary:
+	var response := _transport.normalize_response(status_code, headers, payload)
+	if not response.ok:
+		return response
+	response["data"] = _normalize_mod_object(payload)
+	response["location"] = response.headers.get("location", "")
 	return response
 
 func _normalize_modfile_write_response(status_code: int, headers: Dictionary, payload: Dictionary) -> Dictionary:
@@ -3015,6 +3089,56 @@ func _normalize_guide_authoring_fields(fields: Dictionary, is_create: bool) -> D
 	if not is_create:
 		_append_validated_url_field(fields, body, "url", errors)
 	_append_guide_tags_field(fields, body, errors, is_create)
+	return {"body": body, "errors": errors}
+
+func _normalize_mod_authoring_fields(fields: Dictionary, is_create: bool) -> Dictionary:
+	var body := {}
+	var errors: Array = []
+	var allowed_fields := [
+		"name",
+		"name_id",
+		"summary",
+		"description",
+		"logo",
+		"homepage_url",
+		"visible",
+		"maturity_option",
+		"community_options",
+		"credit_options",
+		"stock",
+		"metadata_kvp",
+		"metadata_blob",
+		"tags",
+		"tokenpack_id"
+	]
+	if not is_create:
+		allowed_fields.append_array(["status", "price", "monetization_options"])
+	_validate_allowed_fields(fields, allowed_fields, errors, "mod")
+	if is_create:
+		_append_required_non_empty_string_field(fields, body, "name", errors, true)
+	else:
+		_append_optional_non_empty_string_field(fields, body, "name", errors)
+	_append_optional_non_empty_string_field(fields, body, "name_id", errors)
+	_append_optional_string_field(fields, body, "summary", errors)
+	_append_optional_string_field(fields, body, "description", errors)
+	_append_raw_multipart_field(fields, body, "logo", errors, is_create)
+	_append_validated_url_field(fields, body, "homepage_url", errors)
+	_append_optional_enum_int_field(fields, body, "visible", MOD_VISIBILITY_VALUES, errors)
+	_append_optional_enum_int_field(fields, body, "maturity_option", MOD_MATURITY_OPTION_VALUES, errors)
+	_append_optional_enum_int_field(fields, body, "community_options", MOD_COMMUNITY_OPTION_VALUES, errors)
+	_append_optional_enum_int_field(fields, body, "credit_options", MOD_CREDIT_OPTION_VALUES, errors)
+	_append_optional_enum_int_field(fields, body, "stock", MOD_STOCK_VALUES, errors)
+	if is_create:
+		_append_required_string_array_field(fields, body, "metadata_kvp", errors)
+	else:
+		_append_optional_string_array_field(fields, body, "metadata_kvp", errors)
+	_append_optional_string_field(fields, body, "metadata_blob", errors)
+	_append_optional_string_array_field(fields, body, "tags", errors)
+	_append_optional_int_like_field(fields, body, "tokenpack_id", errors)
+	if not is_create:
+		_append_optional_enum_int_field(fields, body, "status", MOD_STATUS_VALUES, errors)
+		_append_optional_int_like_field(fields, body, "price", errors)
+		_append_optional_enum_int_field(fields, body, "monetization_options", MOD_MONETIZATION_OPTION_VALUES, errors)
 	return {"body": body, "errors": errors}
 
 func _normalize_collection_authoring_fields(fields: Dictionary, is_update: bool) -> Dictionary:

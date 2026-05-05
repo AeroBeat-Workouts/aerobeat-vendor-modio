@@ -1275,6 +1275,67 @@ func test_executes_mod_media_requests_with_truthful_multipart_file_parts_and_for
 	assert_eq(invalid_response.error.category, "transport")
 	assert_string_contains(invalid_response.error.message, "logo multipart file part data must be raw bytes")
 
+func test_executes_mod_authoring_requests_with_documented_multipart_and_delete_semantics() -> void:
+	var auth_config := ModioClientConfig.new("777", "demo-key", "", "user-token", "en-US", "steam", "WINDOWS", ModioClientConfig.HOST_GAME)
+	var transport := ModioHttpTransport.new(Callable(self, "_transport_double"))
+	var auth_adapter := ModioVendorAdapter.new(auth_config, transport)
+
+	_queue_json_response(201, _fixture("mod_detail.json"), {"Location": "/games/777/mods/1001"})
+	var create_response := transport.execute(auth_adapter.build_add_mod_request({
+		"name": "Graphics Overhaul Mod",
+		"summary": "Short descriptive summary here",
+		"description": "<h2>Getting started with..</h2>",
+		"logo": "@/tmp/mod-logo.png",
+		"homepage_url": "https://www.example.com",
+		"visible": 1,
+		"maturity_option": 4,
+		"community_options": 131072,
+		"credit_options": 32,
+		"stock": 1,
+		"metadata_kvp": ["pistol-dmg:800", "gravity:9.8"],
+		"metadata_blob": '{"version_sig":"abc"}',
+		"tags": ["easy"]
+	}), auth_config, {"multipart_boundary": "TEST-BOUNDARY"})
+	assert_true(create_response.ok)
+	assert_eq(_recorded_requests[0].method, "POST")
+	assert_eq(_recorded_requests[0].url, "https://g-777.modapi.io/v1/games/777/mods")
+	assert_eq(_recorded_requests[0].headers.Authorization, "Bearer user-token")
+	assert_eq(_recorded_requests[0].headers["Content-Type"], "multipart/form-data; boundary=TEST-BOUNDARY")
+	assert_string_contains(_recorded_requests[0].body_string, 'name="name"')
+	assert_string_contains(_recorded_requests[0].body_string, "Graphics Overhaul Mod")
+	assert_string_contains(_recorded_requests[0].body_string, 'name="metadata_kvp[]"')
+	assert_string_contains(_recorded_requests[0].body_string, "pistol-dmg:800")
+	assert_string_contains(_recorded_requests[0].body_string, 'name="tags[]"')
+	assert_string_contains(_recorded_requests[0].body_string, "@/tmp/mod-logo.png")
+
+	_queue_json_response(200, _fixture("mod_detail.json"))
+	var update_response := transport.execute(auth_adapter.build_update_mod_request("1001", {
+		"status": 1,
+		"price": 250,
+		"visible": 0,
+		"tags": []
+	}), auth_config, {"multipart_boundary": "TEST-BOUNDARY"})
+	assert_true(update_response.ok)
+	assert_eq(_recorded_requests[1].url, "https://g-777.modapi.io/v1/games/777/mods/1001")
+	assert_string_contains(_recorded_requests[1].body_string, 'name="status"')
+	assert_string_contains(_recorded_requests[1].body_string, "250")
+	assert_string_contains(_recorded_requests[1].body_string, 'name="tags[]"')
+
+	_queue_response({"status_code": 204, "headers": {}, "body": ""})
+	var delete_response := transport.execute(auth_adapter.build_delete_mod_request("1001"), auth_config)
+	assert_true(delete_response.ok)
+	assert_eq(_recorded_requests[2].method, "DELETE")
+	assert_eq(_recorded_requests[2].url, "https://g-777.modapi.io/v1/games/777/mods/1001")
+	assert_eq(_recorded_requests[2].body_string, "")
+
+	var invalid_response := transport.execute(auth_adapter.build_add_mod_request({
+		"name": "",
+		"logo": "logo.png"
+	}), auth_config)
+	assert_false(invalid_response.ok)
+	assert_eq(invalid_response.error.category, "transport")
+	assert_string_contains(invalid_response.error.message, "name must be a non-empty string")
+
 func test_executes_guide_authoring_requests_with_documented_multipart_and_validation() -> void:
 	var auth_config := ModioClientConfig.new("777", "demo-key", "", "user-token", "en-US", "steam", "WINDOWS", ModioClientConfig.HOST_GAME)
 	var transport := ModioHttpTransport.new(Callable(self, "_transport_double"))
