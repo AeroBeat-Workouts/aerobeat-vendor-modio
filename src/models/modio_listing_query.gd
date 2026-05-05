@@ -10,6 +10,8 @@ const ENDPOINT_USER_GAMES := "user_games"
 const ENDPOINT_USER_MODS := "user_mods"
 const ENDPOINT_USER_MODFILES := "user_modfiles"
 const ENDPOINT_MOD_DEPENDANTS := "mod_dependants"
+const ENDPOINT_MOD_EVENTS := "mod_events"
+const ENDPOINT_MODS_EVENTS := "mods_events"
 const ENDPOINT_MOD_TAGS := "mod_tags"
 const ENDPOINT_MOD_TEAM := "mod_team"
 const ENDPOINT_USER_RATINGS := "user_ratings"
@@ -45,6 +47,9 @@ var maturity_option: int
 var name: String
 var game_id: String
 var mod_id: String
+var event_type: String = ""
+var latest = null
+var subscribed = null
 var modfile: String
 var rating: int
 var resource_type: String
@@ -153,6 +158,9 @@ func _init(
 	name = p_name.strip_edges()
 	game_id = p_game_id.strip_edges()
 	mod_id = p_mod_id.strip_edges()
+	event_type = ""
+	latest = null
+	subscribed = null
 	modfile = p_modfile.strip_edges()
 	rating = p_rating
 	resource_type = p_resource_type.strip_edges().to_lower()
@@ -253,6 +261,12 @@ func to_query_dict(endpoint: String = ENDPOINT_MODS) -> Dictionary:
 		query["game_id"] = game_id
 	if capabilities.has("mod_id") and not mod_id.is_empty():
 		query["mod_id"] = mod_id
+	if capabilities.has("event_type") and not event_type.is_empty():
+		query["event_type"] = event_type
+	if capabilities.has("latest") and typeof(latest) == TYPE_BOOL:
+		query["latest"] = latest
+	if capabilities.has("subscribed") and typeof(subscribed) == TYPE_BOOL:
+		query["subscribed"] = subscribed
 	if capabilities.has("modfile") and not modfile.is_empty():
 		query["modfile"] = modfile
 	if capabilities.has("rating") and rating != 0:
@@ -377,6 +391,10 @@ func _get_capabilities(endpoint: String) -> PackedStringArray:
 			])
 		ENDPOINT_MOD_DEPENDANTS:
 			return PackedStringArray([])
+		ENDPOINT_MOD_EVENTS:
+			return PackedStringArray([])
+		ENDPOINT_MODS_EVENTS:
+			return PackedStringArray(["id", "mod_id", "user_id", "date_added", "event_type", "latest", "subscribed"])
 		ENDPOINT_MOD_TAGS:
 			return PackedStringArray(["date_added", "tag"])
 		ENDPOINT_MOD_TEAM:

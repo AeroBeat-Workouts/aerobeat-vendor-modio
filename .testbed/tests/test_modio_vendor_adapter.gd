@@ -1754,6 +1754,44 @@ func test_builds_dependency_requests_and_normalizes_recursive_dependency_payload
 func test_builds_mod_adjacent_read_enrichment_requests_with_documented_filter_support() -> void:
 	var adapter := _build_adapter()
 
+	var mod_events_query := ModioListingQuery.new()
+	mod_events_query.limit = 7
+	mod_events_query.offset = 14
+	mod_events_query.id = "ignored-event-id"
+	var mod_events_request = adapter.build_mod_events_request("1001", mod_events_query)
+	assert_eq(mod_events_request.path, "/games/777/mods/1001/events")
+	assert_eq(mod_events_request.query.api_key, "demo-key")
+	assert_eq(mod_events_request.query._limit, "7")
+	assert_eq(mod_events_request.query._offset, "14")
+	assert_false(mod_events_request.query.has("id"))
+	assert_false(mod_events_request.query.has("mod_id"))
+	assert_false(mod_events_request.query.has("event_type"))
+
+	var mods_events_query := ModioListingQuery.new()
+	mods_events_query.limit = 9
+	mods_events_query.offset = 18
+	mods_events_query.id = "13"
+	mods_events_query.mod_id = "1001"
+	mods_events_query.user_id = "42"
+	mods_events_query.date_added = 1777802200
+	mods_events_query.event_type = "MODFILE_CHANGED"
+	mods_events_query.latest = true
+	mods_events_query.subscribed = false
+	mods_events_query.search_term = "ignored-search"
+	var mods_events_request = adapter.build_mods_events_request(mods_events_query)
+	assert_eq(mods_events_request.path, "/games/777/mods/events")
+	assert_eq(mods_events_request.query.api_key, "demo-key")
+	assert_eq(mods_events_request.query._limit, "9")
+	assert_eq(mods_events_request.query._offset, "18")
+	assert_eq(mods_events_request.query.id, "13")
+	assert_eq(mods_events_request.query.mod_id, "1001")
+	assert_eq(mods_events_request.query.user_id, "42")
+	assert_eq(mods_events_request.query.date_added, "1777802200")
+	assert_eq(mods_events_request.query.event_type, "MODFILE_CHANGED")
+	assert_true(mods_events_request.query.latest)
+	assert_false(mods_events_request.query.subscribed)
+	assert_false(mods_events_request.query.has("_q"))
+
 	var dependant_query := ModioListingQuery.new()
 	dependant_query.limit = 12
 	dependant_query.offset = 24
@@ -1977,6 +2015,18 @@ func test_normalizes_mod_adjacent_read_enrichment_fixture_payloads() -> void:
 	assert_eq(dependants.data[0].mod_id, 2101)
 	assert_eq(dependants.data[1].visible, 0)
 	assert_eq(dependants.data[0].logo.thumb_320x180, "https://assets.modcdn.io/images/mods/cardio-remix_320x180.png")
+
+	var mod_events = adapter.normalize_mod_events_response(_fixture("mod_events.json"))
+	assert_eq(mod_events.result_total, 2)
+	assert_eq(mod_events.data[0].id, 13)
+	assert_eq(mod_events.data[0].event_type, "MODFILE_CHANGED")
+	assert_eq(mod_events.data[1].user_id, 55)
+
+	var mods_events = adapter.normalize_mods_events_response(_fixture("mods_events.json"))
+	assert_eq(mods_events.result_offset, 1)
+	assert_true(mods_events.page.has_previous)
+	assert_eq(mods_events.data[0].mod_id, 1001)
+	assert_eq(mods_events.data[1].event_type, "MOD_COMMENT_ADDED")
 
 	var mod_tags = adapter.normalize_mod_tags_response(_fixture("mod_tags.json"))
 	assert_eq(mod_tags.data[0].name, "Featured")

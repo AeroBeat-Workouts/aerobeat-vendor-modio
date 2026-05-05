@@ -729,6 +729,31 @@ func build_mod_stats_request(mod_id: String) -> Dictionary:
 		{"auth_mode": _resolve_read_auth_mode(false)}
 	)
 
+func build_mod_events_request(mod_id: String, query: ModioListingQuery = ModioListingQuery.new()) -> Dictionary:
+	var full_query := _build_public_query()
+	full_query.merge(query.to_query_dict(ModioListingQuery.ENDPOINT_MOD_EVENTS), true)
+	return _transport.build_request(
+		"GET",
+		"/games/%s/mods/%s/events" % [_config.game_id, mod_id.strip_edges()],
+		full_query,
+		{},
+		_build_read_headers(false),
+		{"auth_mode": _resolve_read_auth_mode(false)}
+	)
+
+func build_mods_events_request(query: ModioListingQuery = ModioListingQuery.new()) -> Dictionary:
+	var requires_bearer: bool = typeof(query.subscribed) == TYPE_BOOL and bool(query.subscribed)
+	var full_query := _build_authenticated_query() if requires_bearer else _build_public_query()
+	full_query.merge(query.to_query_dict(ModioListingQuery.ENDPOINT_MODS_EVENTS), true)
+	return _transport.build_request(
+		"GET",
+		"/games/%s/mods/events" % _config.game_id,
+		full_query,
+		{},
+		_build_read_headers(requires_bearer),
+		{"auth_mode": _resolve_read_auth_mode(requires_bearer)}
+	)
+
 func build_user_mods_request(query: ModioListingQuery = ModioListingQuery.new()) -> Dictionary:
 	var full_query := _build_authenticated_query()
 	full_query.merge(query.to_query_dict(ModioListingQuery.ENDPOINT_USER_MODS), true)
@@ -1859,6 +1884,12 @@ func normalize_mod_stats_response(payload: Dictionary) -> Dictionary:
 	normalized["is_stale"] = normalized.date_expires > 0 and normalized.date_expires <= now
 	return normalized
 
+func normalize_mod_events_response(payload: Dictionary) -> Dictionary:
+	return _normalize_list_payload(payload, Callable(self, "_normalize_mod_event_object"))
+
+func normalize_mods_events_response(payload: Dictionary) -> Dictionary:
+	return _normalize_list_payload(payload, Callable(self, "_normalize_mod_event_object"))
+
 func normalize_collections_response(payload: Dictionary) -> Dictionary:
 	return _normalize_list_payload(payload, Callable(self, "_normalize_collection_object"))
 
@@ -2504,6 +2535,15 @@ func _normalize_dependant_object(payload: Dictionary) -> Dictionary:
 		"date_added": int(payload.get("date_added", 0)),
 		"date_updated": int(payload.get("date_updated", 0)),
 		"logo": _normalize_dictionary(payload.get("logo", {}))
+	}
+
+func _normalize_mod_event_object(payload: Dictionary) -> Dictionary:
+	return {
+		"id": int(payload.get("id", 0)),
+		"mod_id": int(payload.get("mod_id", 0)),
+		"user_id": int(payload.get("user_id", 0)),
+		"date_added": int(payload.get("date_added", 0)),
+		"event_type": str(payload.get("event_type", ""))
 	}
 
 func _normalize_collection_object(payload: Dictionary) -> Dictionary:

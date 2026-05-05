@@ -186,6 +186,21 @@ func test_executes_external_auth_requests_with_documented_paths_bodies_and_heade
 	assert_eq(_recorded_requests[5].url, "https://api.mod.io/v1/external/xboxauth?api_key=demo-key")
 	assert_eq(_recorded_requests[5].body_string, "date_expires=" + str(expected_year_expiry) + "&email=xbox%40example.com&terms_agreed=true&xbox_token=xbl-token")
 
+func test_executes_mods_events_subscription_filter_with_bearer_auth_when_requested() -> void:
+	var config := ModioClientConfig.new("777", "demo-key", "", "user-token", "en-US", "steam", "WINDOWS", ModioClientConfig.HOST_GAME)
+	var transport := ModioHttpTransport.new(Callable(self, "_transport_double"))
+	var adapter := ModioVendorAdapter.new(config, transport)
+	var query := ModioListingQuery.new()
+	query.subscribed = true
+	query.latest = true
+
+	_queue_json_response(200, _fixture("mods_events.json"))
+	var response := transport.execute(adapter.build_mods_events_request(query), config)
+	assert_true(response.ok)
+	assert_eq(_recorded_requests[0].url, "https://g-777.modapi.io/v1/games/777/mods/events?_limit=25&_offset=0&latest=true&subscribed=true")
+	assert_eq(_recorded_requests[0].headers.Authorization, "Bearer user-token")
+	assert_false(_recorded_requests[0].url.contains("api_key="))
+
 func test_executes_platform_targeted_subscription_sync_with_required_game_id() -> void:
 	var config := ModioClientConfig.new("777", "demo-key", "", "user-token", "en-US", "steam", "WINDOWS", ModioClientConfig.HOST_GAME)
 	var transport := ModioHttpTransport.new(Callable(self, "_transport_double"))
@@ -242,13 +257,38 @@ func test_executes_mod_adjacent_read_enrichment_requests_with_documented_urls() 
 	var transport := ModioHttpTransport.new(Callable(self, "_transport_double"))
 	var adapter := ModioVendorAdapter.new(config, transport)
 
+	var mod_events_query := ModioListingQuery.new()
+	mod_events_query.limit = 7
+	mod_events_query.offset = 14
+	_queue_json_response(200, _fixture("mod_events.json"))
+	var mod_events_response := transport.execute(adapter.build_mod_events_request("1001", mod_events_query), config)
+	assert_true(mod_events_response.ok)
+	assert_eq(_recorded_requests[0].url, "https://api.mod.io/v1/games/777/mods/1001/events?_limit=7&_offset=14&api_key=demo-key")
+	assert_eq(int(mod_events_response.payload.result_total), 2)
+
+	var mods_events_query := ModioListingQuery.new()
+	mods_events_query.limit = 9
+	mods_events_query.offset = 18
+	mods_events_query.id = "13"
+	mods_events_query.mod_id = "1001"
+	mods_events_query.user_id = "42"
+	mods_events_query.date_added = 1777802200
+	mods_events_query.event_type = "MODFILE_CHANGED"
+	mods_events_query.latest = true
+	mods_events_query.subscribed = false
+	_queue_json_response(200, _fixture("mods_events.json"))
+	var mods_events_response := transport.execute(adapter.build_mods_events_request(mods_events_query), config)
+	assert_true(mods_events_response.ok)
+	assert_eq(_recorded_requests[1].url, "https://api.mod.io/v1/games/777/mods/events?_limit=9&_offset=18&api_key=demo-key&date_added=1777802200&event_type=MODFILE_CHANGED&id=13&latest=true&mod_id=1001&subscribed=false&user_id=42")
+	assert_eq(int(mods_events_response.payload.result_count), 2)
+
 	var dependants_query := ModioListingQuery.new()
 	dependants_query.limit = 12
 	dependants_query.offset = 24
 	_queue_json_response(200, _fixture("mod_dependants.json"))
 	var dependants_response := transport.execute(adapter.build_dependants_request("1001", dependants_query), config)
 	assert_true(dependants_response.ok)
-	assert_eq(_recorded_requests[0].url, "https://api.mod.io/v1/games/777/mods/1001/dependants?_limit=12&_offset=24&api_key=demo-key")
+	assert_eq(_recorded_requests[2].url, "https://api.mod.io/v1/games/777/mods/1001/dependants?_limit=12&_offset=24&api_key=demo-key")
 
 	var tags_query := ModioListingQuery.new()
 	tags_query.limit = 15
@@ -258,7 +298,7 @@ func test_executes_mod_adjacent_read_enrichment_requests_with_documented_urls() 
 	_queue_json_response(200, _fixture("mod_tags.json"))
 	var tags_response := transport.execute(adapter.build_mod_tags_request("1001", tags_query), config)
 	assert_true(tags_response.ok)
-	assert_eq(_recorded_requests[1].url, "https://api.mod.io/v1/games/777/mods/1001/tags?_limit=15&_offset=30&api_key=demo-key&date_added=1777800001&tag=Featured")
+	assert_eq(_recorded_requests[3].url, "https://api.mod.io/v1/games/777/mods/1001/tags?_limit=15&_offset=30&api_key=demo-key&date_added=1777800001&tag=Featured")
 
 	var metadata_query := ModioListingQuery.new()
 	metadata_query.limit = 8
@@ -266,7 +306,7 @@ func test_executes_mod_adjacent_read_enrichment_requests_with_documented_urls() 
 	_queue_json_response(200, _fixture("mod_metadata_kvp.json"))
 	var metadata_response := transport.execute(adapter.build_mod_metadata_kvp_request("1001", metadata_query), config)
 	assert_true(metadata_response.ok)
-	assert_eq(_recorded_requests[2].url, "https://api.mod.io/v1/games/777/mods/1001/metadatakvp?_limit=8&_offset=16&api_key=demo-key")
+	assert_eq(_recorded_requests[4].url, "https://api.mod.io/v1/games/777/mods/1001/metadatakvp?_limit=8&_offset=16&api_key=demo-key")
 
 	var team_query := ModioListingQuery.new()
 	team_query.limit = 20
@@ -280,7 +320,7 @@ func test_executes_mod_adjacent_read_enrichment_requests_with_documented_urls() 
 	_queue_json_response(200, _fixture("mod_team.json"))
 	var team_response := transport.execute(adapter.build_mod_team_request("1001", team_query), config)
 	assert_true(team_response.ok)
-	assert_eq(_recorded_requests[3].url, "https://api.mod.io/v1/games/777/mods/1001/team?_limit=20&_offset=40&api_key=demo-key&date_added=1777801000&id=457&level=8&pending=1&user_id=42&username=Coach%20Chip")
+	assert_eq(_recorded_requests[5].url, "https://api.mod.io/v1/games/777/mods/1001/team?_limit=20&_offset=40&api_key=demo-key&date_added=1777801000&id=457&level=8&pending=1&user_id=42&username=Coach%20Chip")
 	assert_eq(int(team_response.payload.result_total), 2)
 
 func test_executes_mod_monetization_team_requests_with_documented_bearer_auth_and_indexed_form_keys() -> void:
