@@ -307,12 +307,16 @@ This repo only needs enough config shape to let the hidden `.testbed/` harness b
 - `.plans/`
 
 **Files Created/Deleted/Modified:**
-- harness/test files as needed
+- `.testbed/modio_live_harness.gd`
+- `.testbed/modio_live_harness_lib.gd`
+- `.testbed/tests/test_modio_live_harness.gd`
+- `src/network/modio_http_transport.gd`
+- `README.md`
 - `.plans/2026-05-05-aerobeat-vendor-modio-live-env-and-harness.md`
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** Added the first narrow live/test harness as a headless `.testbed` entrypoint that uses the approved `ModioEnvLoader` flow instead of inventing a second config path. The harness defaults to the `test` environment, supports explicit `--env test|live` selection, can emit a machine-readable JSON summary, and only runs non-destructive checks: `GET /ping`, `GET /games/{game-id}`, `GET /games/{game-id}/mods` with a small limit, plus an optional authenticated `GET /me` only when a session access token is already present in the ignored session config file. It hard-fails early when the selected environment is missing the required public tuple (`game_id`, `api_key`), supports `--public-only` to force a tokenless/read-only run even if a token exists, and does not add any create/update/delete/upload flow. During real execution validation the harness surfaced a Godot 4.6 transport bug in the existing HTTP client connection path, so this slice also fixed `HTTPClient.connect_to_host(...)` TLS handling in `src/network/modio_http_transport.gd` and taught the harness ping probe to send the selected public tuple for real-service compatibility. Added focused GUT coverage for CLI parsing, environment planning, token-optional auth skip behavior, and missing-config warnings, then documented exact run commands and safety scope in the README.
 
 ---
 
@@ -342,14 +346,14 @@ This repo only needs enough config shape to let the hidden `.testbed/` harness b
 
 **Status:** ⚠️ Partial
 
-**What We Built:** Completed the design slice and the scaffolding implementation for a private `.testbed`-local two-file config system with committed templates, explicit `test` / `live` switching, `test` as the default target, and direct consumption by the existing `ModioClientConfig` model without widening the adapter boundary. Added a testbed-only loader plus focused GUT coverage for the selection/override behavior.
+**What We Built:** Completed the design slice and the scaffolding implementation for a private `.testbed`-local two-file config system with committed templates, explicit `test` / `live` switching, `test` as the default target, and direct consumption by the existing `ModioClientConfig` model without widening the adapter boundary. Added a testbed-only loader plus focused GUT coverage for the selection/override behavior. Added the first safe live/test harness as a headless `.testbed` entrypoint that loads the selected tuple through `ModioEnvLoader`, prints the resolved target context, executes only non-destructive checks (`/ping`, configured game read, configured mods browse read, optional `/me` read when a token already exists), and exits cleanly with human or JSON output.
 
-**Reference Check:** `REF-02`, `REF-04`, `REF-05`, `REF-07`, and `REF-08` directly informed the design. The recommendation is consistent with the earlier sandbox-vs-hidden-live research in `REF-02`, keeps the workbench-local development posture from `REF-04` / `REF-08`, and reuses the current config model from `REF-05` with no unnecessary new abstraction.
+**Reference Check:** `REF-02`, `REF-04`, `REF-05`, `REF-07`, and `REF-08` directly informed the design. The recommendation is consistent with the earlier sandbox-vs-hidden-live research in `REF-02`, keeps the workbench-local development posture from `REF-04` / `REF-08`, and reuses the current config model from `REF-05` with no unnecessary new abstraction. The harness implementation also follows the non-destructive-first scope described in `REF-01` through `REF-03` by keeping `test` as the default target and gating authenticated checks on already-present local session state rather than adding any write workflow.
 
 **Commits:**
-- (see Task 2 implementation commit)
+- (see Task 2/3 implementation commit)
 
-**Lessons Learned:** The current adapter already has the important runtime shape; the real missing piece is just a safe local input convention. The cleanest answer is not a full secret framework or a giant env-var matrix, but a tiny `.testbed`-local config pair that keeps stable environment credentials separate from short-lived session auth.
+**Lessons Learned:** The current adapter already has the important runtime shape; the real missing piece is just a safe local input convention plus a tiny executable probe surface. The cleanest answer is not a full secret framework or a giant env-var matrix, but a `.testbed`-local config pair and a narrow headless harness that proves config loading, environment selection, connectivity, and safe browse/read seams without committing secrets or normalizing destructive flows too early.
 
 ---
 

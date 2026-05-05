@@ -189,7 +189,8 @@ func _execute_with_http_client(final_request: Dictionary, options: Dictionary) -
 		return parsed
 
 	var client := HTTPClient.new()
-	var connect_error := client.connect_to_host(parsed.host, parsed.port, parsed.tls)
+	var tls_options := TLSOptions.client() if bool(parsed.get("tls", false)) else null
+	var connect_error := client.connect_to_host(parsed.host, parsed.port, tls_options)
 	if connect_error != OK:
 		return {"transport_error": error_string(connect_error), "code": connect_error}
 

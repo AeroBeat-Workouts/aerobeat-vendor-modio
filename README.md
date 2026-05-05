@@ -224,6 +224,34 @@ Environment selection precedence (first match wins):
 
 Only `test` and `live` are supported. Leave `base_url` blank unless you are intentionally overriding host resolution.
 
+### Run the safe live harness
+
+From the repo root:
+
+```bash
+godot --headless --path .testbed --script res://modio_live_harness.gd -- --help
+godot --headless --path .testbed --script res://modio_live_harness.gd -- --json
+godot --headless --path .testbed --script res://modio_live_harness.gd -- --env live --json
+```
+
+What it does on the first pass:
+
+1. loads the selected `test` or `live` tuple through `ModioEnvLoader`
+2. prints the resolved environment/base URL/host kind so you can confirm the target before requests fire
+3. runs only non-destructive checks:
+   - `GET /ping` using the selected public tuple for real-service connectivity validation
+   - `GET /games/{game-id}`
+   - `GET /games/{game-id}/mods` with a small limit (default `3`)
+   - optional `GET /me` only when `modio.session.local.cfg` contains an `access_token`
+4. exits non-zero on any failed network check or if the selected environment is missing the required public tuple (`game_id`, `api_key`)
+
+Safety notes:
+
+- `test` remains the default target unless you explicitly select `live`
+- `--public-only` forces the harness to skip the optional authenticated `/me` read even when a token is present
+- the harness never performs create/update/delete/upload flows
+- real secrets stay in ignored `.testbed/*.local.cfg` files only
+
 ### Restore dev/test dependencies
 
 From the repo root:
