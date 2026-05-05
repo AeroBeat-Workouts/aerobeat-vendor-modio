@@ -353,7 +353,7 @@ This repo only needs enough config shape to let the hidden `.testbed/` harness b
 **Commits:**
 - `c864129` - Allow safe local mod.io env switching via testbed configs
 - `45ece47` - Add safe mod.io live harness
-- `(pending QA audit commit for .gitignore wildcard + plan update)`
+- `2747595` - Tighten mod.io local cfg ignore coverage
 
 **Lessons Learned:** The adapter already had the right core runtime model; the real risks were around operational edges: secret hygiene, explicit environment targeting, and truthful live transport execution. A tiny audit-driven ignore-policy fix made the local-config story materially safer without widening the implementation scope.
 
