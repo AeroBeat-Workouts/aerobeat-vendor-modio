@@ -1275,6 +1275,56 @@ func test_executes_mod_media_requests_with_truthful_multipart_file_parts_and_for
 	assert_eq(invalid_response.error.category, "transport")
 	assert_string_contains(invalid_response.error.message, "logo multipart file part data must be raw bytes")
 
+func test_executes_game_media_and_collection_mod_delete_requests_with_documented_transport_shapes() -> void:
+	var auth_config := ModioClientConfig.new("777", "demo-key", "", "user-token", "en-US", "steam", "WINDOWS", ModioClientConfig.HOST_GAME)
+	var transport := ModioHttpTransport.new(Callable(self, "_transport_double"))
+	var auth_adapter := ModioVendorAdapter.new(auth_config, transport)
+
+	_queue_json_response(200, _fixture("add_game_media_success.json"), {"Location": "/games/777/media"})
+	var add_game_media_response := transport.execute(auth_adapter.build_add_game_media_request({
+		"logo": {
+			"filename": "game-logo.png",
+			"content_type": "image/png",
+			"data": "LOGO".to_utf8_buffer()
+		},
+		"icon": {
+			"filename": "game-icon.png",
+			"content_type": "image/png",
+			"data": "ICON".to_utf8_buffer()
+		},
+		"header": "@/tmp/game-header.png",
+		"redirect_uris": ["https://example.com/auth/callback", "http://localhost:3000/return"]
+	}), auth_config, {"multipart_boundary": "TEST-BOUNDARY"})
+	assert_true(add_game_media_response.ok)
+	assert_eq(_recorded_requests[0].method, "POST")
+	assert_eq(_recorded_requests[0].url, "https://g-777.modapi.io/v1/games/777/media")
+	assert_eq(_recorded_requests[0].headers.Authorization, "Bearer user-token")
+	assert_eq(_recorded_requests[0].headers["Content-Type"], "multipart/form-data; boundary=TEST-BOUNDARY")
+	assert_string_contains(_recorded_requests[0].body_string, 'name="logo"; filename="game-logo.png"')
+	assert_string_contains(_recorded_requests[0].body_string, 'Content-Type: image/png')
+	assert_string_contains(_recorded_requests[0].body_string, 'LOGO')
+	assert_string_contains(_recorded_requests[0].body_string, 'name="icon"; filename="game-icon.png"')
+	assert_string_contains(_recorded_requests[0].body_string, 'ICON')
+	assert_string_contains(_recorded_requests[0].body_string, 'name="header"')
+	assert_string_contains(_recorded_requests[0].body_string, '@/tmp/game-header.png')
+	assert_string_contains(_recorded_requests[0].body_string, 'name="redirect_uris[]"')
+
+	_queue_response({"status_code": 204, "headers": {}, "body": ""})
+	var delete_collection_mods_response := transport.execute(auth_adapter.build_delete_collection_mods_request("3001", {
+		"mod_ids": [1001, 1002]
+	}), auth_config)
+	assert_true(delete_collection_mods_response.ok)
+	assert_eq(_recorded_requests[1].method, "DELETE")
+	assert_eq(_recorded_requests[1].url, "https://g-777.modapi.io/v1/games/777/collections/3001/mods")
+	assert_eq(_recorded_requests[1].body_string, "mod_ids%5B%5D=1001&mod_ids%5B%5D=1002")
+
+	var invalid_response := transport.execute(auth_adapter.build_delete_collection_mods_request("3001", {
+		"mod_ids": [0]
+	}), auth_config)
+	assert_false(invalid_response.ok)
+	assert_eq(invalid_response.error.category, "transport")
+	assert_string_contains(invalid_response.error.message, "mod_ids must contain only positive integers")
+
 func test_executes_mod_authoring_requests_with_documented_multipart_and_delete_semantics() -> void:
 	var auth_config := ModioClientConfig.new("777", "demo-key", "", "user-token", "en-US", "steam", "WINDOWS", ModioClientConfig.HOST_GAME)
 	var transport := ModioHttpTransport.new(Callable(self, "_transport_double"))

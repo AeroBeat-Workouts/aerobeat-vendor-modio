@@ -520,6 +520,51 @@ func test_builds_mod_media_requests_with_documented_validation() -> void:
 	assert_string_contains(invalid_reorder_request.validation_error, "images must be an array")
 	assert_string_contains(invalid_reorder_request.validation_error, "sketchfab must contain only valid URL strings")
 
+func test_builds_game_media_requests_with_documented_multipart_fields() -> void:
+	var adapter := _build_adapter_with_token()
+	var logo_bytes := PackedByteArray([80, 78, 71])
+	var icon_bytes := PackedByteArray([73, 67, 79])
+
+	var request = adapter.build_add_game_media_request({
+		"logo": {
+			"filename": "game-logo.png",
+			"content_type": "image/png",
+			"data": logo_bytes
+		},
+		"icon": {
+			"filename": "game-icon.png",
+			"content_type": "image/png",
+			"data": icon_bytes
+		},
+		"header": "  @/tmp/game-header.png  ",
+		"redirect_uris": ["https://example.com/auth/callback", "http://localhost:3000/return"]
+	})
+	assert_eq(request.method, "POST")
+	assert_eq(request.path, "/games/777/media")
+	assert_eq(request.auth_mode, "bearer")
+	assert_eq(request.content_type, ModioHttpTransport.CONTENT_TYPE_MULTIPART)
+	assert_eq(request.body.logo.filename, "game-logo.png")
+	assert_eq(request.body.icon.data, icon_bytes)
+	assert_eq(request.body.header, "@/tmp/game-header.png")
+	assert_eq(request.body.redirect_uris, ["https://example.com/auth/callback", "http://localhost:3000/return"])
+	assert_true(request.validation_errors.is_empty())
+
+	var invalid_request = adapter.build_add_game_media_request({
+		"logo": {
+			"filename": "",
+			"content_type": " ",
+			"data": "not-bytes"
+		},
+		"redirect_uris": ["notaurl"],
+		"extra": true
+	})
+	assert_true(invalid_request.validation_errors.size() >= 5)
+	assert_string_contains(invalid_request.validation_error, "Game Media field 'extra' is not documented")
+	assert_string_contains(invalid_request.validation_error, "logo multipart file part filename must be a non-empty string")
+	assert_string_contains(invalid_request.validation_error, "logo multipart file part content_type must be a non-empty string")
+	assert_string_contains(invalid_request.validation_error, "logo multipart file part data must be raw bytes")
+	assert_string_contains(invalid_request.validation_error, "redirect_uris must contain only valid URL strings")
+
 func test_builds_authenticated_subscription_requests_and_gates_unsupported_filters() -> void:
 	var adapter := _build_adapter_with_token()
 
@@ -2756,6 +2801,15 @@ func test_builds_guide_and_collection_authoring_requests_with_documented_validat
 	assert_true(delete_collection_request.body.permanent)
 	assert_eq(delete_collection_request.body.reason, "Stolen Content")
 
+	var delete_collection_mods_request = auth_adapter.build_delete_collection_mods_request("3001", {
+		"mod_ids": [1001, "1002"]
+	})
+	assert_eq(delete_collection_mods_request.method, "DELETE")
+	assert_eq(delete_collection_mods_request.path, "/games/777/collections/3001/mods")
+	assert_eq(delete_collection_mods_request.content_type, ModioHttpTransport.CONTENT_TYPE_FORM)
+	assert_eq(delete_collection_mods_request.body.mod_ids, [1001, 1002])
+	assert_true(delete_collection_mods_request.validation_errors.is_empty())
+
 	var invalid_guide_request = auth_adapter.build_add_guide_request({
 		"name": "Tiny",
 		"summary": "too short",
@@ -2790,6 +2844,21 @@ func test_normalizes_mod_authoring_write_responses() -> void:
 	assert_true(deleted_mod.ok)
 	assert_true(deleted_mod.deleted)
 	assert_eq(deleted_mod.data, {})
+
+func test_normalizes_game_media_and_collection_write_responses() -> void:
+	var adapter := _build_adapter_with_token()
+
+	var uploaded_game_media = adapter.normalize_add_game_media_response(200, {"Location": "/games/777/media"}, _fixture("add_game_media_success.json"))
+	assert_true(uploaded_game_media.ok)
+	assert_true(uploaded_game_media.uploaded)
+	assert_eq(uploaded_game_media.location, "/games/777/media")
+	assert_eq(uploaded_game_media.data.code, 200)
+	assert_eq(uploaded_game_media.data.message, "You have successfully added new media to the specified game profile.")
+
+	var deleted_collection_mods = adapter.normalize_delete_collection_mods_response(204)
+	assert_true(deleted_collection_mods.ok)
+	assert_true(deleted_collection_mods.deleted)
+	assert_eq(deleted_collection_mods.data, {})
 
 func test_normalizes_modfile_write_responses() -> void:
 	var adapter := _build_adapter_with_token()

@@ -707,6 +707,18 @@ func build_delete_mod_media_request(mod_id: String, fields: Dictionary) -> Dicti
 		errors
 	)
 
+func build_add_game_media_request(fields: Dictionary) -> Dictionary:
+	var normalized := _normalize_add_game_media_fields(fields)
+	return _build_validated_request(
+		"POST",
+		"/games/%s/media" % _config.game_id,
+		{},
+		normalized.body,
+		_build_multipart_headers(true),
+		{"content_type": ModioHttpTransport.CONTENT_TYPE_MULTIPART, "auth_mode": "bearer"},
+		normalized.errors
+	)
+
 func build_mod_stats_request(mod_id: String) -> Dictionary:
 	return _transport.build_request(
 		"GET",
@@ -940,6 +952,21 @@ func build_collection_mods_request(collection_id: String, query: ModioListingQue
 		{},
 		_build_read_headers(false),
 		{"auth_mode": _resolve_read_auth_mode(false)}
+	)
+
+func build_delete_collection_mods_request(collection_id: String, fields: Dictionary) -> Dictionary:
+	var errors: Array = []
+	_append_required_positive_id_error(collection_id, "collection_id", errors)
+	var normalized := _normalize_delete_collection_mods_fields(fields)
+	errors.append_array(normalized.errors)
+	return _build_validated_request(
+		"DELETE",
+		"/games/%s/collections/%s/mods" % [_config.game_id, collection_id.strip_edges()],
+		{},
+		normalized.body,
+		_build_form_headers(true),
+		{"content_type": ModioHttpTransport.CONTENT_TYPE_FORM, "auth_mode": "bearer"},
+		errors
 	)
 
 func build_add_collection_request(fields: Dictionary) -> Dictionary:
@@ -1890,6 +1917,11 @@ func normalize_delete_collection_response(status_code: int, headers: Dictionary 
 	response["deleted"] = response.ok and status_code == 204
 	return response
 
+func normalize_delete_collection_mods_response(status_code: int, headers: Dictionary = {}) -> Dictionary:
+	var response := _normalize_no_content_write_response(status_code, headers)
+	response["deleted"] = response.ok and status_code == 204
+	return response
+
 func normalize_guides_response(payload: Dictionary) -> Dictionary:
 	return _normalize_list_payload(payload, Callable(self, "_normalize_guide_object"))
 
@@ -2060,6 +2092,13 @@ func normalize_reorder_mod_media_response(status_code: int, headers: Dictionary 
 func normalize_delete_mod_media_response(status_code: int, headers: Dictionary = {}) -> Dictionary:
 	var response := _normalize_no_content_write_response(status_code, headers)
 	response["deleted"] = response.ok and status_code == 204
+	return response
+
+func normalize_add_game_media_response(status_code: int, headers: Dictionary, payload: Dictionary) -> Dictionary:
+	var response := _normalize_message_write_response(status_code, headers, payload)
+	if not response.ok:
+		return response
+	response["uploaded"] = status_code == 200
 	return response
 
 func normalize_mod_team_response(payload: Dictionary) -> Dictionary:
@@ -3282,6 +3321,13 @@ func _normalize_collection_delete_fields(fields: Dictionary) -> Dictionary:
 	_append_validated_string_field(fields, body, "reason", 1000, errors, false)
 	return {"body": body, "errors": errors}
 
+func _normalize_delete_collection_mods_fields(fields: Dictionary) -> Dictionary:
+	var body := {}
+	var errors: Array = []
+	_validate_allowed_fields(fields, ["mod_ids"], errors, "delete collection mods")
+	_append_required_positive_int_array_field(fields, body, "mod_ids", errors)
+	return {"body": body, "errors": errors}
+
 func _normalize_mod_tags_write_fields(mod_id: String, fields: Dictionary) -> Dictionary:
 	var body := {}
 	var errors: Array = []
@@ -3319,6 +3365,16 @@ func _normalize_add_mod_media_fields(fields: Dictionary) -> Dictionary:
 	_append_optional_boolean_field(fields, body, "sync", errors)
 	_append_optional_url_array_field(fields, body, "youtube", errors)
 	_append_optional_url_array_field(fields, body, "sketchfab", errors)
+	return {"body": body, "errors": errors}
+
+func _normalize_add_game_media_fields(fields: Dictionary) -> Dictionary:
+	var body := {}
+	var errors: Array = []
+	_validate_allowed_fields(fields, ["logo", "icon", "header", "redirect_uris"], errors, "game media")
+	_append_raw_multipart_field(fields, body, "logo", errors, false)
+	_append_raw_multipart_field(fields, body, "icon", errors, false)
+	_append_raw_multipart_field(fields, body, "header", errors, false)
+	_append_optional_url_array_field(fields, body, "redirect_uris", errors)
 	return {"body": body, "errors": errors}
 
 func _normalize_reorder_or_delete_mod_media_fields(fields: Dictionary, label: String) -> Dictionary:
@@ -3587,6 +3643,26 @@ func _append_optional_int_array_field(fields: Dictionary, body: Dictionary, fiel
 	if not fields.has(field_name):
 		return
 	_append_int_array_field(fields, body, field_name, errors)
+
+func _append_required_positive_int_array_field(fields: Dictionary, body: Dictionary, field_name: String, errors: Array) -> void:
+	if not fields.has(field_name):
+		errors.append("%s is required" % field_name)
+		return
+	var value = fields[field_name]
+	if not (value is Array):
+		errors.append("%s must be an array of positive integers" % field_name)
+		return
+	if value.is_empty():
+		errors.append("%s must contain at least one positive integer" % field_name)
+		return
+	var normalized: Array = []
+	for item in value:
+		var parsed = _parse_int_like(item)
+		if parsed == null or int(parsed) <= 0:
+			errors.append("%s must contain only positive integers" % field_name)
+			return
+		normalized.append(int(parsed))
+	body[field_name] = normalized
 
 func _append_int_array_field(fields: Dictionary, body: Dictionary, field_name: String, errors: Array) -> void:
 	if not fields.has(field_name):
