@@ -336,24 +336,26 @@ This repo only needs enough config shape to let the hidden `.testbed/` harness b
 - implementation/docs as needed
 - `.plans/2026-05-05-aerobeat-vendor-modio-live-env-and-harness.md`
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** Independently audited the env/config scaffold, README commands, harness safety posture, and transport execution seam. Verified that the committed example files are sufficient, environment resolution precedence is explicit, the hard fallback remains `test`, `live` is only selected through an explicit local/configured choice, and the harness default scope remains non-destructive (`GET /ping`, `GET /games/{game-id}`, `GET /games/{game-id}/mods`, optional `GET /me` only when a local token already exists). Validation run: `godot --headless --path .testbed --script res://tests/validate_scaffold.gd` ✅, full GUT suite `godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit` ✅ (86/86), harness `--help` output ✅, and a safe smoke run against the committed example cfg files ✅ showing the expected missing-credential guardrails instead of making network calls. The one required fix was broadening `.gitignore` from two exact filenames to `.testbed/*.local.cfg`, because the prior ignore rules protected the documented mod.io files but would not have protected additional future local cfg files in `.testbed/`. After the fix, `.testbed/modio.local.cfg`, `.testbed/modio.session.local.cfg`, and arbitrary `.testbed/*.local.cfg` paths are ignored while committed `.example.cfg` templates remain tracked.
 
 ---
 
 ## Final Results
 
-**Status:** ⚠️ Partial
+**Status:** ✅ Complete
 
-**What We Built:** Completed the design slice and the scaffolding implementation for a private `.testbed`-local two-file config system with committed templates, explicit `test` / `live` switching, `test` as the default target, and direct consumption by the existing `ModioClientConfig` model without widening the adapter boundary. Added a testbed-only loader plus focused GUT coverage for the selection/override behavior. Added the first safe live/test harness as a headless `.testbed` entrypoint that loads the selected tuple through `ModioEnvLoader`, prints the resolved target context, executes only non-destructive checks (`/ping`, configured game read, configured mods browse read, optional `/me` read when a token already exists), and exits cleanly with human or JSON output.
+**What We Built:** Completed the design slice, the private `.testbed`-local env/config scaffold, and the first safe live/test harness for real mod.io verification. The repo now has committed example cfg templates, ignored real local cfg files, explicit `test` / `live` selection logic with `test` as the hard fallback, a headless harness that only performs non-destructive checks by default, and a transport path that can execute real HTTP requests with the fixed TLS connection call. QA/audit also tightened the git safety boundary so all `.testbed/*.local.cfg` files stay out of version control while `.example.cfg` templates remain commit-safe.
 
-**Reference Check:** `REF-02`, `REF-04`, `REF-05`, `REF-07`, and `REF-08` directly informed the design. The recommendation is consistent with the earlier sandbox-vs-hidden-live research in `REF-02`, keeps the workbench-local development posture from `REF-04` / `REF-08`, and reuses the current config model from `REF-05` with no unnecessary new abstraction. The harness implementation also follows the non-destructive-first scope described in `REF-01` through `REF-03` by keeping `test` as the default target and gating authenticated checks on already-present local session state rather than adding any write workflow.
+**Reference Check:** `REF-02`, `REF-04`, `REF-05`, `REF-07`, and `REF-08` directly informed the design and audit. The final state stays consistent with the earlier sandbox-vs-hidden-live research in `REF-02`, preserves the workbench-local development posture from `REF-04` / `REF-08`, reuses the current config model from `REF-05`, and now matches the intended ignore-policy safety from `REF-07` for both the documented mod.io cfg files and future `.testbed` local cfg variants.
 
 **Commits:**
-- (see Task 2/3 implementation commit)
+- `c864129` - Allow safe local mod.io env switching via testbed configs
+- `45ece47` - Add safe mod.io live harness
+- `(pending QA audit commit for .gitignore wildcard + plan update)`
 
-**Lessons Learned:** The current adapter already has the important runtime shape; the real missing piece is just a safe local input convention plus a tiny executable probe surface. The cleanest answer is not a full secret framework or a giant env-var matrix, but a `.testbed`-local config pair and a narrow headless harness that proves config loading, environment selection, connectivity, and safe browse/read seams without committing secrets or normalizing destructive flows too early.
+**Lessons Learned:** The adapter already had the right core runtime model; the real risks were around operational edges: secret hygiene, explicit environment targeting, and truthful live transport execution. A tiny audit-driven ignore-policy fix made the local-config story materially safer without widening the implementation scope.
 
 ---
 

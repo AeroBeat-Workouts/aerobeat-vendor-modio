@@ -22,8 +22,7 @@ Thumbs.db
 .testbed/.addons/
 
 # mod.io local config (testbed only)
-.testbed/modio.local.cfg
-.testbed/modio.session.local.cfg
+.testbed/*.local.cfg
 
 # Beads / Dolt files (added by bd init)
 .dolt/
