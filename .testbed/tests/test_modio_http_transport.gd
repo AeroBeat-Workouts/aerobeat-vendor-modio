@@ -201,6 +201,25 @@ func test_executes_mods_events_subscription_filter_with_bearer_auth_when_request
 	assert_eq(_recorded_requests[0].headers.Authorization, "Bearer user-token")
 	assert_false(_recorded_requests[0].url.contains("api_key="))
 
+func test_does_not_leak_api_key_when_subscribed_mods_events_requires_auth_but_token_is_missing() -> void:
+	var config := ModioClientConfig.new("777", "demo-key", "https://api.mod.io/v1/", "", "en-US", "steam", "WINDOWS")
+	var transport := ModioHttpTransport.new(Callable(self, "_transport_double"))
+	var adapter := ModioVendorAdapter.new(config, transport)
+	var query := ModioListingQuery.new()
+	query.subscribed = true
+	query.latest = true
+
+	var response := transport.execute(adapter.build_mods_events_request(query), config)
+	assert_false(response.ok)
+	assert_eq(response.request.path, "/games/777/mods/events")
+	assert_eq(response.request.query._limit, "25")
+	assert_eq(response.request.query._offset, "0")
+	assert_true(response.request.query.latest)
+	assert_true(response.request.query.subscribed)
+	assert_false(response.request.query.has("api_key"))
+	assert_false(response.request.headers.has("Authorization"))
+	assert_string_contains(response.error.message, "subscribed=true requires an authenticated user access token")
+
 func test_executes_platform_targeted_subscription_sync_with_required_game_id() -> void:
 	var config := ModioClientConfig.new("777", "demo-key", "", "user-token", "en-US", "steam", "WINDOWS", ModioClientConfig.HOST_GAME)
 	var transport := ModioHttpTransport.new(Callable(self, "_transport_double"))

@@ -743,15 +743,19 @@ func build_mod_events_request(mod_id: String, query: ModioListingQuery = ModioLi
 
 func build_mods_events_request(query: ModioListingQuery = ModioListingQuery.new()) -> Dictionary:
 	var requires_bearer: bool = typeof(query.subscribed) == TYPE_BOOL and bool(query.subscribed)
-	var full_query := _build_authenticated_query() if requires_bearer else _build_public_query()
+	var validation_errors: Array[String] = []
+	var full_query := {} if requires_bearer else _build_public_query()
+	if requires_bearer and not _config.has_access_token():
+		validation_errors.append("subscribed=true requires an authenticated user access token")
 	full_query.merge(query.to_query_dict(ModioListingQuery.ENDPOINT_MODS_EVENTS), true)
-	return _transport.build_request(
+	return _build_validated_request(
 		"GET",
 		"/games/%s/mods/events" % _config.game_id,
 		full_query,
 		{},
 		_build_read_headers(requires_bearer),
-		{"auth_mode": _resolve_read_auth_mode(requires_bearer)}
+		{"auth_mode": _resolve_read_auth_mode(requires_bearer)},
+		validation_errors
 	)
 
 func build_user_mods_request(query: ModioListingQuery = ModioListingQuery.new()) -> Dictionary:

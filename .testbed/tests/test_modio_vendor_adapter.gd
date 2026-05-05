@@ -1792,6 +1792,21 @@ func test_builds_mod_adjacent_read_enrichment_requests_with_documented_filter_su
 	assert_false(mods_events_request.query.subscribed)
 	assert_false(mods_events_request.query.has("_q"))
 
+	var authenticated_adapter := _build_adapter_with_token()
+	var subscribed_mods_events_query := ModioListingQuery.new()
+	subscribed_mods_events_query.subscribed = true
+	var subscribed_mods_events_request := authenticated_adapter.build_mods_events_request(subscribed_mods_events_query)
+	assert_eq(subscribed_mods_events_request.auth_mode, "bearer")
+	assert_false(subscribed_mods_events_request.query.has("api_key"))
+	assert_eq(subscribed_mods_events_request.headers.Authorization, "Bearer user-token")
+	assert_true(subscribed_mods_events_request.validation_errors.is_empty())
+
+	var unauthenticated_subscribed_request := adapter.build_mods_events_request(subscribed_mods_events_query)
+	assert_eq(unauthenticated_subscribed_request.auth_mode, "bearer")
+	assert_false(unauthenticated_subscribed_request.query.has("api_key"))
+	assert_false(unauthenticated_subscribed_request.headers.has("Authorization"))
+	assert_string_contains(unauthenticated_subscribed_request.validation_error, "subscribed=true requires an authenticated user access token")
+
 	var dependant_query := ModioListingQuery.new()
 	dependant_query.limit = 12
 	dependant_query.offset = 24
