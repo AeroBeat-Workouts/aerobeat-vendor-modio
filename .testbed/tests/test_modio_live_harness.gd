@@ -17,6 +17,7 @@ func test_parse_args_supports_safe_cli_flags() -> void:
 		"--env", "live",
 		"--mods-limit", "9",
 		"--public-only",
+		"--allow-writes",
 		"--json",
 		"--stable-config", "user://stable.cfg",
 		"--session-config", "user://session.cfg"
@@ -25,6 +26,7 @@ func test_parse_args_supports_safe_cli_flags() -> void:
 	assert_eq(options.env, "live")
 	assert_eq(options.mods_limit, 9)
 	assert_true(options.public_only)
+	assert_true(options.allow_writes)
 	assert_true(options.json)
 	assert_eq(options.stable_path, "user://stable.cfg")
 	assert_eq(options.session_path, "user://session.cfg")
@@ -233,6 +235,66 @@ func test_summarize_authenticated_user_read_sweep_responses_from_existing_fixtur
 	var user_collections_summary := harness.summarize_user_collections_response(adapter, {"payload": _fixture("collections.json")}, 5)
 	assert_eq(user_collections_summary.first_collection_id, 3001)
 	assert_eq(user_collections_summary.first_name_id, "starter-bundle")
+
+func test_summarize_low_risk_write_sweep_responses_from_existing_fixtures() -> void:
+	var harness := ModioLiveHarness.new()
+	var adapter := ModioVendorAdapter.new()
+
+	var subscribe_summary := harness.summarize_subscription_write_response(adapter, {
+		"status_code": 201,
+		"headers": {"Location": "/games/777/mods/1001/subscribe"},
+		"payload": _fixture("mod_detail.json")
+	})
+	assert_eq(subscribe_summary.mod_id, 1001)
+	assert_eq(subscribe_summary.name, "Cardio Blaster")
+	assert_false(subscribe_summary.already_subscribed)
+
+	var rating_summary := harness.summarize_message_write_response(adapter, {
+		"status_code": 201,
+		"payload": _fixture("add_mod_rating_success.json")
+	})
+	assert_eq(rating_summary.code, 201)
+	assert_eq(rating_summary.message, "response_mod_rating_add")
+	assert_true(rating_summary.success)
+
+	var ratings_presence := harness.summarize_user_ratings_presence_response(adapter, {
+		"payload": _fixture("user_ratings.json")
+	}, 5, 1001, 1)
+	assert_true(ratings_presence.found_expected_rating)
+
+	var comment_write := harness.summarize_mod_comment_write_response(adapter, {"payload": _fixture("comment_created.json")})
+	assert_eq(comment_write.comment_id, 9010)
+	assert_eq(comment_write.content, "Fresh reply from the wrapper")
+
+	var comment_detail := harness.summarize_mod_comment_detail_response(adapter, {"payload": _fixture("comment_detail.json")})
+	assert_eq(comment_detail.comment_id, 9002)
+	assert_eq(comment_detail.username, "ThreadFriend")
+
+	var comment_presence := harness.summarize_mod_comments_presence_response(adapter, {
+		"payload": _fixture("comments_list.json")
+	}, 5, 9002)
+	assert_true(comment_presence.found_comment_id)
+
+	var tag_presence := harness.summarize_mod_tags_presence_response(adapter, {
+		"payload": _fixture("mod_tags.json")
+	}, "Featured")
+	assert_true(tag_presence.found_expected_tag)
+
+	var metadata_presence := harness.summarize_mod_metadata_presence_response(adapter, {
+		"payload": _fixture("mod_metadata_kvp.json")
+	}, "difficulty=expert")
+	assert_true(metadata_presence.found_expected_pair)
+
+	var subscribed_presence := harness.summarize_user_subscriptions_presence_response(adapter, {
+		"payload": _fixture("subscribed.json")
+	}, 5, 1001)
+	assert_true(subscribed_presence.found_expected_mod_id)
+
+	var delete_summary := harness.summarize_no_content_write_response(adapter, {
+		"status_code": 204,
+		"headers": {}
+	}, "deleted")
+	assert_true(delete_summary.deleted)
 
 func _stable_config(default_environment: String) -> String:
 	return "".join([

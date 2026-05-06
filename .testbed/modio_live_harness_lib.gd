@@ -289,6 +289,107 @@ func summarize_user_collections_response(adapter, response: Dictionary, requeste
 		"first_name_id": str(first.get("name_id", ""))
 	})
 
+func summarize_subscription_write_response(adapter, response: Dictionary) -> Dictionary:
+	var normalized: Dictionary = adapter.normalize_subscription_write_response(
+		int(response.get("status_code", 0)),
+		response.get("headers", {}),
+		response.get("payload", {})
+	)
+	var data: Dictionary = normalized.get("data", {})
+	return {
+		"already_subscribed": bool(normalized.get("already_subscribed", false)),
+		"location": str(normalized.get("location", "")),
+		"mod_id": int(data.get("id", 0)),
+		"name": str(data.get("name", "")),
+		"status": int(data.get("status", 0)),
+		"visible": int(data.get("visible", 0))
+	}
+
+func summarize_no_content_write_response(adapter, response: Dictionary, flag_name: String) -> Dictionary:
+	var normalized: Dictionary = adapter.normalize_comment_delete_response(
+		int(response.get("status_code", 0)),
+		response.get("headers", {})
+	)
+	return {
+		flag_name: bool(normalized.get("deleted", false)),
+		"status_code": int(normalized.get("status_code", response.get("status_code", 0)))
+	}
+
+func summarize_message_write_response(adapter, response: Dictionary, created_key: String = "") -> Dictionary:
+	var normalized: Dictionary = adapter.normalize_message_response(response.get("payload", {}))
+	var summary: Dictionary = {
+		"code": int(normalized.get("code", 0)),
+		"message": str(normalized.get("message", "")),
+		"success": bool(normalized.get("success", false))
+	}
+	if not created_key.is_empty():
+		summary[created_key] = int(response.get("status_code", 0)) == 201
+	return summary
+
+func summarize_mod_comment_write_response(adapter, response: Dictionary) -> Dictionary:
+	var data: Dictionary = adapter.normalize_comment_write_response(response.get("payload", {}))
+	var user: Dictionary = data.get("user", {})
+	return {
+		"comment_id": int(data.get("id", 0)),
+		"reply_id": int(data.get("reply_id", 0)),
+		"content": str(data.get("content", "")),
+		"username": str(user.get("username", ""))
+	}
+
+func summarize_mod_comment_detail_response(adapter, response: Dictionary) -> Dictionary:
+	var data: Dictionary = adapter.normalize_mod_comment_response(response.get("payload", {}))
+	var user: Dictionary = data.get("user", {})
+	return {
+		"comment_id": int(data.get("id", 0)),
+		"reply_id": int(data.get("reply_id", 0)),
+		"content": str(data.get("content", "")),
+		"username": str(user.get("username", ""))
+	}
+
+func summarize_mod_comments_presence_response(adapter, response: Dictionary, requested_limit: int = DEFAULT_CHILD_LIMIT, expected_comment_id: int = 0) -> Dictionary:
+	var normalized: Dictionary = adapter.normalize_mod_comments_response(response.get("payload", {}))
+	var ids: Array[int] = []
+	var found_comment_id := false
+	for entry in normalized.get("data", []):
+		if not (entry is Dictionary):
+			continue
+		var comment_id := int(entry.get("id", 0))
+		ids.append(comment_id)
+		if expected_comment_id > 0 and comment_id == expected_comment_id:
+			found_comment_id = true
+	return _list_result_summary(normalized, requested_limit, {
+		"comment_ids": ids,
+		"found_comment_id": found_comment_id
+	})
+
+func summarize_user_ratings_presence_response(adapter, response: Dictionary, requested_limit: int = DEFAULT_USER_LIMIT, expected_mod_id: int = 0, expected_rating: int = 0) -> Dictionary:
+	var summary: Dictionary = summarize_user_ratings_response(adapter, response, requested_limit)
+	var normalized: Dictionary = adapter.normalize_user_ratings_response(response.get("payload", {}))
+	var found_expected_rating := false
+	for entry in normalized.get("data", []):
+		if not (entry is Dictionary):
+			continue
+		if int(entry.get("mod_id", 0)) == expected_mod_id and int(entry.get("rating", 0)) == expected_rating:
+			found_expected_rating = true
+			break
+	summary["found_expected_rating"] = found_expected_rating
+	return summary
+
+func summarize_mod_tags_presence_response(adapter, response: Dictionary, expected_tag: String = "") -> Dictionary:
+	var summary: Dictionary = summarize_mod_tags_response(adapter, response)
+	summary["found_expected_tag"] = not expected_tag.is_empty() and summary.get("names", PackedStringArray()).has(expected_tag)
+	return summary
+
+func summarize_mod_metadata_presence_response(adapter, response: Dictionary, expected_pair: String = "") -> Dictionary:
+	var summary: Dictionary = summarize_mod_metadata_kvp_response(adapter, response)
+	summary["found_expected_pair"] = not expected_pair.is_empty() and summary.get("pairs", []).has(expected_pair)
+	return summary
+
+func summarize_user_subscriptions_presence_response(adapter, response: Dictionary, requested_limit: int = DEFAULT_USER_LIMIT, expected_mod_id: int = 0) -> Dictionary:
+	var summary: Dictionary = summarize_user_subscriptions_response(adapter, response, requested_limit)
+	summary["found_expected_mod_id"] = expected_mod_id > 0 and int(summary.get("selected_mod_id", 0)) == expected_mod_id
+	return summary
+
 func parse_args(args: PackedStringArray) -> Dictionary:
 	var options := {
 		"env": "",
@@ -296,6 +397,7 @@ func parse_args(args: PackedStringArray) -> Dictionary:
 		"json": false,
 		"help": false,
 		"public_only": false,
+		"allow_writes": false,
 		"stable_path": ModioEnvLoader.CONFIG_STABLE_PATH,
 		"session_path": ModioEnvLoader.CONFIG_SESSION_PATH,
 		"errors": PackedStringArray()
@@ -311,6 +413,8 @@ func parse_args(args: PackedStringArray) -> Dictionary:
 				options.json = true
 			"--public-only":
 				options.public_only = true
+			"--allow-writes":
+				options.allow_writes = true
 			"--env":
 				index += 1
 				if index >= args.size():
@@ -404,6 +508,7 @@ func build_run_plan(options: Dictionary, loader: ModioEnvLoader = ModioEnvLoader
 		"config": config,
 		"checks": checks,
 		"mods_limit": int(options.get("mods_limit", DEFAULT_MODS_LIMIT)),
+		"allow_writes": bool(options.get("allow_writes", false)),
 		"stable_path": str(options.get("stable_path", ModioEnvLoader.CONFIG_STABLE_PATH)),
 		"session_path": str(options.get("session_path", ModioEnvLoader.CONFIG_SESSION_PATH))
 	}
@@ -428,6 +533,7 @@ func help_text() -> String:
 		"  --env test|live           Explicit environment selection (default: resolved from config, fallback test)",
 		"  --mods-limit <1..100>     Browse-read limit for the mods listing check (default: %d)" % DEFAULT_MODS_LIMIT,
 		"  --public-only             Skip optional authenticated /me check even if a token exists",
+		"  --allow-writes            Opt into the low-risk authenticated sandbox write sweep",
 		"  --stable-config <path>    Override stable config path (default: res://modio.local.cfg)",
 		"  --session-config <path>   Override session config path (default: res://modio.session.local.cfg)",
 		"  --json                    Emit machine-readable JSON summary",
@@ -445,8 +551,9 @@ func help_text() -> String:
 		"Agreement current/version reads are supported by the adapter, but the public terms payload does not",
 		"currently expose agreement type/version ids in this sandbox, so the harness stops at GET /authenticate/terms.",
 		"",
-		"The harness never performs write flows. Test is the default environment unless you explicitly",
-		"select live via --env live, MODIO_ENV=live, or the local cfg override chain.",
+		"Write flows stay disabled unless you explicitly pass --allow-writes. Test is the default",
+		"environment unless you explicitly select live via --env live, MODIO_ENV=live, or the",
+		"local cfg override chain.",
 	])
 
 func _first_dictionary(items: Variant) -> Dictionary:

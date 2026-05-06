@@ -38,6 +38,7 @@ func _initialize() -> void:
 	results.append_array(_run_public_mod_child_checks(adapter, config, mods_result))
 	results.append(_run_terms_check(adapter, config))
 	results.append_array(_run_optional_auth_checks(plan, adapter, config))
+	results.append_array(_run_optional_low_risk_write_sweep(plan, adapter, config, mods_result))
 
 	var summary := {
 		"environment": str(plan.get("environment", "")),
@@ -45,6 +46,7 @@ func _initialize() -> void:
 		"host_kind": config.host_kind,
 		"game_id": config.game_id,
 		"public_only": bool(options.get("public_only", false)),
+		"allow_writes": bool(plan.get("allow_writes", false)),
 		"checks": results,
 		"ok": _results_are_ok(results)
 	}
@@ -354,6 +356,249 @@ func _run_authenticated_user_read_sweep(adapter: ModioVendorAdapter, config, me_
 	))
 	return results
 
+func _run_optional_low_risk_write_sweep(plan: Dictionary, adapter: ModioVendorAdapter, config, mods_result: Dictionary) -> Array[Dictionary]:
+	var results: Array[Dictionary] = []
+	if not bool(plan.get("allow_writes", false)):
+		return results
+	if not config.has_access_token():
+		results.append(_skipped_check("write_sweep", "Run low-risk authenticated write sweep", "Skipped because no access token is configured"))
+		return results
+	if str(mods_result.get("status", "")) != "ok":
+		results.append(_skipped_check("write_sweep", "Run low-risk authenticated write sweep", "Skipped because public mod listing failed"))
+		return results
+
+	var mod_id := int(mods_result.get("details", {}).get("selected_mod_id", 0))
+	if mod_id <= 0:
+		results.append(_skipped_check("write_sweep", "Run low-risk authenticated write sweep", "Skipped because no public sandbox mod was available"))
+		return results
+
+	var harness := ModioLiveHarness.new()
+	var mod_id_text := str(mod_id)
+	var user_query := ModioListingQuery.new("", PackedStringArray(), ModioLiveHarness.DEFAULT_USER_LIMIT, 0)
+	var comment_query := ModioListingQuery.new("", PackedStringArray(), ModioLiveHarness.DEFAULT_CHILD_LIMIT, 0)
+	var sweep_suffix := str(Time.get_unix_time_from_system())
+	var tag_name := "oc-vrf-tag-%s" % sweep_suffix
+	var metadata_pair := "oc-vrf:%s" % sweep_suffix
+	var rating_value := 1
+	var comment_create_content := "oc-vrf sandbox comment create %s" % sweep_suffix
+	var comment_update_content := "oc-vrf sandbox comment update %s" % sweep_suffix
+
+	results.append(_run_check(
+		"write_subscribe",
+		"Subscribe to the sample sandbox mod",
+		adapter.build_subscribe_request(mod_id_text),
+		config,
+		func(response: Dictionary) -> Dictionary:
+			return harness.summarize_subscription_write_response(adapter, response)
+	))
+	results.append(_run_check(
+		"write_subscribed_read",
+		"Verify subscription via authenticated user subscriptions",
+		adapter.build_user_subscriptions_request(user_query),
+		config,
+		func(response: Dictionary) -> Dictionary:
+			var summary := harness.summarize_user_subscriptions_presence_response(adapter, response, ModioLiveHarness.DEFAULT_USER_LIMIT, mod_id)
+			summary["expected_present"] = bool(summary.get("found_expected_mod_id", false))
+			return summary
+	))
+	results.append(_run_check(
+		"write_unsubscribe",
+		"Unsubscribe from the sample sandbox mod",
+		adapter.build_unsubscribe_request(mod_id_text),
+		config,
+		func(response: Dictionary) -> Dictionary:
+			return harness.summarize_no_content_write_response(adapter, response, "unsubscribed")
+	))
+	results.append(_run_check(
+		"write_subscribed_read_after_delete",
+		"Verify subscription removal via authenticated user subscriptions",
+		adapter.build_user_subscriptions_request(user_query),
+		config,
+		func(response: Dictionary) -> Dictionary:
+			var summary := harness.summarize_user_subscriptions_presence_response(adapter, response, ModioLiveHarness.DEFAULT_USER_LIMIT, mod_id)
+			summary["expected_absent"] = not bool(summary.get("found_expected_mod_id", false))
+			return summary
+	))
+	var add_rating_result := _run_check(
+		"write_rating",
+		"Apply a positive rating to the sample sandbox mod",
+		adapter.build_add_mod_rating_request(mod_id_text, rating_value),
+		config,
+		func(response: Dictionary) -> Dictionary:
+			return harness.summarize_message_write_response(adapter, response)
+	)
+	if str(add_rating_result.get("status", "")) == "failed" and int(add_rating_result.get("details", {}).get("error_ref", 0)) == 15028:
+		results.append(_skipped_check("write_rating", "Apply a positive rating to the sample sandbox mod", "Skipped because the sandbox already holds the same positive rating for this workout"))
+	else:
+		results.append(add_rating_result)
+	results.append(_run_check(
+		"write_ratings_read",
+		"Verify rating via authenticated user ratings",
+		adapter.build_user_ratings_request(user_query),
+		config,
+		func(response: Dictionary) -> Dictionary:
+			var summary := harness.summarize_user_ratings_presence_response(adapter, response, ModioLiveHarness.DEFAULT_USER_LIMIT, mod_id, rating_value)
+			summary["expected_present"] = bool(summary.get("found_expected_rating", false))
+			return summary
+	))
+
+	var create_comment_result := _run_check(
+		"write_comment_create",
+		"Create a sandbox mod comment",
+		adapter.build_add_mod_comment_request(mod_id_text, comment_create_content),
+		config,
+		func(response: Dictionary) -> Dictionary:
+			return harness.summarize_mod_comment_write_response(adapter, response)
+	)
+	if str(create_comment_result.get("status", "")) == "failed" and int(create_comment_result.get("details", {}).get("error_ref", 0)) == 14038:
+		results.append(_skipped_check("write_comment_create", "Create a sandbox mod comment", "Skipped because the sandbox has mod comments disabled for this workout"))
+		results.append(_skipped_check("write_comment_followups", "Verify/update/delete sandbox mod comment", "Skipped because the sandbox has mod comments disabled for this workout"))
+	else:
+		results.append(create_comment_result)
+		var comment_id := int(create_comment_result.get("details", {}).get("comment_id", 0)) if str(create_comment_result.get("status", "")) == "ok" else 0
+		if comment_id <= 0:
+			results.append(_skipped_check("write_comment_followups", "Verify/update/delete sandbox mod comment", "Skipped because comment creation did not return an id"))
+		else:
+			var comment_id_text := str(comment_id)
+			results.append(_run_check(
+				"write_comment_detail",
+				"Read back the created sandbox mod comment",
+				adapter.build_mod_comment_request(mod_id_text, comment_id_text),
+				config,
+				func(response: Dictionary) -> Dictionary:
+					return harness.summarize_mod_comment_detail_response(adapter, response)
+			))
+			results.append(_run_check(
+				"write_comment_list",
+				"Verify the created sandbox mod comment appears in the comment list",
+				adapter.build_mod_comments_request(mod_id_text, comment_query),
+				config,
+				func(response: Dictionary) -> Dictionary:
+					var summary := harness.summarize_mod_comments_presence_response(adapter, response, ModioLiveHarness.DEFAULT_CHILD_LIMIT, comment_id)
+					summary["expected_present"] = bool(summary.get("found_comment_id", false))
+					return summary
+			))
+			results.append(_run_check(
+				"write_comment_update",
+				"Update the created sandbox mod comment",
+				adapter.build_update_mod_comment_request(mod_id_text, comment_id_text, comment_update_content),
+				config,
+				func(response: Dictionary) -> Dictionary:
+					return harness.summarize_mod_comment_write_response(adapter, response)
+			))
+			results.append(_run_check(
+				"write_comment_detail_after_update",
+				"Verify the updated sandbox mod comment",
+				adapter.build_mod_comment_request(mod_id_text, comment_id_text),
+				config,
+				func(response: Dictionary) -> Dictionary:
+					return harness.summarize_mod_comment_detail_response(adapter, response)
+			))
+			results.append(_run_check(
+				"write_comment_delete",
+				"Delete the created sandbox mod comment",
+				adapter.build_delete_mod_comment_request(mod_id_text, comment_id_text),
+				config,
+				func(response: Dictionary) -> Dictionary:
+					return harness.summarize_no_content_write_response(adapter, response, "deleted")
+			))
+			results.append(_run_check(
+				"write_comment_list_after_delete",
+				"Verify the deleted sandbox mod comment is gone from the comment list",
+				adapter.build_mod_comments_request(mod_id_text, comment_query),
+				config,
+				func(response: Dictionary) -> Dictionary:
+					var summary := harness.summarize_mod_comments_presence_response(adapter, response, ModioLiveHarness.DEFAULT_CHILD_LIMIT, comment_id)
+					summary["expected_absent"] = not bool(summary.get("found_comment_id", false))
+					return summary
+			))
+
+	var add_tag_result := _run_check(
+		"write_tag_add",
+		"Add a sandbox tag to the sample mod",
+		adapter.build_add_mod_tags_request(mod_id_text, {"tags": [tag_name]}),
+		config,
+		func(response: Dictionary) -> Dictionary:
+			return harness.summarize_message_write_response(adapter, response, "created")
+	)
+	if str(add_tag_result.get("status", "")) == "failed" and int(add_tag_result.get("details", {}).get("error_ref", 0)) == 13009:
+		results.append(_skipped_check("write_tag_add", "Add a sandbox tag to the sample mod", "Skipped because the sandbox rejected freeform mod tag writes for this workout"))
+		results.append(_skipped_check("write_tag_followups", "Verify/delete sandbox mod tags", "Skipped because the sandbox rejected freeform mod tag writes for this workout"))
+	else:
+		results.append(add_tag_result)
+		results.append(_run_check(
+			"write_tag_read",
+			"Verify the sandbox tag via mod tags readback",
+			adapter.build_mod_tags_request(mod_id_text, comment_query),
+			config,
+			func(response: Dictionary) -> Dictionary:
+				var summary := harness.summarize_mod_tags_presence_response(adapter, response, tag_name)
+				summary["expected_present"] = bool(summary.get("found_expected_tag", false))
+				return summary
+		))
+		results.append(_run_check(
+			"write_tag_delete",
+			"Delete the sandbox tag from the sample mod",
+			adapter.build_delete_mod_tags_request(mod_id_text, {"tags": [tag_name]}),
+			config,
+			func(response: Dictionary) -> Dictionary:
+				return harness.summarize_no_content_write_response(adapter, response, "deleted")
+		))
+		results.append(_run_check(
+			"write_tag_read_after_delete",
+			"Verify the sandbox tag was removed",
+			adapter.build_mod_tags_request(mod_id_text, comment_query),
+			config,
+			func(response: Dictionary) -> Dictionary:
+				var summary := harness.summarize_mod_tags_presence_response(adapter, response, tag_name)
+				summary["expected_absent"] = not bool(summary.get("found_expected_tag", false))
+				return summary
+		))
+
+	results.append(_run_check(
+		"write_metadata_add",
+		"Add sandbox metadata KVP to the sample mod",
+		adapter.build_add_mod_metadata_kvp_request(mod_id_text, {"metadata": [metadata_pair]}),
+		config,
+		func(response: Dictionary) -> Dictionary:
+			return harness.summarize_message_write_response(adapter, response, "created")
+	))
+	results.append(_run_check(
+		"write_metadata_read",
+		"Verify sandbox metadata KVP via readback",
+		adapter.build_mod_metadata_kvp_request(mod_id_text, comment_query),
+		config,
+		func(response: Dictionary) -> Dictionary:
+			var summary := harness.summarize_mod_metadata_presence_response(adapter, response, metadata_pair.replace(":", "="))
+			summary["expected_present"] = bool(summary.get("found_expected_pair", false))
+			return summary
+	))
+	results.append(_run_check(
+		"write_metadata_delete",
+		"Delete sandbox metadata KVP from the sample mod",
+		adapter.build_delete_mod_metadata_kvp_request(mod_id_text, {"metadata": [metadata_pair]}),
+		config,
+		func(response: Dictionary) -> Dictionary:
+			return harness.summarize_no_content_write_response(adapter, response, "deleted")
+	))
+	results.append(_run_check(
+		"write_metadata_read_after_delete",
+		"Verify sandbox metadata KVP was removed",
+		adapter.build_mod_metadata_kvp_request(mod_id_text, comment_query),
+		config,
+		func(response: Dictionary) -> Dictionary:
+			var summary := harness.summarize_mod_metadata_presence_response(adapter, response, metadata_pair.replace(":", "="))
+			summary["expected_absent"] = not bool(summary.get("found_expected_pair", false))
+			return summary
+	))
+
+	results.append(_skipped_check(
+		"write_dependencies",
+		"Run dependency maintenance on the sample mod",
+		"Skipped because the sandbox currently exposes only one safe owned mod, so there is no second reversible dependency target yet"
+	))
+	return results
+
 func _run_check(id: String, label: String, request: Dictionary, config, detail_builder: Callable) -> Dictionary:
 	var transport := ModioHttpTransport.new()
 	var response := transport.execute(request, config)
@@ -399,6 +644,7 @@ func _print_human_summary(summary: Dictionary) -> void:
 	print("  host_kind: %s" % str(summary.get("host_kind", "")))
 	print("  base_url: %s" % str(summary.get("base_url", "")))
 	print("  game_id: %s" % str(summary.get("game_id", "")))
+	print("  allow_writes: %s" % str(summary.get("allow_writes", false)))
 	for check in summary.get("checks", []):
 		if not (check is Dictionary):
 			continue

@@ -385,16 +385,47 @@ Net outcome for this coder slice: the authenticated user-read baseline is now pr
 
 **Folders Created/Deleted/Modified:**
 - `.plans/`
-- `.testbed/` local runtime artifacts only as needed
-- `src/` / tests as needed
+- `.testbed/`
 
 **Files Created/Deleted/Modified:**
 - `.plans/2026-05-06-aerobeat-vendor-modio-master-rest-api-exercise.md`
-- code/tests as needed
+- `.testbed/modio_live_harness.gd`
+- `.testbed/modio_live_harness_lib.gd`
+- `.testbed/tests/test_modio_live_harness.gd`
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** Extended the headless sandbox harness with an explicit `--allow-writes` opt-in so the low-risk authenticated write slice is repeatable instead of depending on ad-hoc one-off probes. The harness now executes and summarizes a constrained write sweep on the owned sample mod `16112` after the existing public/authenticated read baseline, while keeping write behavior off by default. I also added fixture-driven regression coverage for the new write-summary helpers and CLI flag handling.
+
+Exact coder validation run on the real AeroBeat test sandbox:
+
+- `godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit` -> `92/92` passing.
+- `godot --headless --path .testbed --script res://modio_live_harness.gd -- --env test --allow-writes --json` -> overall `ok: true` on `https://g-1325.test.mod.io/v1`.
+
+Observed low-risk write evidence from that final green sandbox run:
+
+- **Subscribe / unsubscribe** on owned sample mod `16112` succeeded end-to-end.
+  - `POST /games/1325/mods/16112/subscribe` -> HTTP `201`.
+  - Immediate `GET /me/subscribed` readback showed `found_expected_mod_id = true` for mod `16112`.
+  - `DELETE /games/1325/mods/16112/subscribe` -> HTTP `204`.
+  - Immediate `GET /me/subscribed` readback showed `found_expected_mod_id = false`.
+- **Ratings** are now verified and idempotently tolerated in the sandbox.
+  - Earlier in this slice, a positive rating was successfully applied and read back on mod `16112`.
+  - Final rerun hit the expected provider conflict for re-applying the same positive rating, so the harness now treats that state as a skip rather than a failure when the follow-up `GET /me/ratings` confirms `found_expected_rating = true`, `first_mod_id = 16112`, `first_rating = 1`.
+- **Comment CRUD** is not available on this sandbox workout.
+  - `POST /games/1325/mods/16112/comments` returned HTTP `403` with provider error ref `14038` (`Comments have been disabled for this workout.`).
+  - The harness now records this as an explicit capability-gated skip instead of leaving the overall sweep red.
+- **Tag maintenance** is not currently writable in this sandbox configuration.
+  - `POST /games/1325/mods/16112/tags` with an ephemeral `oc-vrf-tag-*` value returned HTTP `422` with provider error ref `13009` (`Validation Failed...`).
+  - The harness now records freeform tag maintenance as an explicit skip for this workout instead of treating it as a wrapper failure.
+- **Metadata KVP maintenance** succeeded end-to-end and stayed reversible.
+  - `POST /games/1325/mods/16112/metadatakvp` created ephemeral metadata for the run and returned HTTP `201`.
+  - Immediate `GET /games/1325/mods/16112/metadatakvp` readback showed `found_expected_pair = true` (final run pair: `oc-vrf=1778089259.75088`).
+  - `DELETE /games/1325/mods/16112/metadatakvp` returned HTTP `204`.
+  - Immediate readback showed `found_expected_pair = false` and an empty metadata list.
+- **Dependencies** remain intentionally unexercised in this slice because the sandbox currently exposes only one safe owned mod, so there is no second reversible dependency target yet.
+
+No provider-seam bug was found in the wrapped request/transport layer during this slice. The meaningful changes here were harness hardening and capability-aware skip handling so real sandbox limitations (comment-disabled workout, tag validation gate, already-existing positive rating) no longer masquerade as client-side failures.
 
 ---
 
