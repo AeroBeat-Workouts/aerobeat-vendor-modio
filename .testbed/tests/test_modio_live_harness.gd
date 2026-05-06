@@ -111,15 +111,65 @@ func test_summarize_authenticated_user_response_reads_top_level_detail_payload()
 
 func test_summarize_mods_response_reports_requested_limit_separately_from_server_page_echo() -> void:
 	var harness := ModioLiveHarness.new()
-	var summary := harness.summarize_mods_response({"payload": _fixture("mods.json")}, 3)
+	var adapter := ModioVendorAdapter.new()
+	var summary := harness.summarize_mods_response(adapter, {"payload": _fixture("mods.json")}, 3)
 
 	assert_eq(summary.requested_limit, 3)
 	assert_eq(summary.response_result_count, 1)
 	assert_eq(summary.response_result_limit, 10)
 	assert_eq(summary.response_result_offset, 5)
 	assert_eq(summary.response_result_total, 13)
+	assert_eq(summary.selected_mod_id, 1001)
 	assert_eq(summary.sample_mod_names.size(), 1)
 	assert_eq(summary.sample_mod_names[0], "Cardio Blaster")
+
+func test_summarize_mod_child_read_responses_from_existing_fixtures() -> void:
+	var harness := ModioLiveHarness.new()
+	var adapter := ModioVendorAdapter.new()
+
+	var detail_summary := harness.summarize_mod_detail_response(adapter, {"payload": _fixture("mod_detail.json")})
+	assert_eq(detail_summary.id, 1001)
+	assert_eq(detail_summary.name, "Cardio Blaster")
+	assert_eq(detail_summary.name_id, "cardio-blaster")
+	assert_eq(detail_summary.status, 1)
+	assert_eq(detail_summary.visible, 1)
+
+	var files_summary := harness.summarize_modfiles_response(adapter, {"payload": _fixture("modfiles.json")})
+	assert_eq(files_summary.selected_file_id, 5001)
+	assert_eq(files_summary.response_result_count, 1)
+	assert_eq(files_summary.sample_filenames[0], "cardio-blaster-v1.zip")
+
+	var file_detail_summary := harness.summarize_modfile_response(adapter, {"payload": _fixture("modfile_detail.json")})
+	assert_eq(file_detail_summary.id, 5002)
+	assert_eq(file_detail_summary.filename, "cardio-blaster-v1.1.zip")
+	assert_eq(file_detail_summary.version, "1.1.0")
+
+	var stats_summary := harness.summarize_mod_stats_response(adapter, {"payload": _fixture("mod_stats.json")})
+	assert_eq(stats_summary.mod_id, 1001)
+	assert_eq(stats_summary.downloads_total, 2048)
+	assert_eq(stats_summary.subscribers_total, 400)
+	assert_eq(stats_summary.ratings_total, 72)
+
+	var dependants_summary := harness.summarize_dependants_response(adapter, {"payload": _fixture("mod_dependants.json")})
+	assert_eq(dependants_summary.response_result_total, 4)
+	assert_eq(dependants_summary.first_name, "Cardio Remix Pack")
+
+	var tags_summary := harness.summarize_mod_tags_response(adapter, {"payload": _fixture("mod_tags.json")})
+	assert_eq(tags_summary.response_result_total, 2)
+	assert_eq(tags_summary.names[0], "Featured")
+
+	var metadata_summary := harness.summarize_mod_metadata_kvp_response(adapter, {"payload": _fixture("mod_metadata_kvp.json")})
+	assert_eq(metadata_summary.response_result_total, 2)
+	assert_eq(metadata_summary.pairs[0], "difficulty=expert")
+
+	var team_summary := harness.summarize_mod_team_response(adapter, {"payload": _fixture("mod_team.json")})
+	assert_eq(team_summary.response_result_total, 2)
+	assert_eq(team_summary.usernames[0], "Coach Chip")
+
+	var dependencies_summary := harness.summarize_dependencies_response(adapter, {"payload": _fixture("dependencies_recursive.json")})
+	assert_eq(dependencies_summary.response_result_total, 2)
+	assert_eq(dependencies_summary.names[0], "Warmup Kit")
+	assert_false(dependencies_summary.recursive_requested)
 
 func _stable_config(default_environment: String) -> String:
 	return "".join([

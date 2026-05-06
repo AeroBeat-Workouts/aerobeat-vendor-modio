@@ -33,7 +33,9 @@ func _initialize() -> void:
 
 	results.append(_run_ping_check(adapter, config))
 	results.append(_run_game_check(adapter, config))
-	results.append(_run_mods_check(adapter, config, int(plan.get("mods_limit", 3))))
+	var mods_result := _run_mods_check(adapter, config, int(plan.get("mods_limit", 3)))
+	results.append(mods_result)
+	results.append_array(_run_public_mod_child_checks(adapter, config, mods_result))
 	results.append_array(_run_optional_auth_checks(plan, adapter, config))
 
 	var summary := {
@@ -89,8 +91,114 @@ func _run_mods_check(adapter: ModioVendorAdapter, config, mods_limit: int) -> Di
 		adapter.build_listing_request(query),
 		config,
 		func(response: Dictionary) -> Dictionary:
-			return harness.summarize_mods_response(response, mods_limit)
+			return harness.summarize_mods_response(adapter, response, mods_limit)
 	)
+
+func _run_public_mod_child_checks(adapter: ModioVendorAdapter, config, mods_result: Dictionary) -> Array[Dictionary]:
+	var results: Array[Dictionary] = []
+	if str(mods_result.get("status", "")) != "ok":
+		results.append(_skipped_check("mod_children", "Read first listed mod child endpoints", "Skipped because public mod listing failed"))
+		return results
+
+	var details: Dictionary = mods_result.get("details", {})
+	var mod_id := int(details.get("selected_mod_id", 0))
+	if mod_id <= 0:
+		results.append(_skipped_check("mod_children", "Read first listed mod child endpoints", "Skipped because public mod listing returned no mod id"))
+		return results
+
+	var harness := ModioLiveHarness.new()
+	var mod_id_text := str(mod_id)
+	var child_query := ModioListingQuery.new("", PackedStringArray(), ModioLiveHarness.DEFAULT_CHILD_LIMIT, 0)
+	results.append(_run_check(
+		"mod_detail",
+		"Read first listed public mod detail",
+		adapter.build_mod_detail_request(mod_id_text),
+		config,
+		func(response: Dictionary) -> Dictionary:
+			return harness.summarize_mod_detail_response(adapter, response)
+	))
+	var files_result := _run_check(
+		"mod_files",
+		"Read first listed public mod files",
+		adapter.build_modfiles_request(mod_id_text, child_query),
+		config,
+		func(response: Dictionary) -> Dictionary:
+			return harness.summarize_modfiles_response(adapter, response, ModioLiveHarness.DEFAULT_CHILD_LIMIT)
+	)
+	results.append(files_result)
+	results.append_array(_run_optional_modfile_detail_check(adapter, config, mod_id_text, files_result))
+	results.append(_run_check(
+		"mod_stats",
+		"Read first listed public mod stats",
+		adapter.build_mod_stats_request(mod_id_text),
+		config,
+		func(response: Dictionary) -> Dictionary:
+			return harness.summarize_mod_stats_response(adapter, response)
+	))
+	results.append(_run_check(
+		"mod_dependants",
+		"Read first listed public mod dependants",
+		adapter.build_dependants_request(mod_id_text, child_query),
+		config,
+		func(response: Dictionary) -> Dictionary:
+			return harness.summarize_dependants_response(adapter, response)
+	))
+	results.append(_run_check(
+		"mod_tags",
+		"Read first listed public mod tags",
+		adapter.build_mod_tags_request(mod_id_text, child_query),
+		config,
+		func(response: Dictionary) -> Dictionary:
+			return harness.summarize_mod_tags_response(adapter, response)
+	))
+	results.append(_run_check(
+		"mod_metadata_kvp",
+		"Read first listed public mod metadata KVP",
+		adapter.build_mod_metadata_kvp_request(mod_id_text, child_query),
+		config,
+		func(response: Dictionary) -> Dictionary:
+			return harness.summarize_mod_metadata_kvp_response(adapter, response)
+	))
+	results.append(_run_check(
+		"mod_team",
+		"Read first listed public mod team",
+		adapter.build_mod_team_request(mod_id_text, child_query),
+		config,
+		func(response: Dictionary) -> Dictionary:
+			return harness.summarize_mod_team_response(adapter, response)
+	))
+	results.append(_run_check(
+		"mod_dependencies",
+		"Read first listed public mod dependencies",
+		adapter.build_dependencies_request(mod_id_text, false),
+		config,
+		func(response: Dictionary) -> Dictionary:
+			return harness.summarize_dependencies_response(adapter, response)
+	))
+	return results
+
+func _run_optional_modfile_detail_check(adapter: ModioVendorAdapter, config, mod_id: String, files_result: Dictionary) -> Array[Dictionary]:
+	var results: Array[Dictionary] = []
+	if str(files_result.get("status", "")) != "ok":
+		results.append(_skipped_check("mod_file_detail", "Read first listed public mod file detail", "Skipped because public mod files request failed"))
+		return results
+
+	var details: Dictionary = files_result.get("details", {})
+	var file_id := int(details.get("selected_file_id", 0))
+	if file_id <= 0:
+		results.append(_skipped_check("mod_file_detail", "Read first listed public mod file detail", "Skipped because public mod files returned no file id"))
+		return results
+
+	var harness := ModioLiveHarness.new()
+	results.append(_run_check(
+		"mod_file_detail",
+		"Read first listed public mod file detail",
+		adapter.build_modfile_request(mod_id, str(file_id)),
+		config,
+		func(response: Dictionary) -> Dictionary:
+			return harness.summarize_modfile_response(adapter, response)
+	))
+	return results
 
 func _run_optional_auth_checks(plan: Dictionary, adapter: ModioVendorAdapter, config) -> Array[Dictionary]:
 	var harness := ModioLiveHarness.new()
@@ -101,12 +209,11 @@ func _run_optional_auth_checks(plan: Dictionary, adapter: ModioVendorAdapter, co
 		if str(check.get("id", "")) != "me":
 			continue
 		if bool(check.get("skip", false)):
-			results.append({
-				"id": "me",
-				"label": str(check.get("label", "Read authenticated user profile")),
-				"status": "skipped",
-				"details": {"reason": str(check.get("skip_reason", "Skipped"))}
-			})
+			results.append(_skipped_check(
+				"me",
+				str(check.get("label", "Read authenticated user profile")),
+				str(check.get("skip_reason", "Skipped"))
+			))
 			continue
 		results.append(_run_check(
 			"me",
@@ -141,6 +248,14 @@ func _run_check(id: String, label: String, request: Dictionary, config, detail_b
 			"category": str(error_info.get("category", "transport")),
 			"error_ref": int(error_info.get("error_ref", 0))
 		}
+	}
+
+func _skipped_check(id: String, label: String, reason: String) -> Dictionary:
+	return {
+		"id": id,
+		"label": label,
+		"status": "skipped",
+		"details": {"reason": reason}
 	}
 
 func _results_are_ok(results: Array[Dictionary]) -> bool:
