@@ -19,22 +19,23 @@ func summarize_game_response(adapter, response: Dictionary) -> Dictionary:
 		"status": int(payload.get("status", -1))
 	}
 
-func summarize_mods_response(response: Dictionary) -> Dictionary:
+func summarize_mods_response(response: Dictionary, requested_limit: int = DEFAULT_MODS_LIMIT) -> Dictionary:
 	var payload: Dictionary = response.get("payload", {})
 	var sample_mod_names: PackedStringArray = []
 	var data: Variant = payload.get("data", [])
 	if data is Array:
 		for entry in data:
-			if sample_mod_names.size() >= 3:
+			if sample_mod_names.size() >= requested_limit:
 				break
 			if entry is Dictionary:
 				sample_mod_names.append(str(entry.get("name", "")))
 	return {
 		"sample_mod_names": sample_mod_names,
-		"result_count": int(payload.get("result_count", 0)),
-		"result_limit": int(payload.get("result_limit", 0)),
-		"result_offset": int(payload.get("result_offset", 0)),
-		"result_total": int(payload.get("result_total", 0))
+		"requested_limit": requested_limit,
+		"response_result_count": int(payload.get("result_count", 0)),
+		"response_result_limit": int(payload.get("result_limit", 0)),
+		"response_result_offset": int(payload.get("result_offset", 0)),
+		"response_result_total": int(payload.get("result_total", 0))
 	}
 
 func summarize_authenticated_user_response(adapter, response: Dictionary) -> Dictionary:

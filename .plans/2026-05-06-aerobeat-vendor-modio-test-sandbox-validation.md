@@ -316,6 +316,157 @@ No secrets were committed. This closes the earlier false-negative interpretation
 
 ---
 
+### Task 6: Replicate authenticated `/me` validation on the live server
+
+**Bead ID:** `oc-3ux`  
+**SubAgent:** `primary`  
+**Role:** `qa`  
+**References:** `REF-02`, `REF-03`, `REF-04`, `REF-05`, `REF-06`  
+**Prompt:** In `aerobeat-vendor-modio`, claim bead `oc-3ux` on start. Replicate the successful test-server `/me` validation flow against the live mod.io server: request the email auth code for Derrick's shared mod.io email, wait for the human to provide the live security code, exchange it for a real live user access token, store it only in the ignored local session config, and rerun the safe harness against `--env live --json`. Record exact commands, outputs, and whether live `/me` reaches HTTP 200 with correct normalized profile fields. Do not commit secrets. Update the active plan with evidence and close the bead when done.
+
+**Folders Created/Deleted/Modified:**
+- `.plans/`
+- `.testbed/` local ignored config only
+
+**Files Created/Deleted/Modified:**
+- `.plans/2026-05-06-aerobeat-vendor-modio-test-sandbox-validation.md`
+- `.testbed/modio.session.local.cfg`
+
+**Status:** ⏳ Pending
+
+**Results:** Pending.
+
+---
+
+### Task 7: Audit the live `/me` parity findings
+
+**Bead ID:** `oc-pek`  
+**SubAgent:** `primary`  
+**Role:** `auditor`  
+**References:** `REF-02`, `REF-03`, `REF-04`, `REF-05`, `REF-06`  
+**Prompt:** In `aerobeat-vendor-modio`, claim bead `oc-pek` on start. Audit the final live `/me` parity results once the QA pass is complete. Confirm whether live now matches the validated test flow closely enough for auth/profile-read confidence, note any remaining gaps, update the active plan with a concise pass/fail result, and close the bead with a clear reason.
+
+**Folders Created/Deleted/Modified:**
+- `.plans/`
+
+**Files Created/Deleted/Modified:**
+- `.plans/2026-05-06-aerobeat-vendor-modio-test-sandbox-validation.md`
+
+**Status:** ⏳ Pending
+
+**Results:** Pending.
+
+---
+
+### Task 8: Audit and repair mod-list `_limit` query fidelity
+
+**Bead ID:** `oc-ek9`  
+**SubAgent:** `primary`  
+**Role:** `coder`  
+**References:** `REF-04`, `REF-05`, `REF-06`  
+**Prompt:** In `aerobeat-vendor-modio`, claim bead `oc-ek9` on start. Audit why the safe harness intended to browse a small mod sample but the mod.io response summary keeps surfacing `result_limit = 100`. Inspect the exact request construction, request URL/query serialization, harness expectations, and any server-default behavior. If the bug is on our side, make the minimum correct fix, add/adjust focused tests, rerun relevant validation, update the active plan with exact evidence/results, commit and push by default, and close the bead with a clear reason.
+
+**Folders Created/Deleted/Modified:**
+- `.plans/`
+- `.testbed/`
+
+**Files Created/Deleted/Modified:**
+- `.plans/2026-05-06-aerobeat-vendor-modio-test-sandbox-validation.md`
+- `.testbed/modio_live_harness.gd`
+- `.testbed/modio_live_harness_lib.gd`
+- `.testbed/tests/test_modio_live_harness.gd`
+
+**Status:** ✅ Complete
+
+**Results:** Root cause was **not** a broken `_limit` request on our side. The request-construction path was already correct; the confusing part was the harness summary, which only surfaced the server echo field `result_limit`, making it look like our requested sample cap had been ignored.
+
+Exact request-construction evidence:
+
+```bash
+godot --headless --path .testbed --script /tmp/modio_limit_probe.gd
+```
+
+Observed probe output (with the secret masked locally before printing):
+- prepared URL: `https://g-1325.test.mod.io/v1/games/1325/mods?_limit=3&_offset=0&api_key=***REDACTED***`
+- prepared query dictionary contained `_limit = "3"`, `_offset = "0"`, and `api_key`
+- transport returned HTTP `200`
+- sandbox payload still reported `result_count = 0`, `result_offset = 0`, `result_total = 0`, and `result_limit = 100`
+
+Interpretation:
+- `ModioListingQuery.new(..., 3, 0)` and `build_listing_request()` are serializing the intended `_limit=3` correctly.
+- `ModioHttpTransport.prepare_request()` is encoding the final query string correctly.
+- The remaining `result_limit = 100` is server-side response behavior from `test.mod.io` for this empty listing case, not client-side request loss.
+
+Minimum correct fix on our side:
+- updated the safe harness mods summary so it now reports the **requested** browse cap separately from the **server-reported** pagination echo:
+  - `requested_limit`
+  - `response_result_count`
+  - `response_result_limit`
+  - `response_result_offset`
+  - `response_result_total`
+- this avoids the previous false signal where the summary implied the client failed to request a small sample when the server was simply echoing its own default page limit.
+
+Focused tests / validation:
+
+```bash
+godot --headless --path .testbed --script res://tests/validate_scaffold.gd
+godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit
+godot --headless --path .testbed --script res://modio_live_harness.gd -- --env test --public-only --json
+```
+
+Observed post-fix results:
+- scaffold validation passed
+- full fixture-driven suite passed: `89/89` tests
+- real sandbox harness now makes the distinction explicit for the mods check:
+  - `requested_limit = 3`
+  - `response_result_limit = 100`
+  - `response_result_count = 0`
+  - `response_result_total = 0`
+
+---
+
+### Task 9: QA the mod-list `_limit` behavior after repair
+
+**Bead ID:** `oc-0bp`  
+**SubAgent:** `primary`  
+**Role:** `qa`  
+**References:** `REF-04`, `REF-05`, `REF-06`  
+**Prompt:** In `aerobeat-vendor-modio`, claim bead `oc-0bp` on start. Independently verify the `_limit` fix for the mod list path. Confirm the exact request behavior and the observed harness output against test.mod.io, rerun the relevant harness/tests, make only minimum necessary fixes if needed, update the active plan with findings, and close the bead with a clear reason.
+
+**Folders Created/Deleted/Modified:**
+- `.plans/`
+- code/tests only if a minimal QA fix is required
+
+**Files Created/Deleted/Modified:**
+- `.plans/2026-05-06-aerobeat-vendor-modio-test-sandbox-validation.md`
+- code/tests only if needed
+
+**Status:** ⏳ Pending
+
+**Results:** Pending.
+
+---
+
+### Task 10: Audit the final `_limit` parity result
+
+**Bead ID:** `oc-pmh`  
+**SubAgent:** `primary`  
+**Role:** `auditor`  
+**References:** `REF-04`, `REF-05`, `REF-06`  
+**Prompt:** In `aerobeat-vendor-modio`, claim bead `oc-pmh` on start. Perform an independent truth-check of the final `_limit` behavior after coder + QA. Confirm whether the request shaping and observed output now match the intended small-sample browse flow, note any remaining caveats, update the active plan with a concise pass/fail result, and close the bead with a clear reason.
+
+**Folders Created/Deleted/Modified:**
+- `.plans/`
+
+**Files Created/Deleted/Modified:**
+- `.plans/2026-05-06-aerobeat-vendor-modio-test-sandbox-validation.md`
+
+**Status:** ⏳ Pending
+
+**Results:** Pending.
+
+---
+
 ## Final Results
 
 **Status:** ⏳ Pending

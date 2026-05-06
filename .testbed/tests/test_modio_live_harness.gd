@@ -109,6 +109,18 @@ func test_summarize_authenticated_user_response_reads_top_level_detail_payload()
 	assert_eq(summary.name_id, "aerobeat-player")
 	assert_eq(summary.username, "AeroBeatPlayer")
 
+func test_summarize_mods_response_reports_requested_limit_separately_from_server_page_echo() -> void:
+	var harness := ModioLiveHarness.new()
+	var summary := harness.summarize_mods_response({"payload": _fixture("mods.json")}, 3)
+
+	assert_eq(summary.requested_limit, 3)
+	assert_eq(summary.response_result_count, 1)
+	assert_eq(summary.response_result_limit, 10)
+	assert_eq(summary.response_result_offset, 5)
+	assert_eq(summary.response_result_total, 13)
+	assert_eq(summary.sample_mod_names.size(), 1)
+	assert_eq(summary.sample_mod_names[0], "Cardio Blaster")
+
 func _stable_config(default_environment: String) -> String:
 	return "".join([
 		"[modio]\n",

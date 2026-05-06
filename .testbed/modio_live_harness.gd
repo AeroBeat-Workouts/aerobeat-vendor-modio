@@ -89,7 +89,7 @@ func _run_mods_check(adapter: ModioVendorAdapter, config, mods_limit: int) -> Di
 		adapter.build_listing_request(query),
 		config,
 		func(response: Dictionary) -> Dictionary:
-			return harness.summarize_mods_response(response)
+			return harness.summarize_mods_response(response, mods_limit)
 	)
 
 func _run_optional_auth_checks(plan: Dictionary, adapter: ModioVendorAdapter, config) -> Array[Dictionary]:
