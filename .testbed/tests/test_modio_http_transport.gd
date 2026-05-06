@@ -122,6 +122,25 @@ func test_executes_form_encoded_logout_and_subscription_writes_with_bearer_auth_
 	assert_eq(_recorded_requests[2].url, "https://g-777.modapi.io/v1/games/777/mods/1001/subscribe")
 	assert_eq(unsubscribe_response.payload, {})
 
+func test_prefers_request_raw_for_binary_multipart_bodies() -> void:
+	var config := ModioClientConfig.new("777", "demo-key", "", "user-token", "en-US", "steam", "WINDOWS", ModioClientConfig.HOST_GAME)
+	var transport := ModioHttpTransport.new()
+	var adapter := ModioVendorAdapter.new(config, transport)
+	var prepared := transport.prepare_request(adapter.build_add_modfile_request("1001", {
+		"filedata": {
+			"filename": "sample.zip",
+			"content_type": "application/zip",
+			"data": PackedByteArray([80, 75, 3, 4])
+		},
+		"version": "0.0.1"
+	}), config, {"multipart_boundary": "TEST-BOUNDARY"})
+
+	assert_true(prepared.ok)
+	assert_false(bool(prepared.request.get("has_raw_body", false)))
+	assert_true(str(prepared.request.content_type).begins_with("multipart/form-data; boundary=TEST-BOUNDARY"))
+	assert_gt(prepared.request.body_bytes.size(), 0)
+	assert_true(transport._should_use_request_raw(prepared.request))
+
 func test_executes_raw_multipart_part_uploads_with_query_headers_and_bytes() -> void:
 	var config := ModioClientConfig.new("777", "demo-key", "", "user-token", "en-US", "steam", "WINDOWS", ModioClientConfig.HOST_GAME)
 	var transport := ModioHttpTransport.new(Callable(self, "_transport_double"))

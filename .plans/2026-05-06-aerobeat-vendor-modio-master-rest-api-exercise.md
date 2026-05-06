@@ -118,10 +118,10 @@ Status legend used below:
 
 | Endpoint family | Wrapped surface | Status | Auth / material prerequisites | Notes |
 | --- | --- | --- | --- | --- |
-| Mod authoring CRUD | `POST /games/{game-id}/mods`, `POST /games/{game-id}/mods/{mod-id}`, `DELETE /games/{game-id}/mods/{mod-id}` | Create/update **Already validated in sandbox setup work**; delete **Planned** | Bearer token; valid logo asset; safe disposable mod naming/material | We already proved create plus status/visibility update while making the sample mod. Formal slice work should capture that route family in the master plan and add explicit delete coverage on a disposable artifact. |
-| Modfile CRUD | `POST /games/{game-id}/mods/{mod-id}/files`, `PUT /games/{game-id}/mods/{mod-id}/files/{file-id}` | Create **Already validated in sandbox setup work**; update/delete **Planned** | Bearer token; owned mod; disposable zip payload | File upload was already required to publish the sample mod. Update/delete still need direct coverage. |
-| Mod maintenance metadata | `POST`/`DELETE` tags, metadata KVP, dependencies; `GET` related readbacks | **Planned** | Bearer token; owned mod; optional second dependency mod for dependency flows | Best exercised immediately after disposable mod creation so readback verification is local and attributable. |
-| Mod media/order maintenance | `POST /games/{game-id}/mods/{mod-id}/media`, `PUT /games/{game-id}/mods/{mod-id}/media/reorder`, `DELETE /games/{game-id}/mods/{mod-id}/media` | **Planned** | Bearer token; owned mod; disposable image assets | Moderate risk only because of artifact prep, not because of destructive impact. |
+| Mod authoring CRUD | `POST /games/{game-id}/mods`, `POST /games/{game-id}/mods/{mod-id}`, `DELETE /games/{game-id}/mods/{mod-id}` | **Already validated** | Bearer token; valid logo asset; safe disposable mod naming/material | Disposable sandbox mods were created, updated, verified through authenticated `/me/mods` readback, and deleted cleanly in Task 8. |
+| Modfile CRUD | `POST /games/{game-id}/mods/{mod-id}/files`, `PUT /games/{game-id}/mods/{mod-id}/files/{file-id}`, `DELETE /games/{game-id}/mods/{mod-id}/files/{file-id}` | **Already validated** | Bearer token; owned mod; disposable zip payload | Task 8 proved add + update + delete by replacing a first uploaded file with a second live file, then deleting the older file successfully before final mod cleanup. |
+| Mod maintenance metadata | `POST`/`DELETE` tags, metadata KVP, dependencies; `GET` related readbacks | **Partially validated** | Bearer token; owned mod; optional second dependency mod for dependency flows | Earlier low-risk sweep already showed tag writes are sandbox-gated for this workout and metadata KVP add/read/delete succeeds. Task 8 additionally showed dependency add is currently blocked by sandbox game policy (`403`, error ref `15077`) even with a second disposable mod available, while cleanup delete remains a safe no-op. |
+| Mod media/order maintenance | `POST /games/{game-id}/mods/{mod-id}/media`, `PUT /games/{game-id}/mods/{mod-id}/media/reorder`, `DELETE /games/{game-id}/mods/{mod-id}/media` | **Already validated** | Bearer token; owned mod; disposable image assets | Task 8 proved media add, follow-up add for a second server-side filename, reorder, and delete on a disposable owned mod, with final cleanup confirmed by mod deletion. |
 | Mod team / monetization-team writes | `POST /games/{game-id}/mods/{mod-id}/monetization/team` | **Deferred** | Bearer token; owned mod; extra collaborator accounts and monetization-enabled sandbox | Too setup-heavy for the core hardening pass. |
 | Guide authoring CRUD | `POST /games/{game-id}/guides`, `POST /games/{game-id}/guides/{guide-id}`, `DELETE /games/{game-id}/guides/{guide-id}` | **Planned** | Bearer token; owned/public mod context if guide content references mods; simple guide payload | This is the unlock step for guide public reads/comments. |
 | Collection authoring CRUD | `POST /games/{game-id}/collections`, `POST /games/{game-id}/collections/{collection-id}`, `DELETE /games/{game-id}/collections/{collection-id}`, `DELETE /games/{game-id}/collections/{collection-id}/mods` | **Planned** | Bearer token; public/owned mods to place into collections; optional permanent-delete reason handling | This is the unlock step for collection reads, follows, and subscriptions. |
@@ -369,9 +369,55 @@ Net outcome for this coder slice: the authenticated user-read baseline is now pr
 - `.plans/2026-05-06-aerobeat-vendor-modio-master-rest-api-exercise.md`
 - code/tests only if needed
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** QA independently reran the authenticated user-read sweep on the real AeroBeat `test.mod.io` sandbox and audited the coder slice against the current harness, adapter tests, and direct prepared-request truth checks. No QA code fix was required.
+
+Independent validation evidence:
+```bash
+godot --headless --path .testbed --script res://tests/validate_scaffold.gd
+godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit
+godot --headless --path .testbed --script res://modio_live_harness.gd -- --env test --json
+godot --headless --path .testbed --script res://modio_live_harness.gd -- --env test --public-only --json
+godot --headless --path .testbed --script /tmp/modio_oc_e0j_probe.gd
+godot --headless --path .testbed --script /tmp/modio_oc_5p7_probe.gd
+```
+
+Observed results:
+- scaffold validation passed
+- full fixture-driven suite passed at `91/91` tests
+- authenticated harness run stayed green and preserved the previously validated public baseline while also keeping the bearer-authenticated user-read slice green end-to-end
+- public-only harness run still stayed green and truthfully skipped the auth-only checks under `--public-only`
+- direct raw-payload probe (`/tmp/modio_oc_e0j_probe.gd`) confirmed the sandbox response bodies backing the harness summaries
+- direct prepared-request probe (`/tmp/modio_oc_5p7_probe.gd`) confirmed the intended auth modes, paths, and query shaping before transport execution
+
+Confirmed authenticated endpoint outcomes from the harness / direct payload probe:
+- `GET /authenticate/terms` -> HTTP `200`; required links included `privacy` and `terms`; buttons included `agree` and `disagree`
+- `GET /me` -> HTTP `200`; normalized identity stayed `id = 71104`, `name_id = "derrickbarra"`, `username = "DerrickBarra"`
+- `GET /me/games?_limit=5&_offset=0` -> HTTP `200`; `result_total = 1`; first game `1325 / "AeroBeat" / "aerobeat"`
+- `GET /me/mods?_limit=5&_offset=0` -> HTTP `200`; `result_total = 1`; first mod `16112 / "oc-4wr sandbox pagination sample 1778082871"`
+- `GET /me/files?_limit=5&_offset=0` -> HTTP `200`; `result_total = 1`; first file `22687 / "tmp-oc-4wr-build-5by3.zip" / version "0.0.1"`
+- `GET /me/subscribed?_limit=5&_offset=0` -> HTTP `200`; empty list with server echo `result_limit = 5`
+- `GET /me/ratings?_limit=5&_offset=0&game_id=1325&resource_type=mods` -> HTTP `200`; empty list with server echo `result_limit = 100`
+- `GET /me/collections?_limit=5&_offset=0` -> HTTP `200`; empty list with server echo `result_limit = 100`
+- `GET /me/following/collections?_limit=5&_offset=0` -> HTTP `200`; empty list with server echo `result_limit = 100`
+- `GET /me/followers?_limit=5&_offset=0` -> HTTP `200`; empty list with server echo `result_limit = 100`
+- `GET /me/users/muted?_limit=5&_offset=0` -> HTTP `200`; empty list with server echo `result_limit = 100`
+- `GET /users/71104/followers?_limit=5&_offset=0` -> HTTP `200`; empty list with server echo `result_limit = 100`
+- `GET /users/71104/following?_limit=5&_offset=0` -> HTTP `200`; empty list with server echo `result_limit = 100`
+- `GET /users/71104/collections?_limit=5&_offset=0` -> HTTP `200`; empty list with server echo `result_limit = 100`
+
+Independent request-shape truth check from the prepared-request probe (`/tmp/modio_oc_5p7_probe.gd`):
+- `GET /authenticate/terms` prepared as `auth_mode = api_key_query` with `api_key` in query
+- `GET /me/games` prepared as `auth_mode = bearer` with `_limit = "5"`, `_offset = "0"`
+- `GET /me/mods` prepared as `auth_mode = bearer` with `_limit = "5"`, `_offset = "0"`
+- `GET /me/files` prepared as `auth_mode = bearer` with `_limit = "5"`, `_offset = "0"`
+- `GET /me/subscribed` prepared as `auth_mode = bearer` with `_limit = "5"`, `_offset = "0"`
+- `GET /me/ratings` prepared as `auth_mode = bearer` with `_limit = "5"`, `_offset = "0"`, `game_id = "1325"`, `resource_type = "mods"`
+- `GET /me/collections`, `GET /me/following/collections`, `GET /me/followers`, and `GET /me/users/muted` all prepared as bearer-authenticated requests with `_limit = "5"`, `_offset = "0"`
+- `GET /users/71104/followers`, `GET /users/71104/following`, and `GET /users/71104/collections` prepared as public/api-key-fallback reads with `_limit = "5"`, `_offset = "0"`
+
+QA/audit conclusion: this slice is actually done. The safe harness reproducibly covers the authenticated user-read baseline on `test.mod.io`, the direct payload probe matches the harness summaries, and the prepared-request truth check confirms the intended auth split and query shaping. The only remaining oddity is the now-familiar sandbox behavior where several empty authenticated list endpoints echo `result_limit = 100` despite a requested `_limit = 5`; QA confirmed that as a provider response characteristic rather than a repo-side request-shaping bug.
 
 ---
 
@@ -445,9 +491,46 @@ No provider-seam bug was found in the wrapped request/transport layer during thi
 - `.plans/2026-05-06-aerobeat-vendor-modio-master-rest-api-exercise.md`
 - code/tests only if needed
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** QA independently reran the low-risk authenticated write sweep on the real AeroBeat `test.mod.io` sandbox and audited the coder slice against the current harness and regression coverage. No QA code fix was required.
+
+Independent validation evidence:
+```bash
+godot --headless --path .testbed --script res://tests/validate_scaffold.gd
+godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit
+godot --headless --path .testbed --script res://modio_live_harness.gd -- --env test --allow-writes --json
+```
+
+Observed results:
+- scaffold validation passed
+- full fixture-driven suite passed at `92/92` tests
+- the full safe harness run with `--allow-writes` stayed green overall (`ok: true`) while preserving the already-validated public and authenticated read baseline before executing the reversible write checks
+
+Confirmed low-risk write outcomes and post-write readback state from the harness:
+- **Subscribe / unsubscribe** on owned sample mod `16112` verified end-to-end again.
+  - `POST /games/1325/mods/16112/subscribe` -> HTTP `201`
+  - immediate `GET /me/subscribed` readback -> HTTP `200`, `found_expected_mod_id = true`, `selected_mod_id = 16112`, `response_result_total = 1`
+  - `DELETE /games/1325/mods/16112/subscribe` -> HTTP `204`
+  - immediate `GET /me/subscribed` readback -> HTTP `200`, `found_expected_mod_id = false`, `response_result_total = 0`
+- **Ratings** remain confirmed without needing a destructive reset.
+  - `POST /games/1325/mods/16112/ratings` was skipped by the hardened harness because the sandbox already holds the same positive rating for this workout
+  - follow-up `GET /me/ratings` -> HTTP `200`, `found_expected_rating = true`, `first_mod_id = 16112`, `first_rating = 1`, `response_result_total = 1`
+  - QA agrees this is the correct idempotent interpretation for the current sandbox state rather than a repo-side failure
+- **Comment CRUD** remains explicitly capability-gated by the sandbox.
+  - create/update/delete comment checks stayed skipped because this workout has comments disabled
+  - QA agrees these should remain documented skips, not failures, until the sandbox capability changes
+- **Tag maintenance** remains explicitly capability-gated by the sandbox.
+  - add/delete tag checks stayed skipped because the sandbox rejects these freeform tag writes for this workout
+  - QA found no evidence of a wrapper request/normalization bug here
+- **Metadata KVP maintenance** verified end-to-end again and stayed reversible.
+  - `POST /games/1325/mods/16112/metadatakvp` -> HTTP `201`
+  - immediate readback -> HTTP `200`, `found_expected_pair = true`, `pairs = ["oc-vrf=1778089492.50065"]`, `response_result_total = 1`
+  - `DELETE /games/1325/mods/16112/metadatakvp` -> HTTP `204`
+  - immediate readback -> HTTP `200`, `found_expected_pair = false`, `pairs = []`, `response_result_total = 0`
+- **Dependencies** stayed intentionally skipped because the sandbox still exposes only one safe owned mod, so there is no second reversible dependency target yet.
+
+QA/audit conclusion: this slice is actually done. The low-risk authenticated write sweep is reproducible through the repo’s opt-in safe harness, the meaningful reversible writes (`subscribe`/`unsubscribe` and metadata KVP add/read/delete) succeed with correct readback state on `test.mod.io`, rating presence is confirmed through idempotent readback, and the remaining skips are current sandbox capability constraints rather than provider-seam bugs in this repo.
 
 ---
 
@@ -466,11 +549,47 @@ No provider-seam bug was found in the wrapped request/transport layer during thi
 
 **Files Created/Deleted/Modified:**
 - `.plans/2026-05-06-aerobeat-vendor-modio-master-rest-api-exercise.md`
-- code/tests as needed
+- `src/network/modio_http_transport.gd`
+- `.testbed/tests/test_modio_http_transport.gd`
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** Identified and fixed a real transport-layer provider-seam bug before rerunning the sandbox sweep: multipart requests with binary bodies were being prepared as bytes but still dispatched through `HTTPClient.request(...)` using a UTF-8 string body, which broke real binary multipart writes on `test.mod.io`. The fix now routes multipart requests through `HTTPClient.request_raw(...)`, and focused regression coverage was added in `.testbed/tests/test_modio_http_transport.gd` to assert that prepared binary multipart requests prefer the raw-byte dispatch path. Full local validation then passed at `93/93` tests.
+
+Exact coder validation steps:
+
+- `godot --headless --path .testbed --script res://tests/validate_scaffold.gd`
+- `godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit`
+- one-off sandbox probe using the repo adapter/transport against `https://g-1325.test.mod.io/v1` with disposable local assets under `.testbed/tmp-oc-1sb/`
+
+Observed real sandbox authoring/maintenance evidence from the final green probe run:
+
+- **Disposable mod authoring CRUD succeeded end-to-end.**
+  - created primary mod `16117` and secondary dependency-target mod `16118` via `POST /games/1325/mods` -> HTTP `201`
+  - updated primary mod `16117` via `POST /games/1325/mods/16117` -> HTTP `200`
+  - authenticated owner readback via `GET /me/mods?id=16117&game_id=1325` -> HTTP `200`, `result_total = 1`, `name = "oc-1sb primary 1778090378.18966 updated"`, `summary = "Updated summary for oc-1sb primary mod"`
+  - deleted both disposable mods via `DELETE /games/1325/mods/16117` and `DELETE /games/1325/mods/16118` -> HTTP `204`
+- **Modfile lifecycle coverage is now explicit, not implicit.**
+  - added primary modfile `22693` on mod `16117` -> HTTP `201`
+  - updated modfile `22693` via `PUT /games/1325/mods/16117/files/22693` -> HTTP `200`
+  - readback via `GET /games/1325/mods/16117/files/22693` -> HTTP `200`, `version = "0.0.2"`, `changelog = "updated build metadata"`, `active = false`, `metadata_blob = "{\"build\":\"v2\"}"`
+  - uploaded replacement live modfile `22694` -> HTTP `201`
+  - deleted the no-longer-live older primary modfile `22693` -> HTTP `204`
+  - dependency modfile `22695` stayed undeletable while it was the live release on disposable mod `16118`; `DELETE /games/1325/mods/16118/files/22695` returned HTTP `403`, provider error ref `15009` (`You cannot delete a modfile that is the live release for a mod.`). This is documented as sandbox/provider behavior, not a wrapper failure.
+- **Dependency maintenance is meaningfully exercised and currently blocked by sandbox policy, not wrapper shape.**
+  - attempted `POST /games/1325/mods/16117/dependencies` with second disposable mod `16118` -> HTTP `403`, provider error ref `15077` (`Workout can not add dependencies due to the game disallowing it.`)
+  - immediate readback via `GET /games/1325/mods/16117/dependencies` -> HTTP `200`, empty list (`result_total = 0`)
+  - cleanup `DELETE /games/1325/mods/16117/dependencies` with the same target id returned HTTP `200` as a safe no-op
+- **Media maintenance succeeded with real server-side filename behavior.**
+  - first media add on mod `16117` -> HTTP `201`
+  - detail readback after first add showed one image filename: `media-2.png`
+  - second media add -> HTTP `201`; follow-up detail readback showed two server-side filenames: `media-2.png`, `media-1.1.png`
+  - reorder via `PUT /games/1325/mods/16117/media/reorder` -> HTTP `204`
+  - delete via `DELETE /games/1325/mods/16117/media` -> HTTP `204`
+- **Metadata cleanup remained safe.**
+  - `DELETE /games/1325/mods/16117/metadatakvp` for the disposable `oc-1sb` key returned HTTP `200`
+
+Net outcome for this coder slice: the repo now has a real multipart-write transport fix with regression coverage, disposable sandbox authoring/update/delete passes are proven, modfile update/delete behavior is explicitly documented including the live-release delete constraint, media add/reorder/delete is proven on owned disposable content, and dependency maintenance has been reduced to a clearly documented sandbox game-policy block rather than an unknown wrapper gap.
 
 ---
 

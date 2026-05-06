@@ -200,7 +200,7 @@ func _execute_with_http_client(final_request: Dictionary, options: Dictionary) -
 
 	var request_headers := _headers_to_lines(final_request.headers)
 	var request_error := OK
-	if bool(final_request.get("has_raw_body", false)):
+	if _should_use_request_raw(final_request):
 		request_error = client.request_raw(_http_method_to_constant(final_request.method), parsed.request_path, request_headers, final_request.get("body_bytes", PackedByteArray()))
 	else:
 		request_error = client.request(_http_method_to_constant(final_request.method), parsed.request_path, request_headers, final_request.body_string)
@@ -241,6 +241,11 @@ func _wait_for_client(client: HTTPClient, timeout_seconds: float, terminal_statu
 			return false
 		OS.delay_msec(10)
 	return false
+
+func _should_use_request_raw(final_request: Dictionary) -> bool:
+	if bool(final_request.get("has_raw_body", false)):
+		return true
+	return _is_multipart_content_type(str(final_request.get("content_type", "")))
 
 func _build_transport_error_result(message: String, request: Dictionary, code: int = ERR_INVALID_PARAMETER) -> Dictionary:
 	return {
