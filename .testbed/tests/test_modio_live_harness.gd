@@ -208,6 +208,42 @@ func test_summarize_guide_read_and_comment_responses_from_existing_fixtures() ->
 	assert_true(guide_comment_presence.found_comment_id)
 	assert_eq(guide_comment_presence.comment_ids[0], 9901)
 
+func test_summarize_collection_read_and_comment_responses_from_existing_fixtures() -> void:
+	var harness := ModioLiveHarness.new()
+	var adapter := ModioVendorAdapter.new()
+
+	var collections_summary := harness.summarize_collections_response(adapter, {"payload": _fixture("collections.json")}, 5)
+	assert_eq(collections_summary.requested_limit, 5)
+	assert_eq(collections_summary.response_result_total, 5)
+	assert_eq(collections_summary.selected_collection_id, 3001)
+	assert_eq(collections_summary.collection_names[0], "Starter Bundle")
+
+	var collection_summary := harness.summarize_collection_response(adapter, {"payload": _fixture("collection_detail.json")})
+	assert_eq(collection_summary.id, 3001)
+	assert_eq(collection_summary.name, "Starter Bundle")
+	assert_eq(collection_summary.name_id, "starter-bundle")
+	assert_true(collection_summary.visible)
+	assert_eq(collection_summary.category, "Cardio")
+	assert_eq(collection_summary.downloads_total, 400)
+
+	var collection_mods_summary := harness.summarize_collection_mods_response(adapter, {"payload": _fixture("mods.json")}, 5)
+	assert_eq(collection_mods_summary.response_result_total, 13)
+	assert_eq(collection_mods_summary.mod_names[0], "Cardio Blaster")
+
+	var collection_comment_write := harness.summarize_collection_comment_write_response(adapter, {"payload": _fixture("collection_comment_created.json")})
+	assert_eq(collection_comment_write.comment_id, 9910)
+	assert_eq(collection_comment_write.content, "Fresh collection reply")
+
+	var collection_comment_detail := harness.summarize_collection_comment_detail_response(adapter, {"payload": _fixture("collection_comment_detail.json")})
+	assert_eq(collection_comment_detail.comment_id, 9902)
+	assert_eq(collection_comment_detail.username, "ThreadFriend")
+
+	var collection_comment_presence := harness.summarize_collection_comments_presence_response(adapter, {
+		"payload": _fixture("collection_comments_list.json")
+	}, 5, 9902)
+	assert_true(collection_comment_presence.found_comment_id)
+	assert_eq(collection_comment_presence.comment_ids[0], 9901)
+
 func test_summarize_authenticated_user_read_sweep_responses_from_existing_fixtures() -> void:
 	var harness := ModioLiveHarness.new()
 	var adapter := ModioVendorAdapter.new()

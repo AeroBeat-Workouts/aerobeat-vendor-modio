@@ -2843,7 +2843,7 @@ func test_builds_guide_and_collection_authoring_requests_with_documented_validat
 		"name": "  Starter Bundle  ",
 		"name_id": "starter-bundle",
 		"summary": "A bundle of cardio-friendly starter mods.",
-		"category": 2,
+		"category": " essential ",
 		"description": "All the essentials.",
 		"logo": "  @/tmp/collection.png  ",
 		"status": 1,
@@ -2854,6 +2854,7 @@ func test_builds_guide_and_collection_authoring_requests_with_documented_validat
 	assert_eq(add_collection_request.method, "POST")
 	assert_eq(add_collection_request.path, "/games/777/collections")
 	assert_eq(add_collection_request.content_type, ModioHttpTransport.CONTENT_TYPE_MULTIPART)
+	assert_eq(add_collection_request.body.category, "essential")
 	assert_eq(add_collection_request.body.logo, "@/tmp/collection.png")
 	assert_eq(add_collection_request.body.mod_ids, [1001, 1002])
 

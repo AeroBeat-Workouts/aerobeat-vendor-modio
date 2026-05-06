@@ -780,9 +780,37 @@ Significant provider-seam finding documented for QA/audit follow-up:
 - `.plans/2026-05-06-aerobeat-vendor-modio-master-rest-api-exercise.md`
 - code/tests only if needed
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** QA independently reran the newly unlocked dependency, guide, and comment sweep on the real AeroBeat `test.mod.io` sandbox and confirmed the coder slice’s main conclusion: these families are now genuinely exercisable, but immediate public comment-detail rereads remain stale after successful updates. No repo code fix was required in this QA pass.
+
+Independent validation evidence:
+```bash
+godot --headless --path .testbed --script res://tests/validate_scaffold.gd
+godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit
+godot --headless --path .testbed --script res://modio_unlocked_family_harness.gd
+godot --headless --path .testbed --script /tmp/modio_oc_0fm_probe.gd
+```
+
+Observed results:
+- scaffold validation passed
+- full fixture-driven suite passed at `94/94` tests
+- the dedicated unlocked-family harness exercised the real sandbox end-to-end but exited non-zero because both `mod_comment_detail_after_update` and `guide_comment_detail_after_update` still returned the original create text instead of the updated text on immediate public reread
+- the separate direct transport probe confirmed this is **not** a request-shaping failure in the repo: the update responses themselves contain the new content, while the subsequent public detail reads continue to serve the old content
+
+Confirmed sandbox outcomes from the QA harness run:
+- **Mod comments on workout `16112`**: initial list read `200` empty; create comment `398` -> `201`; detail read -> `200`; list-after-create -> present; update -> `200`; immediate detail reread -> still stale (`content = "oc-0fm mod comment create 1778093729"`, expected update text); delete -> `204`; list-after-delete -> empty
+- **Guides**: disposable guide `48` created -> `201`; public guide list/detail -> `200`; update -> `200`; detail-after-update -> `200`; public guide tags readback returned `exercise` + `guide`; delete -> `204`
+- **Guide comments**: initial list read `200` empty; create comment `399` -> `201`; detail read -> `200`; list-after-create -> present; update -> `200`; immediate detail reread -> still stale (`content = "oc-0fm guide comment create 1778093729"`, expected update text); delete -> `204`; list-after-delete -> empty
+- **Dependencies**: disposable dependency target mod `16131` created -> `201`; build `22708` uploaded -> `201`; add dependency on parent workout `16112` -> `201`; parent dependency readback -> `200` with the disposable target name present; dependant readback on the target -> `200` with parent workout `oc-4wr sandbox pagination sample 1778082871`; delete dependency -> `204`; parent dependency readback after delete -> empty; disposable target mod delete -> `204`
+
+Independent request-shape truth checks from the direct probe plus existing transport coverage:
+- mod comment create/update/delete used bearer-authenticated `POST` / `PUT` / `DELETE` on `/games/1325/mods/16112/comments` and `/games/1325/mods/16112/comments/{comment-id}` with `application/x-www-form-urlencoded` `content=...` bodies for the writes
+- mod comment detail/list rereads used public/api-key queries on `/games/1325/mods/16112/comments/{comment-id}` and `/games/1325/mods/16112/comments?_limit=5&_offset=0`
+- dependency add/delete used bearer-authenticated form bodies with `dependencies[]=<target-id>` on `/games/1325/mods/16112/dependencies`, while dependency readback used the public path with `recursive=false`
+- guide request shaping remains covered by the green adapter/transport regression suite in this pass (`94/94`), and the real unlocked-family harness confirmed the guide create/list/detail/update/comment/delete flow stays live on the sandbox under those same code paths
+
+QA conclusion: this slice is materially validated, but with one significant caveat worth carrying into audit/readiness notes — immediate public comment-detail rereads after update appear stale for both mod comments and guide comments even though the update request succeeds and echoes the new content. That currently looks like upstream/provider cache behavior on the public detail route rather than a repo-side transport or normalization bug.
 
 ---
 
@@ -793,6 +821,138 @@ Significant provider-seam finding documented for QA/audit follow-up:
 **Role:** `auditor`  
 **References:** `REF-01` through `REF-07`  
 **Prompt:** In `aerobeat-vendor-modio`, claim bead `oc-10br` on start. Perform an independent truth-check of the newly unlocked dependency, guide, and comment sweep after coder + QA. Confirm which of these previously deferred families are now validated, note any remaining sandbox or policy caveats, update this master plan with a concise pass/fail result, and close the bead with a clear reason.
+
+**Folders Created/Deleted/Modified:**
+- `.plans/`
+
+**Files Created/Deleted/Modified:**
+- `.plans/2026-05-06-aerobeat-vendor-modio-master-rest-api-exercise.md`
+
+**Status:** ✅ Complete
+
+**Results:** Independent auditor rerun says this newly unlocked slice is **validated, with one confirmed upstream caveat**.
+
+Fresh audit evidence captured on current head:
+```bash
+godot --headless --path .testbed --script res://tests/validate_scaffold.gd
+godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit
+godot --headless --path .testbed --script res://modio_unlocked_family_harness.gd
+godot --headless --path .testbed --script /tmp/modio_oc_0fm_probe.gd
+```
+
+Observed audit results:
+- scaffold validation passed
+- full fixture-driven suite stayed green at `94/94` tests
+- the dedicated unlocked-family harness still exercises the real `test.mod.io` sandbox end-to-end, but exits non-zero because the immediate public detail rereads after comment updates remain stale
+- the separate direct transport probe confirms this is **not** a repo-side request-shaping or transport seam bug: bearer `PUT` update responses contain the updated content, while the subsequent public/api-key `GET` detail route still returns the original create text
+
+Fresh sandbox truth-check from the auditor rerun:
+- **Mod comments on workout `16112`**: create comment `404` -> `201`; detail-after-create -> `200`; list-after-create -> present; update -> `200` with `content = "oc-0fm mod comment update 1778093977"`; immediate public detail reread -> `200` but still returned `content = "oc-0fm mod comment create 1778093977"`; delete -> `204`; list-after-delete -> empty
+- **Guide authoring + public guide reads**: disposable guide `50` created -> `201`; public guide list/detail -> `200`; update -> `200`; detail-after-update -> `200`; public guide tags readback returned `exercise` + `guide`; delete -> `204`
+- **Guide comments**: create comment `405` -> `201`; detail-after-create -> `200`; list-after-create -> present; update -> `200` with `content = "oc-0fm guide comment update 1778093977"`; immediate public detail reread -> `200` but still returned `content = "oc-0fm guide comment create 1778093977"`; delete -> `204`; list-after-delete -> empty
+- **Dependencies**: disposable dependency target mod `16133` created -> `201`; build `22710` uploaded -> `201`; add dependency on parent workout `16112` -> `201`; parent dependency readback -> `200` with the disposable target name present; dependant readback on the target -> `200` with parent workout `oc-4wr sandbox pagination sample 1778082871`; delete dependency -> `204`; parent dependency readback after delete -> empty; disposable target mod delete -> `204`
+
+Audit conclusion:
+- **Pass** for dependency writes, guide create/read/update/delete, guide comment create/detail/list/update/delete, and mod comment create/detail/list/update/delete in the test sandbox
+- **Caveat remains** for immediate public comment-detail rereads after successful updates on both mod comments and guide comments
+- best current classification is **upstream/provider cache behavior on the public comment-detail route**, not a repo-side seam bug, because:
+  - write request shape is correct and independently confirmed
+  - update responses themselves echo the new content correctly
+  - only the follow-up public detail reread is stale
+  - the stale pattern reproduces across both mod-comment and guide-comment families under the same validated transport paths
+
+This bead closes as done with the slice audited complete and the stale public comment-detail reread explicitly documented as an upstream behavior caveat rather than a reopened repo bug.
+
+---
+
+### Task 14: Investigate collection eligibility and unlock collection testing
+
+**Bead ID:** `oc-3z6v`  
+**SubAgent:** `primary`  
+**Role:** `coder`  
+**References:** `REF-01` through `REF-07`  
+**Prompt:** In `aerobeat-vendor-modio`, claim bead `oc-3z6v` on start. Derrick confirmed collections currently require at least 4 valid workouts/mods and the existing sample workout `16112` does not appear as an eligible collection member in the mod.io UI. He also confirmed guide `43` is now published/live with comments enabled, a test comment, and test tags. Investigate the collection-eligibility rule on the test server, verify the real guide fixture coverage, and if the requirement is satisfiable from the API side, seed enough qualifying workouts to unlock collection testing. Keep changes minimal and reversible, verify findings through readbacks, fix any provider-seam bugs you find, add focused regression tests, rerun relevant validation, update this master plan with exact evidence/results, commit and push by default, and close the bead with a clear reason.
+
+**Folders Created/Deleted/Modified:**
+- `.plans/`
+- `.testbed/` local runtime artifacts only as needed
+- `src/` / tests as needed
+
+**Files Created/Deleted/Modified:**
+- `.plans/2026-05-06-aerobeat-vendor-modio-master-rest-api-exercise.md`
+- `.testbed/modio_collection_eligibility_harness.gd`
+- `.testbed/modio_live_harness_lib.gd`
+- `.testbed/tests/test_modio_http_transport.gd`
+- `.testbed/tests/test_modio_live_harness.gd`
+- `.testbed/tests/test_modio_vendor_adapter.gd`
+- `src/modio_vendor_adapter.gd`
+
+**Status:** ✅ Complete
+
+**Results:** Added a dedicated repeatable sandbox probe at `.testbed/modio_collection_eligibility_harness.gd`, expanded collection/comment summaries in `.testbed/modio_live_harness_lib.gd`, fixed a real provider-seam bug in `src/modio_vendor_adapter.gd`, and added focused regression coverage in `.testbed/tests/test_modio_vendor_adapter.gd`, `.testbed/tests/test_modio_http_transport.gd`, and `.testbed/tests/test_modio_live_harness.gd`.
+
+Key provider-seam fix:
+- `POST /games/{game-id}/collections` was incorrectly shaping `category` as an integer-like field. Real `test.mod.io` collection create attempts rejected that request shape and advertised string categories (`essential`, `miscellaneous`, `themed`). The adapter now validates/sends collection `category` as a trimmed string, and the transport/unit tests were updated accordingly.
+
+Exact sandbox evidence from the committed harness (`godot --headless --path .testbed --script res://modio_collection_eligibility_harness.gd` against `https://g-1325.test.mod.io/v1`):
+- **Guide fixture 43 is now real and publicly readable**
+  - guide detail `43` -> `200`, `name = "test"`, `status = 1`, `allows_comments = true`, `comments_total = 1`
+  - guide comment list -> `200`, returned comment id `407`
+  - guide comment detail `407` -> `200`, `content = "this is a test comment"`, `username = "DerrickBarra"`
+  - guide tags read -> `200`, public tag directory now includes `DNU_PINNED`, `hi chip`, and `test`
+- **Collection eligibility rule is API-testable, and the server-side minimum is 3 public workouts, not 4**
+  - create attempt with only sample workout `16112` -> `422`, error ref `29614`, message: `There must be at least 3 public Workouts in this collection to be able to activate it.`
+  - this means the previously observed “needs 4” UI behavior is not the literal API-side activation rule
+- **Fresh workouts also need the collection-use community flag**
+  - first seeding attempt without `community_options = 131072` failed with `400`, error ref `29615`, `Use of this workout (...) in Collections has been blocked by their admin team.`
+  - after setting `community_options = 131072` (`ALLOW_MOD_USE_IN_COLLECTIONS`) on seeded workouts, the same flow succeeded end-to-end
+- **Collection testing is now unlocked from the API side**
+  - seeded public workouts `16140`, `16141`, and `16142` with public modfiles `22717`, `22718`, and `22719`
+  - each seeded workout read back publicly with `status = 1`, `visible = 1`, `community_options = 131072`, `allows_collections = true`
+  - created public collection `47` (`oc-3z6v collection unlock 1778098332`) -> `201`
+  - collection detail `47` -> `200`, `category = "Essential"`, tags `Audio` + `Gameplay`
+  - collection mods read -> `200`, returned four members: sample workout `16112` plus seeded workouts `16140`, `16141`, `16142`
+  - public collection list and owner `/me/collections` readbacks both show live collection inventory; collection comments list is currently empty but readable (`200`)
+
+Validation reruns:
+```bash
+godot --headless --path .testbed --script res://tests/validate_scaffold.gd
+godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit
+godot --headless --path .testbed --script res://modio_collection_eligibility_harness.gd
+```
+Observed result: scaffold validation passed, the full regression suite passed at `95/95`, and the collection-eligibility harness exited `0` with `ok = true` after verifying guide `43`, seeding collection-eligible workouts, and creating/readback-validating collection `47`.
+
+---
+
+### Task 15: QA the collection eligibility and guide fixture sweep
+
+**Bead ID:** `oc-ypf7`  
+**SubAgent:** `primary`  
+**Role:** `qa`  
+**References:** `REF-01` through `REF-07`  
+**Prompt:** In `aerobeat-vendor-modio`, claim bead `oc-ypf7` on start. Independently verify the collection-eligibility investigation and guide-fixture sweep against the test sandbox, rerun the relevant harness/tests/probes, confirm outcomes and request shaping, make only minimum necessary QA fixes if required, update this master plan with findings, and close the bead with a clear reason.
+
+**Folders Created/Deleted/Modified:**
+- `.plans/`
+- code/tests only if minimum fix is needed
+
+**Files Created/Deleted/Modified:**
+- `.plans/2026-05-06-aerobeat-vendor-modio-master-rest-api-exercise.md`
+- code/tests only if needed
+
+**Status:** ⏳ Pending
+
+**Results:** Pending.
+
+---
+
+### Task 16: Audit the collection eligibility and guide fixture findings
+
+**Bead ID:** `oc-4yd4`  
+**SubAgent:** `primary`  
+**Role:** `auditor`  
+**References:** `REF-01` through `REF-07`  
+**Prompt:** In `aerobeat-vendor-modio`, claim bead `oc-4yd4` on start. Perform an independent truth-check of the collection-eligibility and guide-fixture findings after coder + QA. Confirm whether collections can now be unlocked or whether a deeper mod.io eligibility rule remains, note any remaining sandbox or provider caveats, update this master plan with a concise pass/fail result, and close the bead with a clear reason.
 
 **Folders Created/Deleted/Modified:**
 - `.plans/`

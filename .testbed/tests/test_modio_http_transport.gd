@@ -1541,7 +1541,7 @@ func test_executes_collection_authoring_requests_with_documented_multipart_and_d
 	var create_response := transport.execute(auth_adapter.build_add_collection_request({
 		"name": "Starter Bundle",
 		"summary": "A bundle of cardio-friendly starter mods.",
-		"category": 2,
+		"category": "essential",
 		"description": "All the essentials.",
 		"logo": "@/tmp/collection.png",
 		"status": 1,
@@ -1552,6 +1552,8 @@ func test_executes_collection_authoring_requests_with_documented_multipart_and_d
 	assert_true(create_response.ok)
 	assert_eq(_recorded_requests[0].url, "https://g-777.modapi.io/v1/games/777/collections")
 	assert_eq(_recorded_requests[0].headers["Content-Type"], "multipart/form-data; boundary=TEST-BOUNDARY")
+	assert_string_contains(_recorded_requests[0].body_string, 'name="category"')
+	assert_string_contains(_recorded_requests[0].body_string, "essential")
 	assert_string_contains(_recorded_requests[0].body_string, 'name="mod_ids[]"')
 	assert_string_contains(_recorded_requests[0].body_string, "1001")
 	assert_string_contains(_recorded_requests[0].body_string, "1002")
