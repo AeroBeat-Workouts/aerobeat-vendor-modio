@@ -245,6 +245,7 @@ func _initialize() -> void:
 				return harness.summarize_collection_comments_presence_response(adapter, response, COMMENT_LIMIT)
 		))
 
+	results.append_array(_cleanup_disposable_fixtures(adapter, config, harness, created_collection_id, created_seed_mod_ids))
 	_print_summary(config, results, created_seed_mod_ids, created_seed_modfile_ids, created_collection_id, created_collection_name)
 	quit(0 if _results_are_ok(results) else 1)
 
@@ -272,6 +273,31 @@ func _attempt_collection_create(adapter, config, results: Array[Dictionary], id:
 	)
 	results.append(create_result)
 	return int(create_result.get("details", {}).get("id", 0)) if str(create_result.get("status", "")) == "ok" else 0
+
+func _cleanup_disposable_fixtures(adapter, config, harness: ModioLiveHarness, created_collection_id: int, created_seed_mod_ids: Array[int]) -> Array[Dictionary]:
+	var results: Array[Dictionary] = []
+	if created_collection_id > 0:
+		results.append(_run_check(
+			"cleanup_collection_delete",
+			"Delete the disposable collection unlock fixture",
+			adapter.build_delete_collection_request(str(created_collection_id)),
+			config,
+			func(response: Dictionary) -> Dictionary:
+				return harness.summarize_no_content_write_response(adapter, response, "deleted")
+		))
+	for index in range(created_seed_mod_ids.size() - 1, -1, -1):
+		var mod_id := int(created_seed_mod_ids[index])
+		if mod_id <= 0:
+			continue
+		results.append(_run_check(
+			"cleanup_seed_mod_delete_%s" % str(index + 1),
+			"Delete disposable seed workout %s" % str(index + 1),
+			adapter.build_delete_mod_request(str(mod_id)),
+			config,
+			func(response: Dictionary) -> Dictionary:
+				return harness.summarize_no_content_write_response(adapter, response, "deleted")
+		))
+	return results
 
 func _run_check(id: String, label: String, request: Dictionary, config, detail_builder: Callable) -> Dictionary:
 	var transport := ModioHttpTransport.new()

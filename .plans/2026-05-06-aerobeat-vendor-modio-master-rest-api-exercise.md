@@ -940,9 +940,49 @@ Observed result: scaffold validation passed, the full regression suite passed at
 - `.plans/2026-05-06-aerobeat-vendor-modio-master-rest-api-exercise.md`
 - code/tests only if needed
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** QA independently reran the collection-eligibility and guide-fixture sweep on the real AeroBeat `test.mod.io` sandbox and confirmed the coder slice’s main conclusion: guide fixture `43` is a valid public/readable fixture, the API-side collection activation minimum is **3 public workouts**, and fresh workouts must carry `community_options = 131072` (`ALLOW_MOD_USE_IN_COLLECTIONS`) to be collection-eligible. No repo code fix was required in this QA pass.
+
+Independent validation evidence:
+```bash
+godot --headless --path .testbed --script res://tests/validate_scaffold.gd
+godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit
+godot --headless --path .testbed --script res://modio_collection_eligibility_harness.gd
+godot --headless --path .testbed --script /tmp/modio_oc_ypf7_request_probe.gd
+```
+
+Observed results:
+- scaffold validation passed
+- full fixture-driven suite passed at `95/95` tests
+- the dedicated collection-eligibility harness exited `0` with `ok = true` after rechecking guide fixture `43`, reproducing the one-mod collection rejection, reseeding three new collection-eligible workouts, and creating a fresh public collection `48`
+- the one recurring `Unicode parsing error ... Invalid UTF-8 leading byte (89)` line appears while diagnostic output mirrors PNG multipart bytes; QA found no transport failure behind that warning because the actual multipart requests still succeeded end-to-end
+
+Confirmed sandbox outcomes from the QA harness run:
+- **Guide fixture `43` is live and publicly readable.**
+  - `GET /games/1325/guides/43` -> HTTP `200`; `id = 43`, `name = "test"`, `name_id = "test"`, `status = 1`, `allows_comments = true`, `comments_total = 1`
+  - `GET /games/1325/guides/43/comments?_limit=5&_offset=0` -> HTTP `200`; returned comment id `407`, `response_result_limit = 5`, `response_result_total = 1`
+  - `GET /games/1325/guides/43/comments/407` -> HTTP `200`; `content = "this is a test comment"`, `username = "DerrickBarra"`
+  - `GET /games/1325/guides/tags` -> HTTP `200`; public tag directory contained `DNU_PINNED`, `hi chip`, and `test`
+- **Collection activation minimum is still reproducibly 3 public workouts, not 4.**
+  - `POST /games/1325/collections` with only sample workout `16112` -> HTTP `422`, provider error ref `29614`, message `There must be at least 3 public Workouts in this collection to be able to activate it.`
+- **Fresh workouts still need the collection-use community flag.**
+  - the rerun-created seed workouts `16143`, `16144`, and `16145` all read back publicly with `status = 1`, `visible = 1`, `community_options = 131072`, `allows_collections = true`
+  - corresponding seed builds `22720`, `22721`, and `22722` uploaded successfully before publish
+- **Collection testing remains unlocked from the API side.**
+  - `POST /games/1325/collections` with sample workout `16112` plus the three new seeds -> HTTP `201`, created public collection `48` (`oc-3z6v collection unlock 1778098534`)
+  - `GET /games/1325/collections/48` -> HTTP `200`; `category = "Essential"`, tags `Audio` + `Gameplay`, `status = 1`, `visible = true`
+  - `GET /games/1325/collections/48/mods?_limit=5&_offset=0` -> HTTP `200`; returned four members: `16112`, `16143`, `16144`, `16145`
+  - `GET /games/1325/collections?_limit=5&_offset=0` -> HTTP `200`; public list now includes the earlier unlocked collections plus the new `48`
+  - `GET /me/collections?_limit=5&_offset=0` -> HTTP `200`; owner inventory reflected four collections total, with the older `test-collection` remaining first in the list ordering
+  - `GET /games/1325/collections/48/comments?_limit=5&_offset=0` -> HTTP `200`; empty but readable (`response_result_total = 0`)
+
+Independent request-shape truth check from `/tmp/modio_oc_ypf7_request_probe.gd`:
+- guide comment list reads are still prepared as public/api-key queries on `/games/1325/guides/43/comments` with `_limit = "5"` and `_offset = "0"`
+- collection creation is still prepared as bearer-authenticated multipart `POST /games/1325/collections`
+- the multipart body contains `category = essential` as a trimmed **string** field, repeated `mod_ids[]` entries for each workout id, repeated `tags[]` entries, and an `Authorization` header; QA found no regression of the collection-category request-shaping fix
+
+QA conclusion: this slice is materially validated and ready for audit. The repo’s collection/guide request shaping matches the intended contract, the sandbox fixture/eligibility findings reproduced cleanly on a fresh run, and the remaining caveat is operational rather than code-level: the current harness proves eligibility by creating additional disposable public seed workouts and collections, so repeated QA/audit passes will continue to grow sandbox fixture inventory unless a cleanup-specific follow-up bead is added.
 
 ---
 
@@ -960,9 +1000,82 @@ Observed result: scaffold validation passed, the full regression suite passed at
 **Files Created/Deleted/Modified:**
 - `.plans/2026-05-06-aerobeat-vendor-modio-master-rest-api-exercise.md`
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** Independent auditor rerun says this slice is **validated**: collections can now be unlocked from the API side, the category-string fix still holds, and there is no deeper hidden eligibility rule beyond what the sandbox is already returning.
+
+Fresh audit evidence captured on current head:
+```bash
+godot --headless --path .testbed --script res://tests/validate_scaffold.gd
+godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit
+godot --headless --path .testbed --script res://modio_collection_eligibility_harness.gd
+godot --headless --path .testbed --script /tmp/modio_oc_ypf7_request_probe.gd
+```
+
+Observed audit results:
+- scaffold validation passed
+- full fixture-driven suite stayed green at `95/95` tests
+- the dedicated collection-eligibility harness exited `0` with `ok = true` after rechecking guide fixture `43`, reproducing the one-workout collection rejection, seeding three new collection-eligible workouts, and creating a fresh public collection `49`
+- the direct prepared-request probe still shows collection creation shaped as bearer-authenticated multipart with `category = essential` as a trimmed **string** field, repeated `mod_ids[]`, repeated `tags[]`, and an `Authorization` header
+
+Fresh sandbox truth-check from the auditor rerun:
+- **Guide fixture `43` remains real and publicly readable**: detail `200` with `id = 43`, `name = "test"`, `status = 1`, `allows_comments = true`, `comments_total = 1`; comment list `200` returning comment id `407`; comment detail `200` with `content = "this is a test comment"`; guide tags read `200` with `DNU_PINNED`, `hi chip`, and `test`
+- **Collection activation minimum remains exactly 3 public workouts, not 4**: a create attempt with only workout `16112` still returned `422`, provider error ref `29614`, message `There must be at least 3 public Workouts in this collection to be able to activate it.`
+- **Fresh workouts still need the collection-use community flag**: the rerun-created seed workouts `16146`, `16147`, and `16148` read back publicly with `status = 1`, `visible = 1`, `community_options = 131072`, and `allows_collections = true`
+- **Collection unlock still works once those conditions are met**: collection create returned `201` for new collection `49` (`oc-3z6v collection unlock 1778098720`); detail readback returned `200` with `category = "Essential"`, `status = 1`, `visible = true`, and tags `Audio` + `Gameplay`; collection member readback returned four workouts (`16112`, `16146`, `16147`, `16148`); public collection browse and owner `/me/collections` both remained readable; collection comments stayed empty but readable with `200`
+
+Audit conclusion:
+- **Pass** for the collection eligibility rule as documented by coder + QA: the API-side rule is 3 public workouts, and the sandbox collection unlock flow is genuinely reproducible
+- **Pass** for the collection create request-shaping fix: `category` is still sent as a string and the real sandbox accepts that shape
+- **No deeper hidden eligibility rule was uncovered** in this audit pass beyond the already documented requirements that workouts be public and carry `community_options = 131072` / `allows_collections = true`
+- Remaining caveat is operational, not a reopened repo bug: each rerun seeds additional disposable public workouts/collections in the sandbox, and the request-probe diagnostic still emits UTF-8 warning noise while mirroring PNG multipart bytes for logging even though the real multipart transport path succeeds
+
+---
+
+### Task 17: Clean up disposable sandbox fixtures from validation sweeps
+
+**Bead ID:** `oc-sbi1`  
+**SubAgent:** `primary`  
+**Role:** `coder`  
+**References:** `REF-01` through `REF-07`  
+**Prompt:** In `aerobeat-vendor-modio`, claim bead `oc-sbi1` on start. Clean up disposable sandbox fixtures created during the validation sweeps where doing so is safe and does not destroy the stable fixtures we now rely on for future testing/documentation (for example, keep the intentionally useful anchor fixtures but remove obvious throwaway duplicates). Document exactly what was kept vs deleted and why, verify that the remaining validated harness flows still work against the retained fixtures, update this master plan with exact evidence/results, commit and push by default if repo files change, and close the bead with a clear reason.
+
+**Folders Created/Deleted/Modified:**
+- `.plans/`
+- `.testbed/` local runtime artifacts only as needed
+
+**Files Created/Deleted/Modified:**
+- `.plans/2026-05-06-aerobeat-vendor-modio-master-rest-api-exercise.md`
+- `.testbed/modio_collection_eligibility_harness.gd`
+
+**Status:** ✅ Complete
+
+**Results:** Cleaned the disposable collection-eligibility sweep fixtures down to the durable anchors we still want to keep, then tightened the collection harness so future reruns clean up their own temporary collection seeds instead of leaving new public clutter behind.
+
+Kept on purpose:
+- sample workout/mod `16112` (`oc-4wr sandbox pagination sample 1778082871`) because it is the stable public/owned anchor used by the low-risk write harness, dependency checks, and the collection unlock probe
+- published guide `43` plus guide comment `407` because they are the durable real-fixture anchors for guide/detail/comment coverage and documentation
+- manual collection `45` (`test-collection`) because it is a pre-existing human-created fixture rather than disposable sweep output
+- existing baseline mod comment `406` on workout `16112` because it is now part of the stable sandbox state the comment harness reads around safely
+
+Deleted as disposable sweep output:
+- collection unlock sweeps `46`, `47`, `48`, `49`, and `50` (`oc-3z6v collection unlock ...`) via authenticated `DELETE /games/1325/collections/{id}` returning HTTP `204`
+- collection seed workouts `16134` through `16151` (`oc-3z6v collection seed ...`) via authenticated `DELETE /games/1325/mods/{id}` returning HTTP `204`
+- repo-local throwaway runtime folder `.testbed/tmp-oc-am6`
+
+Important nuance:
+- mod.io soft-deletes owned mods/collections into status `3`, so deleted seed artifacts still appear in owner `/me/mods` and `/me/collections` history, but they no longer appear in the public browse path that the live harness uses for the stable public fixture selection
+
+Validation after cleanup:
+- `godot --headless --path .testbed --script res://tests/validate_scaffold.gd` -> passed
+- `godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit` -> `95/95` passed
+- `godot --headless --path .testbed --script res://modio_live_harness.gd -- --env test --allow-writes --json` -> overall `ok: true`; public browse now selects stable workout `16112` again (`response_result_total = 1`, `selected_mod_id = 16112`)
+- `godot --headless --path .testbed --script res://modio_collection_eligibility_harness.gd` -> overall `ok: true`; one-mod create probe still reproduces provider rule `29614`, collection unlock still succeeds, and new cleanup checks now delete the disposable collection plus all three temporary seed workouts with HTTP `204`
+- `godot --headless --path .testbed --script res://modio_unlocked_family_harness.gd` -> still exits `1`, but for the same already-documented upstream caveat only: immediate public detail rereads after comment updates stayed stale (`matches_expected_content = false`) for both mod comments and guide comments even though create/update/delete/read-list flows still worked end-to-end and cleanup succeeded
+
+Code/documentation changes made in this slice:
+- updated `.testbed/modio_collection_eligibility_harness.gd` so it now deletes its disposable collection plus seeded workouts after verification
+- updated this master plan with the exact kept-vs-deleted inventory and post-cleanup evidence
 
 ---
 
@@ -970,12 +1083,13 @@ Observed result: scaffold validation passed, the full regression suite passed at
 
 **Status:** ✅ Complete
 
-**What We Built:** A real-sandbox confidence pass for `aerobeat-vendor-modio` that now covers the core public browse/detail lane, bearer-authenticated self/inventory reads, reversible low-risk user writes the sandbox permits, and owned mod authoring/modfile/media maintenance. The work also found and fixed one genuine transport seam bug: binary multipart writes now dispatch via `HTTPClient.request_raw(...)`, which unblocked real upload/update coverage on `test.mod.io`.
+**What We Built:** A real-sandbox confidence pass for `aerobeat-vendor-modio` that now covers the core public browse/detail lane, bearer-authenticated self/inventory reads, reversible low-risk user writes the sandbox permits, owned mod authoring/modfile/media maintenance, guide/comment/dependency coverage, and collection eligibility probes. The work also found and fixed one genuine transport seam bug: binary multipart writes now dispatch via `HTTPClient.request_raw(...)`, which unblocked real upload/update coverage on `test.mod.io`. The final cleanup slice additionally pruned disposable collection sweep fixtures back to the stable anchors and hardened the collection harness so future reruns self-clean their temporary seeds.
 
-**Reference Check:** `REF-01` and the wrapped surface list were reconciled against the exercised endpoint matrix; `REF-02` through `REF-06` supplied the sandbox harness/config evidence used for every completed slice; `REF-07` remained the doc-side source of truth for route/auth interpretation. Later follow-up slices additionally proved guide reads/writes, guide comments, mod comments, and positive dependency creation in the test sandbox, leaving collections, richer multi-user social writes, monetization, checkout, entitlements, platform auth, S2S, and live-only parity as the remaining explicit exclusions/caveats.
+**Reference Check:** `REF-01` and the wrapped surface list were reconciled against the exercised endpoint matrix; `REF-02` through `REF-06` supplied the sandbox harness/config evidence used for every completed slice; `REF-07` remained the doc-side source of truth for route/auth interpretation. Later follow-up slices additionally proved guide reads/writes, guide comments, mod comments, positive dependency creation, and collection unlock behavior in the test sandbox, while the cleanup slice restored the retained long-lived anchors (`16112`, guide `43`, comment `407`, collection `45`) as the stable public/test fixtures. Remaining explicit caveats are provider/platform-side rather than wrapper-side: public comment-detail rereads stay stale immediately after updates, owner inventory shows soft-deleted fixtures with status `3`, and the broader monetization/checkout/entitlement/platform/S2S/live-only lanes remain outside this exercise.
 
 **Commits:**
-- See the completed coder/QA slices above for code-bearing changes; this final auditor pass only updated plan documentation.
+- See the completed coder/QA slices above for earlier code-bearing changes.
+- Final cleanup slice commit includes the collection-harness self-cleanup change plus master-plan evidence updates.
 
 **Lessons Learned:**
 - The `test.mod.io` sandbox is strong enough to harden the core transport/normalization seam before lifting behavior into higher layers, but it is not a substitute for every auth/platform/commerce/backend lane.
