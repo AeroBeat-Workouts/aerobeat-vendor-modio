@@ -441,9 +441,38 @@ Observed post-fix results:
 - `.plans/2026-05-06-aerobeat-vendor-modio-test-sandbox-validation.md`
 - code/tests only if needed
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** QA independently confirmed the coder conclusion holds: the mod-list request is still being constructed with `_limit=3`, and the confusing `100` value is coming back from the sandbox response envelope rather than from client-side request loss.
+
+Evidence / exact validation commands:
+
+```bash
+godot --headless --path .testbed --script res://tests/validate_scaffold.gd
+godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit
+godot --headless --path .testbed --script /tmp/modio_qa_limit_probe.gd
+godot --headless --path .testbed --script res://modio_live_harness.gd -- --env test --public-only --json
+godot --headless --path .testbed --script res://modio_live_harness.gd -- --env test --json
+```
+
+Observed results:
+- scaffold validation passed
+- full fixture-driven suite passed: `89/89` tests
+- direct prepared-request probe showed the exact masked outbound browse URL and query:
+  - path: `/games/1325/mods`
+  - query: `_limit=3`, `_offset=0`, `api_key=***REDACTED***`
+  - final URL: `https://g-1325.test.mod.io/v1/games/1325/mods?_limit=3&_offset=0&api_key=***REDACTED***`
+- public harness run against `test.mod.io` returned HTTP `200` for `mods` and now reports the intended distinction explicitly:
+  - `requested_limit = 3`
+  - `response_result_limit = 100`
+  - `response_result_count = 0`
+  - `response_result_total = 0`
+- authenticated harness run against `test.mod.io` also stayed green overall and preserved the same mods summary while `/me` returned the previously validated normalized profile fields
+
+QA conclusion:
+- no additional code fix was required in this pass
+- the request-shaping side is correct end-to-end through `ModioListingQuery -> build_listing_request() -> prepare_request()`
+- the harness output is now truthful for the small-sample browse intent because it exposes both the client-requested cap and the sandbox’s server-reported pagination echo separately
 
 ---
 
@@ -454,6 +483,193 @@ Observed post-fix results:
 **Role:** `auditor`  
 **References:** `REF-04`, `REF-05`, `REF-06`  
 **Prompt:** In `aerobeat-vendor-modio`, claim bead `oc-pmh` on start. Perform an independent truth-check of the final `_limit` behavior after coder + QA. Confirm whether the request shaping and observed output now match the intended small-sample browse flow, note any remaining caveats, update the active plan with a concise pass/fail result, and close the bead with a clear reason.
+
+**Folders Created/Deleted/Modified:**
+- `.plans/`
+
+**Files Created/Deleted/Modified:**
+- `.plans/2026-05-06-aerobeat-vendor-modio-test-sandbox-validation.md`
+
+**Status:** ✅ Complete
+
+**Results:** Audit verdict: **PASS** for the intended small-sample browse flow.
+
+Independent truth-check performed after the coder fix:
+
+```bash
+godot --headless --path .testbed --script res://tests/validate_scaffold.gd
+godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit
+godot --headless --path .testbed --script res://modio_live_harness.gd -- --env test --public-only --json
+godot --headless --path .testbed --script /tmp/modio_audit_limit_probe.gd
+```
+
+Observed audit evidence:
+- focused/full test pass stayed green at `89/89`
+- real sandbox harness returned HTTP `200` for the public checks and now reports the mod browse result as:
+  - `requested_limit = 3`
+  - `response_result_count = 0`
+  - `response_result_limit = 100`
+  - `response_result_total = 0`
+- independent prepared-request probe confirmed the actual request shape is correct on our side:
+  - path: `/games/1325/mods`
+  - query included `_limit = "3"`, `_offset = "0"`, and `api_key`
+  - final URL serialized as `https://g-1325.test.mod.io/v1/games/1325/mods?_limit=3&_offset=0&api_key=***REDACTED***`
+
+Audit conclusion:
+- request shaping now matches the intended small-sample browse flow
+- observed harness output now matches that intent clearly by separating the client-requested cap from the server-reported pagination echo
+- the remaining `response_result_limit = 100` is a sandbox/server-side response characteristic for the current empty listing, not evidence that the client dropped `_limit=3`
+
+Remaining caveats:
+- the current sandbox listing is empty, so we still do not have a non-empty browse result proving how mod.io echoes `result_limit` when actual rows are returned
+- workflow bookkeeping is slightly behind the evidence: Bead `oc-0bp` was still marked `in_progress` at audit time even though the independent validation needed for this audit pass is green
+
+---
+
+### Task 11: Populate the test sandbox with a sample mod and verify non-empty list pagination
+
+**Bead ID:** `oc-4wr`  
+**SubAgent:** `primary`  
+**Role:** `coder`  
+**References:** `REF-02`, `REF-03`, `REF-04`, `REF-05`, `REF-06`  
+**Prompt:** In `aerobeat-vendor-modio`, claim bead `oc-4wr` on start. Use the validated test email-auth token flow to create the smallest safe sample mod in the AeroBeat test.mod.io sandbox, then rerun the list/read harness so we can observe pagination behavior on a non-empty listing. Keep the write scope minimal and reversible. Record the exact create/list/read commands, the created mod identifiers, the observed list pagination fields, and whether `requested_limit = 3` versus `response_result_limit` behaves differently once results exist. Update the active plan with exact evidence/results, commit and push any code/docs/test changes by default if needed, and close the bead with a clear reason.
+
+**Folders Created/Deleted/Modified:**
+- `.plans/`
+- `.testbed/` local ignored config/runtime only as needed
+- `src/` / tests only if code changes are actually required
+
+**Files Created/Deleted/Modified:**
+- `.plans/2026-05-06-aerobeat-vendor-modio-test-sandbox-validation.md`
+- code/tests only if needed
+
+**Status:** ✅ Complete
+
+**Results:** Used the already-validated local test email-auth bearer token from `REF-03` to create the smallest safe sandbox artifact that would actually surface in the public game browse path, then reran the harness and direct read checks.
+
+Exact create/list/read evidence (with secrets kept local and redacted in prose):
+
+```bash
+# Create a disposable 512x512 logo PNG used only for the sandbox sample mod
+ffmpeg -y -f lavfi -i color=c=0x00B4FF:s=512x512:d=1 -frames:v 1 .testbed/tmp-oc-4wr-logo.png
+
+# Create the smallest disposable zip build needed so the mod could be authorized/publicly listed
+mkdir -p .testbed/tmp-oc-4wr-mod
+printf 'oc-4wr sandbox sample build\n' > .testbed/tmp-oc-4wr-mod/README.txt
+(cd .testbed/tmp-oc-4wr-mod && zip -qr ../tmp-oc-4wr-build.zip README.txt)
+
+# Create the mod with the real local sandbox bearer token via a temporary raw HTTPClient Godot probe
+# (final successful field set: lowercase name_id, valid 512x512 logo, explicit metadata_blob string)
+godot --headless --path .testbed --script /tmp/modio_oc_4wr_create_probe.gd
+
+# Add one tiny build to the created mod, then flip only status+visible so the public browse path can see it
+# (modfile POST raw multipart via HTTPClient; status update via existing adapter transport)
+godot --headless --path .testbed --script /tmp/modio_oc_4wr_publish_probe.gd -- 16112
+
+# Public browse/read checks after publish
+# list
+#   GET /games/1325/mods?_limit=3&_offset=0&api_key=***REDACTED***
+# read
+#   GET /games/1325/mods/16112?api_key=***REDACTED***
+godot --headless --path .testbed --script /tmp/modio_oc_4wr_public_detail.gd -- 16112
+
+# Safe harness rerun against the now-non-empty public listing
+godot --headless --path .testbed --script res://modio_live_harness.gd -- --env test --public-only --json
+godot --headless --path .testbed --script res://modio_live_harness.gd -- --env test --json
+
+# Authenticated owner listing for comparison
+#   GET /me/mods?_limit=3&_offset=0&game_id=1325
+godot --headless --path .testbed --script /tmp/modio_oc_4wr_user_mods.gd
+
+# Authenticated bearer read of the draft/private detail before public authorization
+#   GET /games/1325/mods/16112  (Authorization: Bearer ***REDACTED***)
+godot --headless --path .testbed --script /tmp/modio_oc_4wr_bearer_detail.gd -- 16112
+```
+
+Important intermediate behavior captured before the final successful public-list state:
+- initial create attempts with a 1x1 PNG and uppercase/datetime-ish `name_id` were rejected by mod.io with `422 / error_ref 13009`; the final successful create used a lowercase slug-only `name_id`, a 512x512 PNG, and explicit `metadata_blob="{}"`
+- first successful mod creation returned mod `16112` but with `status = 0`, `visible = 1`; at that point:
+  - public `GET /games/1325/mods?_limit=3` still returned an empty listing (`result_count = 0`, `result_limit = 100`, `result_total = 0`)
+  - public `GET /games/1325/mods/16112` failed with `403 / error_ref 15024`
+  - authenticated owner `GET /games/1325/mods/16112` with bearer auth succeeded (`200`)
+  - authenticated owner `GET /me/mods?_limit=3&_offset=0&game_id=1325` succeeded and already showed a non-empty listing with `result_count = 1`, `result_limit = 3`, `result_total = 1`
+- attempting to authorize the mod before it had a file/build failed as expected with `403 / error_ref 15016` (`The specified mod cannot be authorized until it has at least one build available.`)
+- after uploading one tiny zip build (`modfile id = 22687`, `version = 0.0.1`) and then updating only `status=1` + `visible=1`, the public browse/read path immediately became usable
+
+Created sandbox objects:
+- sample mod:
+  - `mod_id = 16112`
+  - `name = "oc-4wr sandbox pagination sample 1778082871"`
+  - `name_id = "oc-4wr-sandbox-pagination-sample-1778082871"`
+  - final public state: `status = 1`, `visible = 1`
+- sample modfile/build:
+  - `modfile_id = 22687`
+  - `version = "0.0.1"`
+  - `filename = "tmp-oc-4wr-build-5by3.zip"`
+  - zipped contents: one tiny `README.txt`
+
+Observed pagination behavior once results actually existed:
+- **public game mods listing after publish** (`GET /games/1325/mods?_limit=3&_offset=0&api_key=...`):
+  - `requested_limit = 3`
+  - `response_result_count = 1`
+  - `response_result_limit = 3`
+  - `response_result_offset = 0`
+  - `response_result_total = 1`
+  - `sample_mod_names = ["oc-4wr sandbox pagination sample 1778082871"]`
+- **authenticated owner mods listing while the mod was still non-public** (`GET /me/mods?_limit=3&_offset=0&game_id=1325`):
+  - `result_count = 1`
+  - `result_limit = 3`
+  - `result_offset = 0`
+  - `result_total = 1`
+
+Answer to the `_limit` question with real rows present:
+- yes, behavior **does** differ from the empty-list case
+- before any publicly visible rows existed, the sandbox echoed `response_result_limit = 100` on the empty public listing despite the client requesting `_limit=3`
+- once one publicly visible row existed, the same public listing path echoed `response_result_limit = 3`, matching `requested_limit = 3`
+- authenticated owner listing via `/me/mods` also echoed `result_limit = 3` with one row present
+
+Public harness rerun result after publish:
+- `godot --headless --path .testbed --script res://modio_live_harness.gd -- --env test --public-only --json` now reports the `mods` check as HTTP `200` with:
+  - `requested_limit = 3`
+  - `response_result_count = 1`
+  - `response_result_limit = 3`
+  - `response_result_total = 1`
+  - the sample mod name in `sample_mod_names`
+- full harness rerun with auth also stayed green and still returned the previously validated `/me` identity fields (`id = 71104`, `name_id = "derrickbarra"`, `username = "DerrickBarra"`)
+
+Repo code/docs changes: **none**. Only this plan file was updated; the sandbox artifact changes live solely on `test.mod.io`, and local temp files stayed under ignored `.testbed/` paths.
+
+---
+
+### Task 12: QA the non-empty sandbox list behavior
+
+**Bead ID:** `oc-dz3`  
+**SubAgent:** `primary`  
+**Role:** `qa`  
+**References:** `REF-02`, `REF-03`, `REF-04`, `REF-05`, `REF-06`  
+**Prompt:** In `aerobeat-vendor-modio`, claim bead `oc-dz3` on start. Independently verify the non-empty sandbox mod-list behavior after the sample mod exists. Re-run the focused harness/inspection steps, confirm the request/query is still `_limit=3`, verify the returned listing data and pagination fields, make only minimum necessary fixes if needed, update the active plan with findings, and close the bead with a clear reason.
+
+**Folders Created/Deleted/Modified:**
+- `.plans/`
+- code/tests only if a minimal QA fix is needed
+
+**Files Created/Deleted/Modified:**
+- `.plans/2026-05-06-aerobeat-vendor-modio-test-sandbox-validation.md`
+- code/tests only if needed
+
+**Status:** ⏳ Pending
+
+**Results:** Pending.
+
+---
+
+### Task 13: Audit the final non-empty sandbox pagination conclusion
+
+**Bead ID:** `oc-6xq`  
+**SubAgent:** `primary`  
+**Role:** `auditor`  
+**References:** `REF-02`, `REF-03`, `REF-04`, `REF-05`, `REF-06`  
+**Prompt:** In `aerobeat-vendor-modio`, claim bead `oc-6xq` on start. Perform an independent truth-check of the non-empty sandbox pagination findings after coder + QA. Confirm whether the final observed behavior supports the conclusion about client request shaping versus server-side pagination echo/default behavior, record any remaining caveats, update the active plan with a concise pass/fail result, and close the bead with a clear reason.
 
 **Folders Created/Deleted/Modified:**
 - `.plans/`
