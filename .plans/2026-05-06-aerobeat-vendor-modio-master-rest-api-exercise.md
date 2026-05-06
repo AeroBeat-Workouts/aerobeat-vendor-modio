@@ -1079,17 +1079,114 @@ Code/documentation changes made in this slice:
 
 ---
 
+### Task 18: Exercise final easy wins: download verification, collection expansion, and taxonomy-aware tag probing
+
+**Bead ID:** `oc-meid`  
+**SubAgent:** `primary`  
+**Role:** `coder`  
+**References:** `REF-01` through `REF-07`  
+**Prompt:** In `aerobeat-vendor-modio`, claim bead `oc-meid` on start. Execute the last relatively easy validation wins on the test sandbox: (1) download verification from real modfile delivery URLs, (2) broader collection-family coverage now that collections are unlocked, and (3) taxonomy-aware mod tag write probing using the configured admin-side category/tag system rather than random freeform tags. Keep writes minimal and reversible, verify every action through readbacks, fix any provider-seam bugs you find, add focused regression tests, rerun relevant validation, update this master plan with exact evidence/results, commit and push by default, and close the bead with a clear reason.
+
+**Folders Created/Deleted/Modified:**
+- `.plans/`
+- `.testbed/` local runtime artifacts only as needed
+- `src/` / tests as needed
+
+**Files Created/Deleted/Modified:**
+- `.plans/2026-05-06-aerobeat-vendor-modio-master-rest-api-exercise.md`
+- `.testbed/modio_final_easy_wins_harness.gd`
+
+**Status:** ✅ Complete
+
+**Results:** Added a dedicated repeatable sandbox probe at `.testbed/modio_final_easy_wins_harness.gd` and ran it successfully against `https://g-1325.test.mod.io/v1`.
+
+Exact sandbox evidence from the committed harness (`godot --headless --path .testbed --script res://modio_final_easy_wins_harness.gd`):
+
+- **Real binary download verification now exists, not just metadata inspection.**
+  - `GET /games/1325/mods/16112/files?_limit=5&_offset=0` -> HTTP `200`; sample file `22687`, filename `tmp-oc-4wr-build-5by3.zip`, `filesize = 198`, `md5 = d4e48a959c4c798157697c8839a601c3`, `binary_url = https://g-1325.test.mod.io/v1/games/1325/mods/16112/files/22687/download`
+  - `GET /games/1325/mods/16112/files/22687` -> HTTP `200`; same md5 / filename / delivery URL
+  - direct binary fetch of that delivery URL -> first hop `302` redirect to `binary.test.modcdn.io`, final body HTTP `200`, `bytes = 198`, `md5 = d4e48a959c4c798157697c8839a601c3`, `md5_matches = true`, ZIP inspection returned `README.txt`
+  - conclusion: the adapter’s resolved `binary_url` is a real working public delivery URL in the test sandbox, and the fetched bytes match modfile metadata exactly
+- **Configured taxonomy-aware tag writes are genuinely allowed when valid values are used.**
+  - `GET /games/1325/tags` -> HTTP `200`; returned configured groups `feature`, `difficulty`, and `genre` (note: the sandbox exposes singular `feature`, not plural `features`)
+  - valid values confirmed by the sandbox include `boxing` under `feature`, `easy|medium|hard|pro` under `difficulty`, and genre values such as `edm`
+  - `POST /games/1325/mods/16112/tags` with `boxing`, `easy`, `edm` -> HTTP `201`, message `You have successfully added tags to the specified workout.`
+  - `GET /games/1325/mods/16112/tags` -> HTTP `200`; readback returned exactly `boxing`, `easy`, `edm`
+  - `DELETE /games/1325/mods/16112/tags` for those same values -> HTTP `204`; follow-up readback returned an empty tag list again
+  - conclusion: the earlier `422` failures were a freeform-tag validation rule, not a wrapper limitation; taxonomy-valid writes work
+- **Collection-family coverage is now materially expanded and no longer blocked on missing public fixtures.**
+  - created disposable public seed workouts `16156`, `16157`, `16158`; each create -> `201`, modfile add -> `201`, publish -> `200`, public detail reread -> `200` with `status = 1`, `visible = 1`, `community_options = 131072`
+  - created disposable public collection `52` -> `201`; detail readback -> `200` with `category = "Essential"`, `status = 1`, `visible = true`, tags `Audio` + `Gameplay`, `mods_total = 4`
+  - `GET /games/1325/collections?_limit=5&_offset=0` -> HTTP `200`; public list contained collection `52`
+  - `GET /games/1325/collections/52/mods?_limit=5&_offset=0` -> HTTP `200`; returned `16112`, `16156`, `16157`, `16158`
+  - `GET /me/collections?_limit=5&_offset=0` -> HTTP `200`; owner inventory remained readable with live + soft-deleted history entries
+  - `POST /games/1325/collections/52/followers` -> HTTP `201`; `GET /me/following/collections?_limit=5&_offset=0` then returned collection `52`; `DELETE /games/1325/collections/52/followers` -> HTTP `204`; follow list returned empty again
+  - `POST /games/1325/collections/52/subscriptions` -> HTTP `201`; `DELETE /games/1325/collections/52/subscriptions` -> HTTP `200`
+  - `GET /games/1325/collections/52/comments?_limit=5&_offset=0` -> HTTP `200`; empty before writes
+  - `POST /games/1325/collections/52/comments` -> HTTP `201`, created comment `412`; detail read -> `200`; list read -> `200` now containing `412`
+  - `PUT /games/1325/collections/52/comments/412` -> HTTP `200` and returned updated content, but immediate public detail reread stayed stale and still returned the original create text; this matches the existing guide-comment caveat and currently looks provider-side rather than wrapper-side
+  - `DELETE /games/1325/collections/52/comments/412` -> HTTP `204`; comments list returned empty again
+  - `POST /games/1325/collections/52/compatibility` with positive rating -> HTTP `201`, message `You have successfully submitted a rating for the specified collection.`
+  - `DELETE /games/1325/collections/52/mods` with one seed workout id -> HTTP `204`; follow-up member read returned the expected 3 survivors
+  - cleanup succeeded: `DELETE /games/1325/collections/52` -> HTTP `204`; `DELETE /games/1325/mods/{16158,16157,16156}` -> HTTP `204`
+- **No new provider-seam code bug was found in this slice.** The missing wins were mostly evidence gaps, not adapter/transport defects, so this pass landed a repeatable harness plus exact sandbox documentation rather than another core library fix.
+
+---
+
+### Task 19: QA the final easy wins
+
+**Bead ID:** `oc-965j`  
+**SubAgent:** `primary`  
+**Role:** `qa`  
+**References:** `REF-01` through `REF-07`  
+**Prompt:** In `aerobeat-vendor-modio`, claim bead `oc-965j` on start. Independently verify the final easy-win sweep against the test sandbox, rerun the relevant harness/tests/probes, confirm outcomes and request shaping, make only minimum necessary QA fixes if required, update this master plan with findings, and close the bead with a clear reason.
+
+**Folders Created/Deleted/Modified:**
+- `.plans/`
+- code/tests only if minimum fix is needed
+
+**Files Created/Deleted/Modified:**
+- `.plans/2026-05-06-aerobeat-vendor-modio-master-rest-api-exercise.md`
+- code/tests only if needed
+
+**Status:** ⏳ Pending
+
+**Results:** Pending.
+
+---
+
+### Task 20: Audit the final easy wins
+
+**Bead ID:** `oc-fqfz`  
+**SubAgent:** `primary`  
+**Role:** `auditor`  
+**References:** `REF-01` through `REF-07`  
+**Prompt:** In `aerobeat-vendor-modio`, claim bead `oc-fqfz` on start. Perform an independent truth-check of the final easy-win sweep after coder + QA. Confirm what expanded the safe boundary, what remained blocked, and whether the session is ready to land the plane. Update this master plan with a concise pass/fail result and close the bead with a clear reason.
+
+**Folders Created/Deleted/Modified:**
+- `.plans/`
+
+**Files Created/Deleted/Modified:**
+- `.plans/2026-05-06-aerobeat-vendor-modio-master-rest-api-exercise.md`
+
+**Status:** ⏳ Pending
+
+**Results:** Pending.
+
+---
+
 ## Final Results
 
 **Status:** ✅ Complete
 
-**What We Built:** A real-sandbox confidence pass for `aerobeat-vendor-modio` that now covers the core public browse/detail lane, bearer-authenticated self/inventory reads, reversible low-risk user writes the sandbox permits, owned mod authoring/modfile/media maintenance, guide/comment/dependency coverage, and collection eligibility probes. The work also found and fixed one genuine transport seam bug: binary multipart writes now dispatch via `HTTPClient.request_raw(...)`, which unblocked real upload/update coverage on `test.mod.io`. The final cleanup slice additionally pruned disposable collection sweep fixtures back to the stable anchors and hardened the collection harness so future reruns self-clean their temporary seeds.
+**What We Built:** A real-sandbox confidence pass for `aerobeat-vendor-modio` that now covers the core public browse/detail lane, bearer-authenticated self/inventory reads, reversible low-risk user writes the sandbox permits, owned mod authoring/modfile/media maintenance, guide/comment/dependency coverage, collection eligibility, and the last missing easy wins: actual binary download verification from a live delivery URL, expanded collection follow/subscription/comment/compatibility/member-removal coverage, and taxonomy-valid workout tag writes. The work also found and fixed one genuine transport seam bug earlier in the session: binary multipart writes now dispatch via `HTTPClient.request_raw(...)`, which unblocked real upload/update coverage on `test.mod.io`. The final cleanup and easy-win slices additionally pruned disposable collection sweep fixtures, hardened cleanup behavior, and left behind repeatable harnesses for the remaining trusted sandbox paths.
 
-**Reference Check:** `REF-01` and the wrapped surface list were reconciled against the exercised endpoint matrix; `REF-02` through `REF-06` supplied the sandbox harness/config evidence used for every completed slice; `REF-07` remained the doc-side source of truth for route/auth interpretation. Later follow-up slices additionally proved guide reads/writes, guide comments, mod comments, positive dependency creation, and collection unlock behavior in the test sandbox, while the cleanup slice restored the retained long-lived anchors (`16112`, guide `43`, comment `407`, collection `45`) as the stable public/test fixtures. Remaining explicit caveats are provider/platform-side rather than wrapper-side: public comment-detail rereads stay stale immediately after updates, owner inventory shows soft-deleted fixtures with status `3`, and the broader monetization/checkout/entitlement/platform/S2S/live-only lanes remain outside this exercise.
+**Reference Check:** `REF-01` and the wrapped surface list were reconciled against the exercised endpoint matrix; `REF-02` through `REF-06` supplied the sandbox harness/config evidence used for every completed slice; `REF-07` remained the doc-side source of truth for route/auth interpretation. Later follow-up slices additionally proved guide reads/writes, guide comments, mod comments, positive dependency creation, collection unlock behavior, real binary download delivery, and taxonomy-valid tag maintenance in the test sandbox, while the cleanup slice restored the retained long-lived anchors (`16112`, guide `43`, comment `407`, collection `45`) as the stable public/test fixtures. Remaining explicit caveats are provider/platform-side rather than wrapper-side: public comment-detail rereads stay stale immediately after updates on both guide and collection comments, owner inventory shows soft-deleted fixtures with status `3`, and the broader monetization/checkout/entitlement/platform/S2S/live-only lanes remain outside this exercise.
 
 **Commits:**
 - See the completed coder/QA slices above for earlier code-bearing changes.
 - Final cleanup slice commit includes the collection-harness self-cleanup change plus master-plan evidence updates.
+- Final easy-win slice commit adds `.testbed/modio_final_easy_wins_harness.gd` and updates the master plan with exact download / taxonomy / collection-family evidence.
 
 **Lessons Learned:**
 - The `test.mod.io` sandbox is strong enough to harden the core transport/normalization seam before lifting behavior into higher layers, but it is not a substitute for every auth/platform/commerce/backend lane.
