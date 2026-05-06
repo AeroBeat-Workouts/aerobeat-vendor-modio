@@ -572,7 +572,7 @@ Observed real sandbox authoring/maintenance evidence from the final green probe 
 - **Modfile lifecycle coverage is now explicit, not implicit.**
   - added primary modfile `22693` on mod `16117` -> HTTP `201`
   - updated modfile `22693` via `PUT /games/1325/mods/16117/files/22693` -> HTTP `200`
-  - readback via `GET /games/1325/mods/16117/files/22693` -> HTTP `200`, `version = "0.0.2"`, `changelog = "updated build metadata"`, `active = false`, `metadata_blob = "{\"build\":\"v2\"}"`
+  - readback via `GET /games/1325/mods/16117/files/22693` -> HTTP `200`, `version = "0.0.2"`, `changelog = "updated build metadata"`, `metadata_blob = "{\"build\":\"v2\"}"`; later QA raw-payload verification found the current sandbox response does **not** include an explicit `active` field on this route, so the earlier `active = false` readback claim was stronger than the evidence supported
   - uploaded replacement live modfile `22694` -> HTTP `201`
   - deleted the no-longer-live older primary modfile `22693` -> HTTP `204`
   - dependency modfile `22695` stayed undeletable while it was the live release on disposable mod `16118`; `DELETE /games/1325/mods/16118/files/22695` returned HTTP `403`, provider error ref `15009` (`You cannot delete a modfile that is the live release for a mod.`). This is documented as sandbox/provider behavior, not a wrapper failure.
@@ -609,9 +609,68 @@ Net outcome for this coder slice: the repo now has a real multipart-write transp
 - `.plans/2026-05-06-aerobeat-vendor-modio-master-rest-api-exercise.md`
 - code/tests only if needed
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** QA independently reran the authoring/maintenance slice against the real AeroBeat `test.mod.io` sandbox and then audited the coder notes against fresh local validation plus two disposable sandbox probes. No repo code fix was required; the only QA correction was to tighten the plan wording around modfile `active` readback so it matches the raw provider payload actually observed.
+
+Independent validation evidence:
+```bash
+godot --headless --path .testbed --script res://tests/validate_scaffold.gd
+godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit
+godot --headless --path .testbed --script /tmp/modio_oc_am6_probe.gd
+godot --headless --path .testbed --script /tmp/modio_oc_am6_active_probe.gd
+```
+
+Observed results:
+- scaffold validation passed
+- full fixture-driven suite passed at `93/93` tests
+- the transport seam fix is still present and covered locally: `src/network/modio_http_transport.gd` routes multipart/raw-byte writes through `HTTPClient.request_raw(...)` when `_should_use_request_raw(...)` detects a binary multipart body
+- the disposable QA probe created and cleaned up two sandbox mods successfully (`16121`, `16122`) while rerunning the mod/modfile/media/dependency maintenance lifecycle end-to-end through the repo adapter/transport
+
+Confirmed authoring/maintenance outcomes from the QA sandbox probe:
+- **Mod CRUD remains green when exercised in the correct provider order.**
+  - `POST /games/1325/mods` created disposable primary mod `16121` and dependency-target mod `16122` with HTTP `201`
+  - `POST /games/1325/mods/16121` updated the primary mod name/summary with HTTP `200`
+  - an initial QA attempt to authorize a brand-new mod before adding any build reproduced provider error `15016` (`The specified mod cannot be authorized until it has at least one build available.`); QA treats that as an additional sandbox/provider lifecycle caveat, not a wrapper failure
+  - final cleanup deleted both disposable mods with HTTP `204`
+- **Multipart modfile writes are now truly working end-to-end through the fixed transport path.**
+  - added primary modfile `22696` on mod `16121` -> HTTP `201`
+  - updated modfile `22696` via `PUT /games/1325/mods/16121/files/22696` -> HTTP `200`
+  - direct detail readback via `GET /games/1325/mods/16121/files/22696` -> HTTP `200`, `version = "0.0.2"`, `changelog = "updated build metadata"`, `metadata_blob = "{\"build\":\"v2\"}"`
+  - uploaded replacement live modfile `22697` -> HTTP `201`
+  - deleted the older non-live primary modfile `22696` -> HTTP `204`
+  - added dependency-target live modfile `22698` -> HTTP `201`
+  - deleting that still-live dependency modfile reproduced HTTP `403`, provider error ref `15009` (`You cannot delete a modfile that is the live release for a mod.`)
+- **Dependency maintenance remains blocked by sandbox game policy, not by request shaping.**
+  - `POST /games/1325/mods/16121/dependencies` with dependency target `16122` reproduced HTTP `403`, provider error ref `15077` (`Workout can not add dependencies due to the game disallowing it.`)
+  - immediate `GET /games/1325/mods/16121/dependencies?recursive=false` readback stayed HTTP `200` with `result_total = 0`
+  - cleanup `DELETE /games/1325/mods/16121/dependencies` with that same target id returned HTTP `200` as a safe no-op; QA confirmed the earlier coder conclusion here, and adjusted the QA probe expectation accordingly
+- **Metadata KVP maintenance stayed reversible.**
+  - `POST /games/1325/mods/16121/metadatakvp` -> HTTP `201`
+  - immediate readback -> HTTP `200`, `pairs = ["oc-am6=1778090959"]`, `result_total = 1`
+  - `DELETE /games/1325/mods/16121/metadatakvp` -> HTTP `204`
+  - immediate readback -> HTTP `200`, `pairs = []`, `result_total = 0`
+- **Media maintenance stayed green with real server-side filenames.**
+  - first media add -> HTTP `201`; detail readback then exposed `media_after_first_add = ["media-1.png"]`
+  - second media add -> HTTP `201`; follow-up detail readback exposed `media_after_second_add = ["media-1.png", "media-2.png"]`
+  - reorder via `PUT /games/1325/mods/16121/media/reorder` -> HTTP `204`
+  - delete via `DELETE /games/1325/mods/16121/media` -> HTTP `204`
+
+Focused raw-payload audit finding from `/tmp/modio_oc_am6_active_probe.gd`:
+- when QA updated a disposable modfile with `active=false`, the sandbox `PUT` response and subsequent `GET /files/{file-id}` detail payload both preserved the updated `version`, `changelog`, and `metadata_blob`, but they did **not** include an explicit `active` field at all
+- because of that raw provider shape, QA corrected Task 8’s wording to stop claiming a verified `active = false` readback; this is a documentation/evidence correction, not a repo transport or normalization bug
+
+QA/audit conclusion: this slice is actually done. The multipart transport repair is independently validated locally and against the real sandbox, disposable mod/modfile/media lifecycle checks succeed end-to-end through the repo adapter/transport, and the remaining negative results (`15016`, `15009`, `15077`, dependency-delete `200` no-op) are reproducible provider-behavior caveats rather than unresolved wrapper failures.
+
+Post-close independent audit verification pass (rerun after the transport fix landed and QA completed): I treated `oc-am6` as already closed and reran the same validation stack again on current head instead of relying only on the earlier QA note. Fresh evidence on this pass:
+- `godot --headless --path .testbed --script res://tests/validate_scaffold.gd` passed
+- `godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit` passed at `93/93`
+- rerunning `/tmp/modio_oc_am6_probe.gd` created and cleaned up disposable mods `16124` and `16125`, proved multipart add/update/delete on modfiles through the live transport path again (`22700`, `22701`, `22702`), reproduced dependency add `403 / 15077`, reproduced live-release modfile delete `403 / 15009`, and reproduced dependency delete as HTTP `200` safe no-op
+- rerunning `/tmp/modio_oc_am6_active_probe.gd` created disposable mod `16126` with modfile `22703` and again confirmed that the provider preserves updated `version`, `changelog`, and `metadata_blob` but still does **not** surface an explicit `active` field in either the update response or later file detail readback
+
+Additional audit note from this rerun: the probe still emits UTF-8 warning noise while preparing multipart bodies because the prepared request keeps a string mirror of binary bytes for diagnostics, but the actual dispatch path is still `HTTPClient.request_raw(...)` and the real sandbox writes succeed end-to-end. That is log noise, not a reopened transport failure.
+
+Final post-close audit verdict: the slice remains valid as closed. No reopen is needed for `oc-am6`.
 
 ---
 
@@ -629,6 +688,118 @@ Net outcome for this coder slice: the repo now has a real multipart-write transp
 **Files Created/Deleted/Modified:**
 - `.plans/2026-05-06-aerobeat-vendor-modio-master-rest-api-exercise.md`
 
+**Status:** ✅ Complete
+
+**Results:** Independent audit review of the completed slices says the repo is now **ready for scoped `aerobeat-tool-api` dependency**, but **not ready to be treated as full-surface mod.io parity**.
+
+Ready-now coverage that is backed by real `test.mod.io` execution in this plan:
+- public baseline reads: `GET /ping`, `GET /games/{game-id}`, `GET /games/{game-id}/mods`, `GET /games/{game-id}/mods/{mod-id}`
+- owned/public mod child reads: files, file detail, stats, dependants, tags, metadata KVP, team, dependencies readback
+- authenticated bearer reads: `/me`, `/me/games`, `/me/mods`, `/me/files`, `/me/subscribed`, `/me/ratings`, `/me/collections`, `/me/following/collections`, `/me/followers`, `/me/users/muted`, plus `/users/{me-id}/followers|following|collections`
+- low-risk reversible writes that the sandbox actually permits: mod subscribe/unsubscribe, rating presence/readback, metadata KVP add/read/delete
+- authoring/maintenance on owned disposable content: mod create/update/delete, modfile add/update/delete, media add/reorder/delete
+- real provider-seam fix validated: multipart binary writes now use `HTTPClient.request_raw(...)` instead of corrupting multipart uploads through UTF-8 string dispatch
+
+Remaining deferred / blocked / partially verified families and the exact reason each still stays out of the safe dependency boundary:
+- **Guides read/write family** (`/guides`, guide comments, guide tags): **Now positively exercised in the test sandbox** via disposable guide `47`. Public list/detail/tag reads worked, guide create/update/delete worked, and guide comment create/detail/list/delete worked. Remaining caveat: immediate public detail rereads after a guide comment update stayed stale and returned the original create text, which currently looks like upstream/provider cache behavior on the public comment-detail route.
+- **Collections read/write/follow/subscribe/compatibility family**: **Blocked / Deferred** because no sandbox collection corpus was created, so collection reads, membership, comments, follows, subscriptions, and compatibility checks remain unproven.
+- **Multi-user social mutations and rich social assertions** (`follow`, `mute`, non-empty followers/following states): **Partially verified only as empty-state reads** because the current workout effectively has a single practical test user; meaningful positive follow/mute verification wants a second sandbox account.
+- **Mod comments CRUD**: **Now positively exercised in the test sandbox** on public workout `16112`. Create/detail/list/delete worked, but immediate public detail rereads after update still returned the original create text instead of the updated content, matching the guide-comment seam above.
+- **Tag maintenance writes**: **Partially verified / blocked by sandbox validation policy**. Freeform `POST .../tags` returned `422`, provider error ref `13009`; read paths are covered, but write support for this workout is not proven.
+- **Dependency mutation writes**: **Now positively exercised in the test sandbox**. Disposable dependency target mod `16130` plus build `22707` were created, `POST .../dependencies` on parent workout `16112` returned `201`, parent dependency readback showed the target name, dependant readback on the target showed the parent workout, `DELETE .../dependencies` returned `204`, and parent readback after delete returned empty again.
+- **Mod stats**: **Partially verified**. The route itself returns HTTP `200` and the adapter matches the raw payload, but the sandbox payload currently reports zeroed counters and `mod_id = 0`, so the route is transport/normalization-safe without being a strong semantic data assertion.
+- **Ratings mutation**: **Partially verified but operationally acceptable**. Positive rating presence is confirmed through readback and reruns are idempotently handled, but the workout did not include a full destructive reset / alternate-value cycle.
+- **Monetization browse and owned monetization team routes** (`token-packs`, mod monetization team): **Deferred** because they require sandbox monetization setup that is unrelated to the core browse/auth/authoring seam this repo needed to harden first.
+- **Checkout / purchased / wallet / entitlement routes**: **Deferred** because they depend on monetization/store setup, portal/platform headers, and product-specific receipts or purchase state that were not required for the current confidence target.
+- **Platform-gated auth routes** (`steamauth`, `xboxauth`, `psnauth`, `switchauth`, `epicgamesauth`, `googleauth`, `appleauth`, `openidauth`, etc.): **Deferred** because they need real external platform credentials and account-linking setup; the completed bearer validation used the lower-friction email exchange lane instead.
+- **S2S routes** (`/s2s/transactions/*`, `/s2s/connections/*`, monetization-team transaction history): **Deferred by design** because they belong to a secure backend/service-token lane, not the game-client bearer harness lane exercised here.
+- **Live-server parity outside the sandbox**: **Deferred**. The supporting sandbox-validation plan still has pending live `/me` parity tasks, so the current confidence statement is intentionally about the `test.mod.io` seam, not a final live-environment certification.
+
+Readiness recommendation for `aerobeat-tool-api`:
+- **Yes, `aerobeat-tool-api` can now safely depend on this repo for the core mod.io lane** if its near-term feature set is limited to the validated surface above: public browse/detail, bearer-authenticated self reads, reversible user-state writes that the sandbox supports, and owned mod authoring/modfile/media maintenance.
+- **No, `aerobeat-tool-api` should not yet assume the full wrapped REST surface is production-ready.** The deferred families above should stay either unexposed, feature-flagged, or routed behind explicit `not yet validated` guards until AeroBeat actually needs them and a dedicated sandbox/backend validation pass is run.
+- **Practical safe adoption rule:** treat `aerobeat-vendor-modio` as the trusted transport/normalization seam for the already-exercised endpoint families, and treat guides, collections, multi-user social writes, comments, dependency creation, monetization, checkout, entitlements, platform auth, and S2S as out-of-scope for the first `aerobeat-tool-api` dependency milestone.
+- **Recommended next trigger for widening the dependency boundary:** only expand beyond that core lane when AeroBeat has an immediate product requirement plus the necessary sandbox material/auth lane to prove the relevant family end-to-end.
+
+---
+
+### Task 11: Exercise newly unlocked dependency, guide, and comment flows in the test sandbox
+
+**Bead ID:** `oc-0fm`  
+**SubAgent:** `primary`  
+**Role:** `coder`  
+**References:** `REF-01` through `REF-07`  
+**Prompt:** In `aerobeat-vendor-modio`, claim bead `oc-0fm` on start. Derrick has now enabled dependencies with an opt-out rule, created a guide, and enabled comments on the remaining test workout in the test sandbox. Exercise the newly unlocked dependency, guide, and comment endpoint families against the test server using the validated bearer-token flow and existing sandbox fixtures where possible. Keep writes minimal and reversible, verify each write immediately through readbacks, fix any provider-seam bugs you find, add focused regression tests, rerun relevant validation, update this master plan with exact evidence/results, commit and push by default, and close the bead with a clear reason.
+
+**Folders Created/Deleted/Modified:**
+- `.plans/`
+- `.testbed/` local runtime artifacts only as needed
+- `src/` / tests as needed
+
+**Files Created/Deleted/Modified:**
+- `.plans/2026-05-06-aerobeat-vendor-modio-master-rest-api-exercise.md`
+- `.testbed/modio_live_harness_lib.gd`
+- `.testbed/modio_unlocked_family_harness.gd`
+- `.testbed/tests/test_modio_live_harness.gd`
+
+**Status:** ✅ Complete
+
+**Results:** Added a dedicated repeatable sandbox probe at `.testbed/modio_unlocked_family_harness.gd` plus focused guide/comment summary coverage in `.testbed/modio_live_harness_lib.gd` and regression assertions in `.testbed/tests/test_modio_live_harness.gd`.
+
+Exact test-sandbox evidence from `godot --headless --path .testbed --script res://modio_unlocked_family_harness.gd` on 2026-05-06:
+- selected existing public workout/mod `16112` (`oc-4wr sandbox pagination sample 1778082871`) as the reversible parent for comment/dependency checks
+- mod comments are now live on that workout: created comment `396` -> `201`, immediate detail read -> `200`, list readback showed the new id, delete -> `204`, list-after-delete returned empty again
+- guide authoring + public guide reads now work: created public guide `47` (`oc-0fm-guide-1778093505`) -> `201`, public guide list/detail returned it with `allows_comments = true`, update -> `200`, public guide tags readback returned `exercise` + `guide`, delete -> `204`
+- guide comments are now live: created guide comment `397` -> `201`, immediate detail read -> `200`, list readback showed the new id, delete -> `204`, list-after-delete returned empty again
+- dependency writes are now enabled: created disposable dependency target mod `16130` -> `201`, uploaded disposable build `22707` -> `201`, added it as a dependency on parent mod `16112` -> `201`, parent dependency readback -> `200` with the disposable target name present, dependant readback on `16130` -> `200` with parent workout `oc-4wr sandbox pagination sample 1778082871`, dependency delete -> `204`, parent dependency readback after delete -> empty, then deleted disposable target mod `16130` -> `204`
+
+Focused validation reruns:
+- `godot --headless --path .testbed --script res://tests/validate_scaffold.gd` ✅
+- `godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit` ✅ (94/94 passing)
+
+Significant provider-seam finding documented for QA/audit follow-up:
+- immediate public `GET` comment detail readbacks stay stale after comment updates even though the update `PUT` response echoes the new content
+- reproduced for mod comment `396` (`expected "oc-0fm mod comment update 1778093505"`, immediate detail still returned original create text) and guide comment `397` (`expected "oc-0fm guide comment update 1778093505"`, immediate detail still returned original create text)
+- an extra targeted probe waiting 3 seconds before rereading a mod comment still returned the original create text, so this currently looks like upstream/provider cache behavior on public comment-detail reads rather than a local request-shaping failure
+
+---
+
+### Task 12: QA the newly unlocked dependency, guide, and comment flows
+
+**Bead ID:** `oc-6kfx`  
+**SubAgent:** `primary`  
+**Role:** `qa`  
+**References:** `REF-01` through `REF-07`  
+**Prompt:** In `aerobeat-vendor-modio`, claim bead `oc-6kfx` on start. Independently verify the newly unlocked dependency, guide, and comment sweep against the test sandbox, rerun the relevant harness/tests/probes, confirm outcomes and request shaping, make only minimum necessary QA fixes if required, update this master plan with findings, and close the bead with a clear reason.
+
+**Folders Created/Deleted/Modified:**
+- `.plans/`
+- code/tests only if minimum fix is needed
+
+**Files Created/Deleted/Modified:**
+- `.plans/2026-05-06-aerobeat-vendor-modio-master-rest-api-exercise.md`
+- code/tests only if needed
+
+**Status:** ⏳ Pending
+
+**Results:** Pending.
+
+---
+
+### Task 13: Audit the newly unlocked dependency, guide, and comment flows
+
+**Bead ID:** `oc-10br`  
+**SubAgent:** `primary`  
+**Role:** `auditor`  
+**References:** `REF-01` through `REF-07`  
+**Prompt:** In `aerobeat-vendor-modio`, claim bead `oc-10br` on start. Perform an independent truth-check of the newly unlocked dependency, guide, and comment sweep after coder + QA. Confirm which of these previously deferred families are now validated, note any remaining sandbox or policy caveats, update this master plan with a concise pass/fail result, and close the bead with a clear reason.
+
+**Folders Created/Deleted/Modified:**
+- `.plans/`
+
+**Files Created/Deleted/Modified:**
+- `.plans/2026-05-06-aerobeat-vendor-modio-master-rest-api-exercise.md`
+
 **Status:** ⏳ Pending
 
 **Results:** Pending.
@@ -637,17 +808,21 @@ Net outcome for this coder slice: the repo now has a real multipart-write transp
 
 ## Final Results
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**What We Built:** Pending.
+**What We Built:** A real-sandbox confidence pass for `aerobeat-vendor-modio` that now covers the core public browse/detail lane, bearer-authenticated self/inventory reads, reversible low-risk user writes the sandbox permits, and owned mod authoring/modfile/media maintenance. The work also found and fixed one genuine transport seam bug: binary multipart writes now dispatch via `HTTPClient.request_raw(...)`, which unblocked real upload/update coverage on `test.mod.io`.
 
-**Reference Check:** Pending.
+**Reference Check:** `REF-01` and the wrapped surface list were reconciled against the exercised endpoint matrix; `REF-02` through `REF-06` supplied the sandbox harness/config evidence used for every completed slice; `REF-07` remained the doc-side source of truth for route/auth interpretation. Later follow-up slices additionally proved guide reads/writes, guide comments, mod comments, and positive dependency creation in the test sandbox, leaving collections, richer multi-user social writes, monetization, checkout, entitlements, platform auth, S2S, and live-only parity as the remaining explicit exclusions/caveats.
 
 **Commits:**
-- None yet.
+- See the completed coder/QA slices above for code-bearing changes; this final auditor pass only updated plan documentation.
 
-**Lessons Learned:** Pending.
+**Lessons Learned:**
+- The `test.mod.io` sandbox is strong enough to harden the core transport/normalization seam before lifting behavior into higher layers, but it is not a substitute for every auth/platform/commerce/backend lane.
+- Empty sandbox responses can echo pagination metadata differently than non-empty responses; request-shape truth checks matter.
+- Several unresolved gaps are not wrapper bugs at all—they are sandbox capability or policy constraints (`14038`, `15077`, live-release modfile delete rules, single-user social limits).
+- The safe rollout line for `aerobeat-tool-api` is feature-scoped readiness, not blanket “all wrapped routes are done.”
 
 ---
 
-*Drafted on 2026-05-06*
+*Completed on 2026-05-06*

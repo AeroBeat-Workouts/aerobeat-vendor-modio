@@ -173,6 +173,41 @@ func test_summarize_mod_child_read_responses_from_existing_fixtures() -> void:
 	assert_eq(dependencies_summary.names[0], "Warmup Kit")
 	assert_false(dependencies_summary.recursive_requested)
 
+func test_summarize_guide_read_and_comment_responses_from_existing_fixtures() -> void:
+	var harness := ModioLiveHarness.new()
+	var adapter := ModioVendorAdapter.new()
+
+	var guides_summary := harness.summarize_guides_response(adapter, {"payload": _fixture("guides.json")}, 5)
+	assert_eq(guides_summary.requested_limit, 5)
+	assert_eq(guides_summary.response_result_total, 5)
+	assert_eq(guides_summary.selected_guide_id, 7001)
+	assert_eq(guides_summary.guide_names[0], "Building Your First Routine")
+
+	var guide_summary := harness.summarize_guide_response(adapter, {"payload": _fixture("guide_detail.json")})
+	assert_eq(guide_summary.id, 7001)
+	assert_eq(guide_summary.name, "Building Your First Routine")
+	assert_eq(guide_summary.name_id, "building-your-first-routine")
+	assert_true(guide_summary.allows_comments)
+	assert_eq(guide_summary.comments_total, 5)
+
+	var guide_tags_summary := harness.summarize_guide_tags_response(adapter, {"payload": _fixture("guide_tags.json")})
+	assert_eq(guide_tags_summary.response_result_total, 2)
+	assert_eq(guide_tags_summary.names[0], "Instructions")
+
+	var guide_comment_write := harness.summarize_guide_comment_write_response(adapter, {"payload": _fixture("guide_comment_created.json")})
+	assert_eq(guide_comment_write.comment_id, 9903)
+	assert_eq(guide_comment_write.content, "I added a lighter recovery block between intervals.")
+
+	var guide_comment_detail := harness.summarize_guide_comment_detail_response(adapter, {"payload": _fixture("guide_comment_detail.json")})
+	assert_eq(guide_comment_detail.comment_id, 9902)
+	assert_eq(guide_comment_detail.username, "Designer Dash")
+
+	var guide_comment_presence := harness.summarize_guide_comments_presence_response(adapter, {
+		"payload": _fixture("guide_comments_list.json")
+	}, 5, 9902)
+	assert_true(guide_comment_presence.found_comment_id)
+	assert_eq(guide_comment_presence.comment_ids[0], 9901)
+
 func test_summarize_authenticated_user_read_sweep_responses_from_existing_fixtures() -> void:
 	var harness := ModioLiveHarness.new()
 	var adapter := ModioVendorAdapter.new()

@@ -190,6 +190,80 @@ func summarize_terms_response(adapter, response: Dictionary) -> Dictionary:
 		"required_links": required_links
 	}
 
+func summarize_guides_response(adapter, response: Dictionary, requested_limit: int = DEFAULT_CHILD_LIMIT) -> Dictionary:
+	var normalized: Dictionary = adapter.normalize_guides_response(response.get("payload", {}))
+	var names: PackedStringArray = []
+	var selected_guide_id := 0
+	for entry in normalized.get("data", []):
+		if not (entry is Dictionary):
+			continue
+		if names.size() >= requested_limit:
+			break
+		names.append(str(entry.get("name", "")))
+		if selected_guide_id <= 0:
+			selected_guide_id = int(entry.get("id", 0))
+	return _list_result_summary(normalized, requested_limit, {
+		"guide_names": names,
+		"selected_guide_id": selected_guide_id
+	})
+
+func summarize_guide_response(adapter, response: Dictionary) -> Dictionary:
+	var data: Dictionary = adapter.normalize_guide_response(response.get("payload", {}))
+	return {
+		"id": int(data.get("id", 0)),
+		"name": str(data.get("name", "")),
+		"name_id": str(data.get("name_id", "")),
+		"status": int(data.get("status", 0)),
+		"allows_comments": bool(data.get("allows_comments", false)),
+		"comments_total": int(data.get("comments_total", 0))
+	}
+
+func summarize_guide_tags_response(adapter, response: Dictionary) -> Dictionary:
+	var normalized: Dictionary = adapter.normalize_guide_tags_response(response.get("payload", {}))
+	var names: PackedStringArray = []
+	for entry in normalized.get("data", []):
+		if entry is Dictionary:
+			names.append(str(entry.get("name", "")))
+	return _list_result_summary(normalized, DEFAULT_CHILD_LIMIT, {
+		"names": names
+	})
+
+func summarize_guide_comment_write_response(adapter, response: Dictionary) -> Dictionary:
+	var data: Dictionary = adapter.normalize_guide_comment_write_response(response.get("payload", {}))
+	var user: Dictionary = data.get("user", {})
+	return {
+		"comment_id": int(data.get("id", 0)),
+		"reply_id": int(data.get("reply_id", 0)),
+		"content": str(data.get("content", "")),
+		"username": str(user.get("username", ""))
+	}
+
+func summarize_guide_comment_detail_response(adapter, response: Dictionary) -> Dictionary:
+	var data: Dictionary = adapter.normalize_guide_comment_response(response.get("payload", {}))
+	var user: Dictionary = data.get("user", {})
+	return {
+		"comment_id": int(data.get("id", 0)),
+		"reply_id": int(data.get("reply_id", 0)),
+		"content": str(data.get("content", "")),
+		"username": str(user.get("username", ""))
+	}
+
+func summarize_guide_comments_presence_response(adapter, response: Dictionary, requested_limit: int = DEFAULT_CHILD_LIMIT, expected_comment_id: int = 0) -> Dictionary:
+	var normalized: Dictionary = adapter.normalize_guide_comments_response(response.get("payload", {}))
+	var ids: Array[int] = []
+	var found_comment_id := false
+	for entry in normalized.get("data", []):
+		if not (entry is Dictionary):
+			continue
+		var comment_id := int(entry.get("id", 0))
+		ids.append(comment_id)
+		if expected_comment_id > 0 and comment_id == expected_comment_id:
+			found_comment_id = true
+	return _list_result_summary(normalized, requested_limit, {
+		"comment_ids": ids,
+		"found_comment_id": found_comment_id
+	})
+
 func summarize_user_games_response(adapter, response: Dictionary, requested_limit: int = DEFAULT_USER_LIMIT) -> Dictionary:
 	var normalized: Dictionary = adapter.normalize_user_games_response(response.get("payload", {}))
 	var first := _first_dictionary(normalized.get("data", []))
