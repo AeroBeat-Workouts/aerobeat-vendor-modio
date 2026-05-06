@@ -54,6 +54,7 @@ func _initialize() -> void:
 	quit(0 if bool(summary.ok) else 1)
 
 func _run_ping_check(adapter: ModioVendorAdapter, config) -> Dictionary:
+	var harness := ModioLiveHarness.new()
 	var request := adapter.build_ping_request()
 	if config.has_public_credentials():
 		var query: Dictionary = request.get("query", {}).duplicate(true)
@@ -65,27 +66,22 @@ func _run_ping_check(adapter: ModioVendorAdapter, config) -> Dictionary:
 		request,
 		config,
 		func(response: Dictionary) -> Dictionary:
-			var payload: Dictionary = response.get("payload", {})
-			return {"message": str(payload.get("message", ""))}
+			return harness.summarize_ping_response(response)
 	)
 
 func _run_game_check(adapter: ModioVendorAdapter, config) -> Dictionary:
+	var harness := ModioLiveHarness.new()
 	return _run_check(
 		"game",
 		"Read configured game detail",
 		adapter.build_game_request(),
 		config,
 		func(response: Dictionary) -> Dictionary:
-			var payload: Dictionary = response.get("payload", {})
-			var data: Dictionary = payload.get("data", {})
-			return {
-				"id": int(data.get("id", 0)),
-				"name": str(data.get("name", "")),
-				"status": int(data.get("status", -1))
-			}
+			return harness.summarize_game_response(adapter, response)
 	)
 
 func _run_mods_check(adapter: ModioVendorAdapter, config, mods_limit: int) -> Dictionary:
+	var harness := ModioLiveHarness.new()
 	var query := ModioListingQuery.new("", PackedStringArray(), mods_limit, 0)
 	return _run_check(
 		"mods",
@@ -93,25 +89,11 @@ func _run_mods_check(adapter: ModioVendorAdapter, config, mods_limit: int) -> Di
 		adapter.build_listing_request(query),
 		config,
 		func(response: Dictionary) -> Dictionary:
-			var payload: Dictionary = response.get("payload", {})
-			var sample_mod_names: PackedStringArray = []
-			var data = payload.get("data", [])
-			if data is Array:
-				for entry in data:
-					if sample_mod_names.size() >= 3:
-						break
-					if entry is Dictionary:
-						sample_mod_names.append(str(entry.get("name", "")))
-			return {
-				"sample_mod_names": sample_mod_names,
-				"result_count": int(payload.get("result_count", 0)),
-				"result_limit": int(payload.get("result_limit", 0)),
-				"result_offset": int(payload.get("result_offset", 0)),
-				"result_total": int(payload.get("result_total", 0))
-			}
+			return harness.summarize_mods_response(response)
 	)
 
 func _run_optional_auth_checks(plan: Dictionary, adapter: ModioVendorAdapter, config) -> Array[Dictionary]:
+	var harness := ModioLiveHarness.new()
 	var results: Array[Dictionary] = []
 	for check in plan.get("checks", []):
 		if not (check is Dictionary):
@@ -132,13 +114,7 @@ func _run_optional_auth_checks(plan: Dictionary, adapter: ModioVendorAdapter, co
 			adapter.build_authenticated_user_request(),
 			config,
 			func(response: Dictionary) -> Dictionary:
-				var payload: Dictionary = response.get("payload", {})
-				var data: Dictionary = payload.get("data", {})
-				return {
-					"id": int(data.get("id", 0)),
-					"username": str(data.get("username", "")),
-					"name_id": str(data.get("name_id", ""))
-				}
+				return harness.summarize_authenticated_user_response(adapter, response)
 		))
 	return results
 

@@ -6,6 +6,46 @@ const ModioEnvLoader = preload("res://modio_env_loader.gd")
 
 const DEFAULT_MODS_LIMIT := 3
 
+func summarize_ping_response(response: Dictionary) -> Dictionary:
+	var payload: Dictionary = response.get("payload", {})
+	return {"message": str(payload.get("message", ""))}
+
+func summarize_game_response(adapter, response: Dictionary) -> Dictionary:
+	var payload: Dictionary = response.get("payload", {})
+	var data: Dictionary = adapter.normalize_game_response(payload)
+	return {
+		"id": int(data.get("id", 0)),
+		"name": str(data.get("name", "")),
+		"status": int(payload.get("status", -1))
+	}
+
+func summarize_mods_response(response: Dictionary) -> Dictionary:
+	var payload: Dictionary = response.get("payload", {})
+	var sample_mod_names: PackedStringArray = []
+	var data: Variant = payload.get("data", [])
+	if data is Array:
+		for entry in data:
+			if sample_mod_names.size() >= 3:
+				break
+			if entry is Dictionary:
+				sample_mod_names.append(str(entry.get("name", "")))
+	return {
+		"sample_mod_names": sample_mod_names,
+		"result_count": int(payload.get("result_count", 0)),
+		"result_limit": int(payload.get("result_limit", 0)),
+		"result_offset": int(payload.get("result_offset", 0)),
+		"result_total": int(payload.get("result_total", 0))
+	}
+
+func summarize_authenticated_user_response(adapter, response: Dictionary) -> Dictionary:
+	var payload: Dictionary = response.get("payload", {})
+	var data: Dictionary = adapter.normalize_authenticated_user_response(payload)
+	return {
+		"id": int(data.get("id", 0)),
+		"username": str(data.get("username", "")),
+		"name_id": str(data.get("name_id", ""))
+	}
+
 func parse_args(args: PackedStringArray) -> Dictionary:
 	var options := {
 		"env": "",

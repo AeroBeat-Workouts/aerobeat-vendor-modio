@@ -2,6 +2,7 @@ extends GutTest
 
 const ModioEnvLoader = preload("res://modio_env_loader.gd")
 const ModioLiveHarness = preload("res://modio_live_harness_lib.gd")
+const ModioVendorAdapter = preload("res://src/modio_vendor_adapter.gd")
 
 const STABLE_PATH := "user://modio_live_harness_stable.cfg"
 const SESSION_PATH := "user://modio_live_harness_session.cfg"
@@ -90,6 +91,24 @@ func test_build_missing_config_warnings_detects_required_public_tuple() -> void:
 	assert_true("Selected environment is missing game_id" in warnings)
 	assert_true("Selected environment is missing api_key" in warnings)
 
+func test_summarize_game_response_reads_top_level_detail_payload() -> void:
+	var harness := ModioLiveHarness.new()
+	var adapter := ModioVendorAdapter.new()
+	var summary := harness.summarize_game_response(adapter, {"payload": _fixture("game.json")})
+
+	assert_eq(summary.id, 777)
+	assert_eq(summary.name, "AeroBeat")
+	assert_eq(summary.status, -1)
+
+func test_summarize_authenticated_user_response_reads_top_level_detail_payload() -> void:
+	var harness := ModioLiveHarness.new()
+	var adapter := ModioVendorAdapter.new()
+	var summary := harness.summarize_authenticated_user_response(adapter, {"payload": _fixture("me.json")})
+
+	assert_eq(summary.id, 42)
+	assert_eq(summary.name_id, "aerobeat-player")
+	assert_eq(summary.username, "AeroBeatPlayer")
+
 func _stable_config(default_environment: String) -> String:
 	return "".join([
 		"[modio]\n",
@@ -139,3 +158,8 @@ func _write_config(path: String, content: String) -> void:
 func _cleanup_file(path: String) -> void:
 	if FileAccess.file_exists(path):
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+
+func _fixture(name: String) -> Dictionary:
+	var path := "res://tests/fixtures/%s" % name
+	var text := FileAccess.get_file_as_string(path)
+	return JSON.parse_string(text)
