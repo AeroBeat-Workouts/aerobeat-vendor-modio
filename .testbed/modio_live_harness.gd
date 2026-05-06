@@ -36,6 +36,7 @@ func _initialize() -> void:
 	var mods_result := _run_mods_check(adapter, config, int(plan.get("mods_limit", 3)))
 	results.append(mods_result)
 	results.append_array(_run_public_mod_child_checks(adapter, config, mods_result))
+	results.append(_run_terms_check(adapter, config))
 	results.append_array(_run_optional_auth_checks(plan, adapter, config))
 
 	var summary := {
@@ -92,6 +93,17 @@ func _run_mods_check(adapter: ModioVendorAdapter, config, mods_limit: int) -> Di
 		config,
 		func(response: Dictionary) -> Dictionary:
 			return harness.summarize_mods_response(adapter, response, mods_limit)
+	)
+
+func _run_terms_check(adapter: ModioVendorAdapter, config) -> Dictionary:
+	var harness := ModioLiveHarness.new()
+	return _run_check(
+		"terms",
+		"Read authentication terms",
+		adapter.build_terms_request(),
+		config,
+		func(response: Dictionary) -> Dictionary:
+			return harness.summarize_terms_response(adapter, response)
 	)
 
 func _run_public_mod_child_checks(adapter: ModioVendorAdapter, config, mods_result: Dictionary) -> Array[Dictionary]:
@@ -214,15 +226,132 @@ func _run_optional_auth_checks(plan: Dictionary, adapter: ModioVendorAdapter, co
 				str(check.get("label", "Read authenticated user profile")),
 				str(check.get("skip_reason", "Skipped"))
 			))
+			results.append(_skipped_check("me_user_reads", "Run authenticated user-read sweep", str(check.get("skip_reason", "Skipped"))))
 			continue
-		results.append(_run_check(
+		var me_result := _run_check(
 			"me",
 			"Read authenticated user profile",
 			adapter.build_authenticated_user_request(),
 			config,
 			func(response: Dictionary) -> Dictionary:
 				return harness.summarize_authenticated_user_response(adapter, response)
-		))
+		)
+		results.append(me_result)
+		results.append_array(_run_authenticated_user_read_sweep(adapter, config, me_result))
+	return results
+
+func _run_authenticated_user_read_sweep(adapter: ModioVendorAdapter, config, me_result: Dictionary) -> Array[Dictionary]:
+	var results: Array[Dictionary] = []
+	if str(me_result.get("status", "")) != "ok":
+		results.append(_skipped_check("me_user_reads", "Run authenticated user-read sweep", "Skipped because authenticated /me failed"))
+		return results
+
+	var harness := ModioLiveHarness.new()
+	var query := ModioListingQuery.new("", PackedStringArray(), ModioLiveHarness.DEFAULT_USER_LIMIT, 0)
+	results.append(_run_check(
+		"me_games",
+		"Read authenticated user games",
+		adapter.build_user_games_request(query),
+		config,
+		func(response: Dictionary) -> Dictionary:
+			return harness.summarize_user_games_response(adapter, response, ModioLiveHarness.DEFAULT_USER_LIMIT)
+	))
+	results.append(_run_check(
+		"me_mods",
+		"Read authenticated user mods",
+		adapter.build_user_mods_request(query),
+		config,
+		func(response: Dictionary) -> Dictionary:
+			return harness.summarize_user_mods_response(adapter, response, ModioLiveHarness.DEFAULT_USER_LIMIT)
+	))
+	results.append(_run_check(
+		"me_files",
+		"Read authenticated user files",
+		adapter.build_user_modfiles_request(query),
+		config,
+		func(response: Dictionary) -> Dictionary:
+			return harness.summarize_user_modfiles_response(adapter, response, ModioLiveHarness.DEFAULT_USER_LIMIT)
+	))
+	results.append(_run_check(
+		"me_subscribed",
+		"Read authenticated user subscriptions",
+		adapter.build_user_subscriptions_request(query),
+		config,
+		func(response: Dictionary) -> Dictionary:
+			return harness.summarize_user_subscriptions_response(adapter, response, ModioLiveHarness.DEFAULT_USER_LIMIT)
+	))
+	results.append(_run_check(
+		"me_ratings",
+		"Read authenticated user ratings",
+		adapter.build_user_ratings_request(query),
+		config,
+		func(response: Dictionary) -> Dictionary:
+			return harness.summarize_user_ratings_response(adapter, response, ModioLiveHarness.DEFAULT_USER_LIMIT)
+	))
+	results.append(_run_check(
+		"me_collections",
+		"Read authenticated user collections",
+		adapter.build_me_collections_request(query),
+		config,
+		func(response: Dictionary) -> Dictionary:
+			return harness.summarize_me_collections_response(adapter, response, ModioLiveHarness.DEFAULT_USER_LIMIT)
+	))
+	results.append(_run_check(
+		"me_following_collections",
+		"Read authenticated user followed collections",
+		adapter.build_followed_collections_request(query),
+		config,
+		func(response: Dictionary) -> Dictionary:
+			return harness.summarize_followed_collections_response(adapter, response, ModioLiveHarness.DEFAULT_USER_LIMIT)
+	))
+	results.append(_run_check(
+		"me_followers",
+		"Read authenticated user followers",
+		adapter.build_me_followers_request(query),
+		config,
+		func(response: Dictionary) -> Dictionary:
+			return harness.summarize_me_followers_response(adapter, response, ModioLiveHarness.DEFAULT_USER_LIMIT)
+	))
+	results.append(_run_check(
+		"me_muted_users",
+		"Read authenticated muted users",
+		adapter.build_muted_users_request(query),
+		config,
+		func(response: Dictionary) -> Dictionary:
+			return harness.summarize_muted_users_response(adapter, response, ModioLiveHarness.DEFAULT_USER_LIMIT)
+	))
+
+	var me_details: Dictionary = me_result.get("details", {})
+	var me_id := int(me_details.get("id", 0))
+	if me_id <= 0:
+		results.append(_skipped_check("user_social_reads", "Read derived /users/{me-id} social + collections", "Skipped because authenticated /me returned no user id"))
+		return results
+
+	var me_id_text := str(me_id)
+	results.append(_run_check(
+		"user_followers",
+		"Read /users/{me-id}/followers",
+		adapter.build_user_followers_request(me_id_text, query),
+		config,
+		func(response: Dictionary) -> Dictionary:
+			return harness.summarize_user_followers_response(adapter, response, ModioLiveHarness.DEFAULT_USER_LIMIT)
+	))
+	results.append(_run_check(
+		"user_following",
+		"Read /users/{me-id}/following",
+		adapter.build_user_following_request(me_id_text, query),
+		config,
+		func(response: Dictionary) -> Dictionary:
+			return harness.summarize_user_following_response(adapter, response, ModioLiveHarness.DEFAULT_USER_LIMIT)
+	))
+	results.append(_run_check(
+		"user_collections",
+		"Read /users/{me-id}/collections",
+		adapter.build_user_collections_request(me_id_text, query),
+		config,
+		func(response: Dictionary) -> Dictionary:
+			return harness.summarize_user_collections_response(adapter, response, ModioLiveHarness.DEFAULT_USER_LIMIT)
+	))
 	return results
 
 func _run_check(id: String, label: String, request: Dictionary, config, detail_builder: Callable) -> Dictionary:

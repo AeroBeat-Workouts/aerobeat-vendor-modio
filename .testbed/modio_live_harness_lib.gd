@@ -6,6 +6,7 @@ const ModioEnvLoader = preload("res://modio_env_loader.gd")
 
 const DEFAULT_MODS_LIMIT := 3
 const DEFAULT_CHILD_LIMIT := 5
+const DEFAULT_USER_LIMIT := 5
 
 func summarize_ping_response(response: Dictionary) -> Dictionary:
 	var payload: Dictionary = response.get("payload", {})
@@ -175,6 +176,119 @@ func summarize_authenticated_user_response(adapter, response: Dictionary) -> Dic
 		"name_id": str(data.get("name_id", ""))
 	}
 
+func summarize_terms_response(adapter, response: Dictionary) -> Dictionary:
+	var data: Dictionary = adapter.normalize_terms_response(response.get("payload", {}))
+	var required_links: PackedStringArray = []
+	for key in data.get("links", {}).keys():
+		var link: Dictionary = data.links.get(key, {})
+		if bool(link.get("required", false)):
+			required_links.append(str(key))
+	required_links.sort()
+	return {
+		"plaintext_length": str(data.get("plaintext", "")).length(),
+		"buttons": PackedStringArray(data.get("buttons", {}).keys()),
+		"required_links": required_links
+	}
+
+func summarize_user_games_response(adapter, response: Dictionary, requested_limit: int = DEFAULT_USER_LIMIT) -> Dictionary:
+	var normalized: Dictionary = adapter.normalize_user_games_response(response.get("payload", {}))
+	var first := _first_dictionary(normalized.get("data", []))
+	return _list_result_summary(normalized, requested_limit, {
+		"id": int(first.get("id", 0)),
+		"name": str(first.get("name", "")),
+		"name_id": str(first.get("name_id", ""))
+	})
+
+func summarize_user_mods_response(adapter, response: Dictionary, requested_limit: int = DEFAULT_USER_LIMIT) -> Dictionary:
+	var summary := summarize_mods_response(adapter, response, requested_limit)
+	var normalized: Dictionary = adapter.normalize_user_mods_response(response.get("payload", {}))
+	var first := _first_dictionary(normalized.get("data", []))
+	summary["first_game_id"] = int(first.get("game_id", 0))
+	return summary
+
+func summarize_user_modfiles_response(adapter, response: Dictionary, requested_limit: int = DEFAULT_USER_LIMIT) -> Dictionary:
+	return summarize_modfiles_response(adapter, response, requested_limit)
+
+func summarize_user_subscriptions_response(adapter, response: Dictionary, requested_limit: int = DEFAULT_USER_LIMIT) -> Dictionary:
+	var summary := summarize_mods_response(adapter, response, requested_limit)
+	var normalized: Dictionary = adapter.normalize_mod_list_response(response.get("payload", {}))
+	var first := _first_dictionary(normalized.get("data", []))
+	summary["first_game_id"] = int(first.get("game_id", 0))
+	return summary
+
+func summarize_user_ratings_response(adapter, response: Dictionary, requested_limit: int = DEFAULT_USER_LIMIT) -> Dictionary:
+	var normalized: Dictionary = adapter.normalize_user_ratings_response(response.get("payload", {}))
+	var first := _first_dictionary(normalized.get("data", []))
+	return _list_result_summary(normalized, requested_limit, {
+		"first_game_id": int(first.get("game_id", 0)),
+		"first_mod_id": int(first.get("mod_id", 0)),
+		"first_resource_type": str(first.get("resource_type", "")),
+		"first_rating": int(first.get("rating", 0))
+	})
+
+func summarize_me_collections_response(adapter, response: Dictionary, requested_limit: int = DEFAULT_USER_LIMIT) -> Dictionary:
+	var normalized: Dictionary = adapter.normalize_me_collections_response(response.get("payload", {}))
+	var first := _first_dictionary(normalized.get("data", []))
+	return _list_result_summary(normalized, requested_limit, {
+		"first_collection_id": int(first.get("id", 0)),
+		"first_name": str(first.get("name", "")),
+		"first_name_id": str(first.get("name_id", ""))
+	})
+
+func summarize_followed_collections_response(adapter, response: Dictionary, requested_limit: int = DEFAULT_USER_LIMIT) -> Dictionary:
+	var normalized: Dictionary = adapter.normalize_followed_collections_response(response.get("payload", {}))
+	var first := _first_dictionary(normalized.get("data", []))
+	return _list_result_summary(normalized, requested_limit, {
+		"first_collection_id": int(first.get("id", 0)),
+		"first_name": str(first.get("name", "")),
+		"first_name_id": str(first.get("name_id", ""))
+	})
+
+func summarize_me_followers_response(adapter, response: Dictionary, requested_limit: int = DEFAULT_USER_LIMIT) -> Dictionary:
+	var normalized: Dictionary = adapter.normalize_me_followers_response(response.get("payload", {}))
+	var first := _first_dictionary(normalized.get("data", []))
+	return _list_result_summary(normalized, requested_limit, {
+		"first_user_id": int(first.get("id", 0)),
+		"first_username": str(first.get("username", "")),
+		"first_name_id": str(first.get("name_id", ""))
+	})
+
+func summarize_muted_users_response(adapter, response: Dictionary, requested_limit: int = DEFAULT_USER_LIMIT) -> Dictionary:
+	var normalized: Dictionary = adapter.normalize_muted_users_response(response.get("payload", {}))
+	var first := _first_dictionary(normalized.get("data", []))
+	return _list_result_summary(normalized, requested_limit, {
+		"first_user_id": int(first.get("id", 0)),
+		"first_username": str(first.get("username", "")),
+		"first_name_id": str(first.get("name_id", ""))
+	})
+
+func summarize_user_followers_response(adapter, response: Dictionary, requested_limit: int = DEFAULT_USER_LIMIT) -> Dictionary:
+	var normalized: Dictionary = adapter.normalize_user_followers_response(response.get("payload", {}))
+	var first := _first_dictionary(normalized.get("data", []))
+	return _list_result_summary(normalized, requested_limit, {
+		"first_user_id": int(first.get("id", 0)),
+		"first_username": str(first.get("username", "")),
+		"first_name_id": str(first.get("name_id", ""))
+	})
+
+func summarize_user_following_response(adapter, response: Dictionary, requested_limit: int = DEFAULT_USER_LIMIT) -> Dictionary:
+	var normalized: Dictionary = adapter.normalize_user_following_response(response.get("payload", {}))
+	var first := _first_dictionary(normalized.get("data", []))
+	return _list_result_summary(normalized, requested_limit, {
+		"first_user_id": int(first.get("id", 0)),
+		"first_username": str(first.get("username", "")),
+		"first_name_id": str(first.get("name_id", ""))
+	})
+
+func summarize_user_collections_response(adapter, response: Dictionary, requested_limit: int = DEFAULT_USER_LIMIT) -> Dictionary:
+	var normalized: Dictionary = adapter.normalize_user_collections_response(response.get("payload", {}))
+	var first := _first_dictionary(normalized.get("data", []))
+	return _list_result_summary(normalized, requested_limit, {
+		"first_collection_id": int(first.get("id", 0)),
+		"first_name": str(first.get("name", "")),
+		"first_name_id": str(first.get("name_id", ""))
+	})
+
 func parse_args(args: PackedStringArray) -> Dictionary:
 	var options := {
 		"env": "",
@@ -324,11 +438,33 @@ func help_text() -> String:
 		"  2. GET /games/{game-id}",
 		"  3. GET /games/{game-id}/mods",
 		"  4. When at least one public mod exists, also check detail/files/file-detail/stats/tags/metadatakvp/team/dependants/dependencies on the first listed mod",
-		"  5. Optional GET /me when an access token is present",
+		"  5. GET /authenticate/terms",
+		"  6. Optional authenticated sweep when an access token is present: /me, /me/games, /me/mods, /me/files, /me/subscribed, /me/ratings, /me/collections, /me/following/collections, /me/followers, /me/users/muted, plus /users/{me-id}/followers|following|collections",
+		"  7. --public-only skips the authenticated sweep but still keeps the public terms check",
+		"",
+		"Agreement current/version reads are supported by the adapter, but the public terms payload does not",
+		"currently expose agreement type/version ids in this sandbox, so the harness stops at GET /authenticate/terms.",
 		"",
 		"The harness never performs write flows. Test is the default environment unless you explicitly",
 		"select live via --env live, MODIO_ENV=live, or the local cfg override chain.",
 	])
+
+func _first_dictionary(items: Variant) -> Dictionary:
+	if items is Array and not items.is_empty() and items[0] is Dictionary:
+		return items[0]
+	return {}
+
+func _list_result_summary(normalized: Dictionary, requested_limit: int, extras: Dictionary = {}) -> Dictionary:
+	var summary := {
+		"requested_limit": requested_limit,
+		"response_result_count": int(normalized.get("result_count", 0)),
+		"response_result_limit": int(normalized.get("result_limit", 0)),
+		"response_result_offset": int(normalized.get("result_offset", 0)),
+		"response_result_total": int(normalized.get("result_total", 0))
+	}
+	for key in extras.keys():
+		summary[key] = extras[key]
+	return summary
 
 func _append_error(options: Dictionary, message: String) -> void:
 	var errors: PackedStringArray = options.get("errors", PackedStringArray())

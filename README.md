@@ -242,13 +242,16 @@ What it does on the first pass:
    - `GET /ping` using the selected public tuple for real-service connectivity validation
    - `GET /games/{game-id}`
    - `GET /games/{game-id}/mods` with a small limit (default `3`)
-   - optional `GET /me` only when `modio.session.local.cfg` contains an `access_token`
+   - when a public mod exists, drills into the first returned mod for detail/files/file-detail/stats/dependants/tags/metadatakvp/team/dependencies
+   - `GET /authenticate/terms`
+   - optional authenticated user-read sweep when `modio.session.local.cfg` contains an `access_token`: `GET /me`, `/me/games`, `/me/mods`, `/me/files`, `/me/subscribed`, `/me/ratings`, `/me/collections`, `/me/following/collections`, `/me/followers`, `/me/users/muted`, plus derived `/users/{me-id}/followers`, `/users/{me-id}/following`, and `/users/{me-id}/collections`
 4. exits non-zero on any failed network check or if the selected environment is missing the required public tuple (`game_id`, `api_key`)
 
 Safety notes:
 
 - `test` remains the default target unless you explicitly select `live`
-- `--public-only` forces the harness to skip the optional authenticated `/me` read even when a token is present
+- `--public-only` forces the harness to skip the optional authenticated user-read sweep even when a token is present
+- the harness currently stops at `GET /authenticate/terms` for agreement coverage because the test-sandbox terms payload does not expose agreement type/version ids to chain into the agreement-detail routes automatically
 - the harness never performs create/update/delete/upload flows
 - real secrets stay in ignored `.testbed/*.local.cfg` files only
 

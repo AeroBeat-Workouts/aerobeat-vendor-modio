@@ -249,9 +249,45 @@ Net outcome for this coder slice: the owned sample-mod child-read cluster is now
 - `.plans/2026-05-06-aerobeat-vendor-modio-master-rest-api-exercise.md`
 - code/tests only if needed
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** QA independently reran the public-read sweep on the real AeroBeat `test.mod.io` sandbox and audited the coder slice against the current harness/test code. No QA code fix was required.
+
+Independent validation evidence:
+```bash
+godot --headless --path .testbed --script res://tests/validate_scaffold.gd
+godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit
+godot --headless --path .testbed --script res://modio_live_harness.gd -- --env test --public-only --json
+godot --headless --path .testbed --script res://modio_live_harness.gd -- --env test --json
+godot --headless --path .testbed --script /tmp/modio_oc_zis_probe.gd
+```
+
+Observed results:
+- scaffold validation passed
+- full fixture-driven suite passed at `90/90` tests
+- public harness run stayed green and exercised the owned sample-mod child-read cluster from the first listed public sandbox mod `16112`
+- authenticated harness run also stayed green and preserved the already-validated `/me` identity fields (`id = 71104`, `name_id = "derrickbarra"`, `username = "DerrickBarra"`)
+
+Confirmed public endpoint outcomes from the harness:
+- `GET /games/1325/mods?_limit=3&_offset=0` -> HTTP `200`, selected mod `16112`, `response_result_limit = 3`, `response_result_total = 1`
+- `GET /games/1325/mods/16112` -> HTTP `200`, `status = 1`, `visible = 1`
+- `GET /games/1325/mods/16112/files?_limit=5&_offset=0` -> HTTP `200`, selected file `22687`, `response_result_limit = 5`, `response_result_total = 1`
+- `GET /games/1325/mods/16112/files/22687` -> HTTP `200`, `filename = "tmp-oc-4wr-build-5by3.zip"`, `version = "0.0.1"`, `filesize = 198`
+- `GET /games/1325/mods/16112/stats` -> HTTP `200`, but the raw payload still reports zeroed counters and `mod_id = 0`; QA confirmed that this is coming from the sandbox payload itself rather than from harness/adapter normalization drift
+- `GET /games/1325/mods/16112/dependants?_limit=5&_offset=0` -> HTTP `200`, empty list
+- `GET /games/1325/mods/16112/tags?_limit=5&_offset=0` -> HTTP `200`, empty list, server echo `response_result_limit = 100`
+- `GET /games/1325/mods/16112/metadatakvp?_limit=5&_offset=0` -> HTTP `200`, empty list
+- `GET /games/1325/mods/16112/team?_limit=5&_offset=0` -> HTTP `200`, one visible member, normalized `usernames = ["DerrickBarra"]`
+- `GET /games/1325/mods/16112/dependencies?recursive=false` -> HTTP `200`, empty list, `recursive_requested = false`
+
+Independent request-shape truth check from the direct transport probe (`/tmp/modio_oc_zis_probe.gd`):
+- `/games/1325/mods` prepared with `_limit = "3"`, `_offset = "0"`, `api_key`
+- `/games/1325/mods/16112/files` prepared with `_limit = "5"`, `_offset = "0"`, `api_key`
+- `/games/1325/mods/16112/tags` prepared with `_limit = "5"`, `_offset = "0"`, `api_key`
+- `/games/1325/mods/16112/team` prepared with `_limit = "5"`, `_offset = "0"`, `api_key`
+- `/games/1325/mods/16112/dependencies` prepared with `recursive=false` plus `api_key`
+
+QA/audit conclusion: this slice is actually done. The safe harness reproducibly covers the public-read sweep and the owned sample-mod child-read cluster on `test.mod.io`, the request shaping matches the intended browse/child-read flow, file/detail id extraction is stable, and the remaining oddities (`mod_stats.mod_id = 0`, some empty-list `result_limit = 100` echoes) are current sandbox response characteristics rather than provider-seam bugs in this repo.
 
 ---
 
@@ -270,11 +306,50 @@ Net outcome for this coder slice: the owned sample-mod child-read cluster is now
 
 **Files Created/Deleted/Modified:**
 - `.plans/2026-05-06-aerobeat-vendor-modio-master-rest-api-exercise.md`
-- code/tests as needed
+- `.testbed/modio_live_harness.gd`
+- `.testbed/modio_live_harness_lib.gd`
+- `.testbed/tests/test_modio_live_harness.gd`
+- `README.md`
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** Extended the safe headless harness so the authenticated bearer-token user-read slice is now repeatable instead of living only in one-off manual probing. The harness now always includes `GET /authenticate/terms`, and when a sandbox `access_token` is present it drills through `GET /me`, `GET /me/games`, `GET /me/mods`, `GET /me/files`, `GET /me/subscribed`, `GET /me/ratings`, `GET /me/collections`, `GET /me/following/collections`, `GET /me/followers`, `GET /me/users/muted`, plus derived `GET /users/{me-id}/followers`, `GET /users/{me-id}/following`, and `GET /users/{me-id}/collections`. I also added fixture-driven regression coverage for the new summary helpers and updated the README harness docs to match the broader safe sweep.
+
+Code/test/doc changes in this coder pass:
+- updated `.testbed/modio_live_harness.gd` to run the public auth-terms check and the authenticated user-read sweep automatically after `/me` succeeds
+- expanded `.testbed/modio_live_harness_lib.gd` with summary helpers for terms, user games/mods/files/subscriptions/ratings/collections/followed collections, and user/social list responses
+- added focused fixture-backed regression assertions in `.testbed/tests/test_modio_live_harness.gd` for the new authenticated summaries
+- refreshed `README.md` so the documented safe harness behavior matches the real non-destructive sweep
+
+Validation evidence:
+```bash
+godot --headless --path .testbed -s res://addons/gut/gut_cmdln.gd -gdir=res://tests -gselect=test_modio_live_harness.gd -gexit
+godot --headless --path .testbed --script res://modio_live_harness.gd -- --env test --json
+```
+
+Observed authenticated sandbox results on `https://g-1325.test.mod.io/v1`:
+- `GET /authenticate/terms` -> HTTP `200`; required links included `privacy` and `terms`
+- `GET /me` -> HTTP `200`; normalized identity stayed `id = 71104`, `name_id = "derrickbarra"`, `username = "DerrickBarra"`
+- `GET /me/games` -> HTTP `200`; `result_total = 1`; first game `1325 / "AeroBeat"`
+- `GET /me/mods` -> HTTP `200`; `result_total = 1`; first mod `16112 / "oc-4wr sandbox pagination sample 1778082871"`
+- `GET /me/files` -> HTTP `200`; `result_total = 1`; first file `22687 / "tmp-oc-4wr-build-5by3.zip" / version "0.0.1"`
+- `GET /me/subscribed` -> HTTP `200`; empty list
+- `GET /me/ratings` -> HTTP `200`; empty list
+- `GET /me/collections` -> HTTP `200`; empty list
+- `GET /me/following/collections` -> HTTP `200`; empty list
+- `GET /me/followers` -> HTTP `200`; empty list
+- `GET /me/users/muted` -> HTTP `200`; empty list
+- `GET /users/71104/followers` -> HTTP `200`; empty list
+- `GET /users/71104/following` -> HTTP `200`; empty list
+- `GET /users/71104/collections` -> HTTP `200`; empty list
+
+Request-shape notes from the direct probe and harness output:
+- every authenticated list read prepared bearer-authenticated requests with `_limit = "5"` and `_offset = "0"`
+- `GET /me/ratings` also carried the adapter defaults `resource_type = "mods"` and `game_id = "1325"`
+- the empty social/collection lists echoed `response_result_limit = 100` from the sandbox even though the request asked for `5`; this matches the earlier empty-list quirk seen elsewhere and is a provider response characteristic, not a repo-side shaping bug
+- the test-sandbox `GET /authenticate/terms` payload exposes buttons/links but not agreement type/version ids, so I stopped agreement automation at terms coverage instead of inventing brittle lookup logic
+
+Net outcome for this coder slice: the authenticated user-read baseline is now proven and scripted on the real AeroBeat test sandbox, no provider-seam code bug was uncovered in this slice, and the repo has repeatable harness + regression coverage for future QA/audit passes.
 
 ---
 

@@ -171,6 +171,69 @@ func test_summarize_mod_child_read_responses_from_existing_fixtures() -> void:
 	assert_eq(dependencies_summary.names[0], "Warmup Kit")
 	assert_false(dependencies_summary.recursive_requested)
 
+func test_summarize_authenticated_user_read_sweep_responses_from_existing_fixtures() -> void:
+	var harness := ModioLiveHarness.new()
+	var adapter := ModioVendorAdapter.new()
+
+	var terms_summary := harness.summarize_terms_response(adapter, {"payload": _fixture("terms.json")})
+	assert_gt(terms_summary.plaintext_length, 20)
+	assert_true("agree" in terms_summary.buttons)
+	assert_true("disagree" in terms_summary.buttons)
+	assert_true("privacy" in terms_summary.required_links)
+	assert_true("terms" in terms_summary.required_links)
+
+	var games_summary := harness.summarize_user_games_response(adapter, {"payload": _fixture("games.json")}, 5)
+	assert_eq(games_summary.requested_limit, 5)
+	assert_eq(games_summary.response_result_total, 2)
+	assert_eq(games_summary.id, 777)
+	assert_eq(games_summary.name, "AeroBeat")
+
+	var user_mods_summary := harness.summarize_user_mods_response(adapter, {"payload": _fixture("mods.json")}, 5)
+	assert_eq(user_mods_summary.selected_mod_id, 1001)
+	assert_eq(user_mods_summary.first_game_id, 777)
+
+	var user_files_summary := harness.summarize_user_modfiles_response(adapter, {"payload": _fixture("modfiles.json")}, 5)
+	assert_eq(user_files_summary.selected_file_id, 5001)
+	assert_eq(user_files_summary.sample_filenames[0], "cardio-blaster-v1.zip")
+
+	var subscribed_summary := harness.summarize_user_subscriptions_response(adapter, {"payload": _fixture("subscribed.json")}, 5)
+	assert_eq(subscribed_summary.selected_mod_id, 1001)
+	assert_eq(subscribed_summary.first_game_id, 777)
+
+	var ratings_summary := harness.summarize_user_ratings_response(adapter, {"payload": _fixture("user_ratings.json")}, 5)
+	assert_eq(ratings_summary.response_result_total, 2)
+	assert_eq(ratings_summary.first_mod_id, 1001)
+	assert_eq(ratings_summary.first_resource_type, "mods")
+	assert_eq(ratings_summary.first_rating, 1)
+
+	var me_collections_summary := harness.summarize_me_collections_response(adapter, {"payload": _fixture("collections.json")}, 5)
+	assert_eq(me_collections_summary.response_result_total, 5)
+	assert_eq(me_collections_summary.first_collection_id, 3001)
+	assert_eq(me_collections_summary.first_name, "Starter Bundle")
+
+	var followed_collections_summary := harness.summarize_followed_collections_response(adapter, {"payload": _fixture("collections.json")}, 5)
+	assert_eq(followed_collections_summary.first_collection_id, 3001)
+	assert_eq(followed_collections_summary.first_name_id, "starter-bundle")
+
+	var followers_summary := harness.summarize_me_followers_response(adapter, {"payload": _fixture("user_social_users.json")}, 5)
+	assert_eq(followers_summary.response_result_total, 9)
+	assert_eq(followers_summary.first_user_id, 77)
+	assert_eq(followers_summary.first_username, "Designer Dash")
+
+	var muted_summary := harness.summarize_muted_users_response(adapter, {"payload": _fixture("user_social_users.json")}, 5)
+	assert_eq(muted_summary.first_user_id, 77)
+	assert_eq(muted_summary.first_name_id, "designer-dash")
+
+	var user_followers_summary := harness.summarize_user_followers_response(adapter, {"payload": _fixture("user_social_users.json")}, 5)
+	assert_eq(user_followers_summary.first_user_id, 77)
+
+	var user_following_summary := harness.summarize_user_following_response(adapter, {"payload": _fixture("user_social_users.json")}, 5)
+	assert_eq(user_following_summary.first_username, "Designer Dash")
+
+	var user_collections_summary := harness.summarize_user_collections_response(adapter, {"payload": _fixture("collections.json")}, 5)
+	assert_eq(user_collections_summary.first_collection_id, 3001)
+	assert_eq(user_collections_summary.first_name_id, "starter-bundle")
+
 func _stable_config(default_environment: String) -> String:
 	return "".join([
 		"[modio]\n",
