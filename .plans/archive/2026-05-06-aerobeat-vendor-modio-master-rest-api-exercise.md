@@ -1149,9 +1149,51 @@ Exact sandbox evidence from the committed harness (`godot --headless --path .tes
 - `.plans/2026-05-06-aerobeat-vendor-modio-master-rest-api-exercise.md`
 - code/tests only if needed
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** QA independently reran the final easy-win sweep on the real AeroBeat `test.mod.io` sandbox and confirmed the coder slice’s core conclusion: the remaining low-friction confidence gaps are now materially closed. No repo code fix was required in this QA pass.
+
+Independent validation evidence:
+```bash
+godot --headless --path .testbed --script res://tests/validate_scaffold.gd
+godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit
+godot --headless --path .testbed --script res://modio_final_easy_wins_harness.gd
+```
+
+Observed results:
+- scaffold validation passed
+- full fixture-driven suite passed at `95/95` tests
+- the dedicated final-easy-wins harness exited `0` with `ok = true` after re-verifying real download delivery, taxonomy-valid tag writes, and the expanded collection-family sweep, while cleaning up its disposable collection + seed-workout fixtures at the end
+- the recurring `Unicode parsing error ... Invalid UTF-8 leading byte (89)` warnings still appear while mirrored diagnostics touch multipart PNG bytes, but QA found no transport failure behind that noise because the underlying multipart requests and cleanup all succeeded end-to-end
+
+Confirmed sandbox outcomes from the QA harness run:
+- **Real modfile download verification remains green.**
+  - `GET /games/1325/mods/16112/files?_limit=5&_offset=0` -> HTTP `200`; sample file `22687`, filename `tmp-oc-4wr-build-5by3.zip`, `filesize = 198`, `md5 = d4e48a959c4c798157697c8839a601c3`, delivery URL present
+  - `GET /games/1325/mods/16112/files/22687` -> HTTP `200`; same md5 / filename / binary URL
+  - direct fetch of the public delivery URL followed the expected `302` redirect to `binary.test.modcdn.io`, finished with HTTP `200`, downloaded `198` bytes, reproduced md5 `d4e48a959c4c798157697c8839a601c3`, and ZIP inspection still exposed `README.txt`
+  - QA conclusion: the adapter-resolved `binary_url` is genuinely usable on the sandbox and the fetched bytes still match the file metadata exactly
+- **Taxonomy-aware tag writes remain genuinely allowed when valid configured values are used.**
+  - `GET /games/1325/tags` -> HTTP `200`; configured groups still exposed `feature`, `difficulty`, and `genre`
+  - `POST /games/1325/mods/16112/tags` with valid configured values `boxing`, `easy`, `edm` -> HTTP `201`
+  - `GET /games/1325/mods/16112/tags` -> HTTP `200`; readback returned exactly `boxing`, `easy`, `edm`
+  - `DELETE /games/1325/mods/16112/tags` for those same values -> HTTP `204`
+  - follow-up tag readback returned an empty list again
+- **Expanded collection-family coverage reproduced cleanly on a fresh run.**
+  - rerun-created disposable public seed workouts `16159`, `16160`, `16161` plus builds `22736`, `22737`, `22738`; each create/upload/publish/public-detail check stayed green, with `community_options = 131072`, `status = 1`, and `visible = 1`
+  - created disposable public collection `53` -> HTTP `201`; public browse/detail/mod-membership reads all stayed green and returned the expected membership set `16112`, `16159`, `16160`, `16161`
+  - `GET /me/collections?_limit=5&_offset=0` stayed readable, though owner inventory continues to include soft-deleted historical fixtures as already documented elsewhere in this plan
+  - follow/unfollow remained green: `POST /games/1325/collections/53/followers` -> `201`, `GET /me/following/collections` then returned `53`, `DELETE /games/1325/collections/53/followers` -> `204`, follow list then returned empty again
+  - subscribe/unsubscribe remained green: `POST /games/1325/collections/53/subscriptions` -> `201`, `DELETE /games/1325/collections/53/subscriptions` -> `200`
+  - collection comment CRUD remained live: create comment `413` -> `201`, detail-after-create -> `200`, list-after-create contained `413`, update -> `200`, delete -> `204`, list-after-delete returned empty again
+  - collection compatibility rating remained green: `POST /games/1325/collections/53/compatibility` -> HTTP `201`
+  - collection member removal remained green: `DELETE /games/1325/collections/53/mods` -> HTTP `204`; follow-up membership read returned expected survivors `16112`, `16160`, `16161`
+  - cleanup succeeded at the end of the harness: `DELETE /games/1325/collections/53` plus `DELETE /games/1325/mods/{16159,16160,16161}` all returned HTTP `204`
+
+Independent request-shape confirmation in this QA pass:
+- there was no dedicated `/tmp/modio_oc_965j_request_probe.gd` left behind for this bead, so QA grounded request-shape verification in the current green adapter/transport regression suite (`95/95`) plus the real sandbox harness behavior above
+- those green tests still cover the critical shapes used in this sweep: download URL resolution from modfile metadata, game taxonomy browse, bearer-authenticated collection create/follow/subscription/comment/compatibility/member-removal writes, repeated `mod_ids[]` and `tags[]` multipart fields, and collection comment form writes
+
+QA conclusion: this slice is materially validated and ready for audit. The easy-win sweep really did expand the trusted boundary: real delivery-URL downloads are confirmed, taxonomy-valid tag writes are proven, and the unlocked collection family now covers public browse/detail/membership plus follow, subscription, comment, compatibility, and membership-removal flows. The only notable caveat carried forward is the same upstream/provider behavior already seen in the guide/mod comment families: immediate public collection-comment detail rereads after update still return the original create text even though the update response itself contains the new content.
 
 ---
 
@@ -1169,9 +1211,34 @@ Exact sandbox evidence from the committed harness (`godot --headless --path .tes
 **Files Created/Deleted/Modified:**
 - `.plans/2026-05-06-aerobeat-vendor-modio-master-rest-api-exercise.md`
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** Independent auditor rerun says the final easy-win sweep is **validated** and the session is ready to land the plane from the vendor-repo side.
+
+Fresh audit evidence captured on current head:
+```bash
+godot --headless --path .testbed --script res://tests/validate_scaffold.gd
+godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit
+godot --headless --path .testbed --script res://modio_final_easy_wins_harness.gd
+```
+
+Observed audit results:
+- scaffold validation passed
+- full fixture-driven suite stayed green at `95/95` tests
+- the dedicated final-easy-wins harness exited `0` with `ok = true` after re-verifying real download delivery, taxonomy-valid tag writes, expanded collection-family coverage, and end-of-run cleanup of its disposable collection + seed-workout fixtures
+- the recurring UTF-8 warning noise still appears while mirrored diagnostics touch multipart PNG bytes, but the underlying multipart requests and cleanup again succeeded end-to-end
+
+Fresh sandbox truth-check from the auditor rerun:
+- **Real binary download verification remains green.** `GET /games/1325/mods/16112/files?_limit=5&_offset=0` and `GET /games/1325/mods/16112/files/22687` still returned the same live delivery URL + md5 metadata for sample file `22687`; direct download from that URL again followed the expected `302` redirect to `binary.test.modcdn.io`, returned `200`, downloaded `198` bytes, reproduced md5 `d4e48a959c4c798157697c8839a601c3`, and ZIP inspection still exposed `README.txt`.
+- **Taxonomy-aware tag writes remain genuinely valid when using configured values.** `GET /games/1325/tags` still exposed the configured groups `feature`, `difficulty`, and `genre`; `POST /games/1325/mods/16112/tags` with `boxing`, `easy`, and `edm` returned `201`; immediate readback returned exactly those three tags; `DELETE /games/1325/mods/16112/tags` returned `204`; follow-up readback returned an empty tag list again.
+- **Expanded collection-family coverage reproduced cleanly.** The rerun created disposable public seed workouts `16162`, `16163`, and `16164` plus builds `22739`, `22740`, and `22741`; each create/upload/publish/public-detail check stayed green with `community_options = 131072`, `status = 1`, and `visible = 1`. It then created disposable public collection `54` -> `201`; public list/detail/membership reads all stayed green and returned the expected members `16112`, `16162`, `16163`, `16164`; owner `/me/collections` stayed readable; follow/unfollow remained green (`201` / `204`), subscribe/unsubscribe remained green (`201` / `200`), collection compatibility rating remained green (`201`), collection member removal remained green (`204`) with the expected survivor set afterward, and cleanup succeeded at the end of the harness (`DELETE /games/1325/collections/54` plus `DELETE /games/1325/mods/{16164,16163,16162}` all returned `204`).
+- **Immediate public collection-comment detail rereads after update are best classified as the same provider-side cache behavior already seen on mod and guide comments.** In this audit rerun, collection comment `414` was created -> `201`, detail-after-create -> `200`, update -> `200` with updated content `oc-meid collection comment update 1778103440`, but the immediate follow-up public detail reread still returned the original create text `oc-meid collection comment create 1778103440`; delete -> `204`; list-after-delete returned empty again. This matches the already-audited mod-comment and guide-comment pattern: the authenticated update response itself contains the new content, the request shape is already covered by the green adapter/transport regression suite plus the committed harness source, and only the subsequent public/api-key detail reread stays stale.
+
+Audit conclusion:
+- **Pass** for the real-download proof, taxonomy-valid tag mutation proof, and the expanded collection browse/detail/follow/subscription/comment/compatibility/member-removal coverage
+- **Pass** for request shaping at the repo seam: no new transport/adapter defect was uncovered, and the exercised collection/comment/tag flows remained consistent with the existing green regression suite and committed harness code paths
+- **Caveat carried forward**: immediate public detail rereads after comment updates should now be treated uniformly across mod, guide, and collection comments as current upstream/provider cache behavior on the public comment-detail route rather than a reopened repo bug
+- **Plane-ready verdict**: yes, this vendor-repo hardening session is ready to land the plane. The remaining meaningful gaps are the intentionally deferred monetization / checkout / entitlement / platform-auth / S2S / live-parity families, not unresolved defects in the exercised core sandbox seam.
 
 ---
 

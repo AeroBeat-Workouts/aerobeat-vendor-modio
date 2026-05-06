@@ -1,7 +1,7 @@
 # AeroBeat Vendor Mod.io Test Sandbox Validation
 
 **Date:** 2026-05-06  
-**Status:** Draft  
+**Status:** Complete  
 **Agent:** Chip 🐱‍💻
 
 ---
@@ -332,9 +332,31 @@ No secrets were committed. This closes the earlier false-negative interpretation
 - `.plans/2026-05-06-aerobeat-vendor-modio-test-sandbox-validation.md`
 - `.testbed/modio.session.local.cfg`
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** Live bearer-authenticated `/me` parity was completed successfully using the same email security-code exchange flow as test, with the resulting live user token stored only in the ignored local session config.
+
+Evidence / exact flow:
+```bash
+godot --headless --path .testbed --script /tmp/modio_email_request_live.gd
+godot --headless --path .testbed --script /tmp/modio_email_exchange_live.gd
+godot --headless --path .testbed --script res://modio_live_harness.gd -- --env live --json
+```
+
+Observed live results:
+- email request returned HTTP `200` and sent a 5-character security code to the shared inbox
+- code exchange returned HTTP `200` with a real live `access_token`
+- rerun of the safe harness against `--env live --json` stayed green overall
+- live `/me` returned HTTP `200` with correct normalized profile fields:
+  - `id = 57783954`
+  - `name_id = "derrick-barra"`
+  - `username = "Derrick-Barra"`
+- live public baseline also stayed green in the same run:
+  - `ping` `200`
+  - `game` `200` (`id = 12962`, `name = "AeroBeat"`, `status = 0`)
+  - `mods` `200`
+
+This validated that the real user email-exchange token works on live exactly where the OAuth Access client-secret experiment failed, and it established live `/me` parity at the harness level without committing any secret material.
 
 ---
 
@@ -352,9 +374,19 @@ No secrets were committed. This closes the earlier false-negative interpretation
 **Files Created/Deleted/Modified:**
 - `.plans/2026-05-06-aerobeat-vendor-modio-test-sandbox-validation.md`
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** Audit conclusion: **pass**. Live now matches the validated test `/me` flow closely enough for auth/profile-read confidence at the harness layer.
+
+Why this passes:
+- the live email-request + email-exchange path yielded a real user bearer token, which is the same credential class proven on test and explicitly distinct from the earlier non-working OAuth Access client-secret experiment
+- live `/me` returned HTTP `200` with correct normalized identity fields (`57783954 / derrick-barra / Derrick-Barra`)
+- the live run preserved the same public baseline checks (`ping`, game detail, mod browse) in the same harness execution
+- no additional parsing or transport bug surfaced on the live `/me` lane once the correct token type was used
+
+Remaining gap note:
+- this parity check was intentionally narrow: it proves live `/me` auth/profile-read confidence, not a full live-surface certification. The later master REST exercise remained intentionally test-sandbox-first for broader endpoint hardening.
+- The broader tool-api readiness recommendation was ultimately completed in the master plan rather than in this narrower audit bead.
 
 ---
 
@@ -657,9 +689,48 @@ Repo code/docs changes: **none**. Only this plan file was updated; the sandbox a
 - `.plans/2026-05-06-aerobeat-vendor-modio-test-sandbox-validation.md`
 - code/tests only if needed
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** QA independently confirmed the coder conclusion still holds on the now-non-empty sandbox listing: the client request is still serialized with `_limit=3`, the public browse path now returns the created sample mod, and the pagination echo matches the requested limit once public rows exist.
+
+Evidence / exact validation commands:
+
+```bash
+godot --headless --path .testbed --script res://tests/validate_scaffold.gd
+godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit
+godot --headless --path .testbed --script /tmp/modio_qa_limit_probe.gd
+godot --headless --path .testbed --script /tmp/modio_oc_4wr_public_detail.gd -- 16112
+godot --headless --path .testbed --script res://modio_live_harness.gd -- --env test --public-only --json
+godot --headless --path .testbed --script res://modio_live_harness.gd -- --env test --json
+```
+
+Observed results:
+- scaffold validation passed
+- full fixture-driven suite passed: `89/89` tests
+- direct prepared-request probe confirmed the exact outbound browse request shape is unchanged:
+  - path: `/games/1325/mods`
+  - query: `_limit=3`, `_offset=0`, `api_key=***REDACTED***`
+  - final URL: `https://g-1325.test.mod.io/v1/games/1325/mods?_limit=3&_offset=0&api_key=***REDACTED***`
+- direct public detail read for the created sandbox sample mod succeeded with HTTP `200` and confirmed the expected published record:
+  - `id = 16112`
+  - `name = "oc-4wr sandbox pagination sample 1778082871"`
+  - `name_id = "oc-4wr-sandbox-pagination-sample-1778082871"`
+  - `status = 1`
+  - `visible = 1`
+- public harness run against `test.mod.io` returned HTTP `200` for `mods` and now reports the non-empty listing truthfully:
+  - `requested_limit = 3`
+  - `response_result_count = 1`
+  - `response_result_limit = 3`
+  - `response_result_offset = 0`
+  - `response_result_total = 1`
+  - `sample_mod_names = ["oc-4wr sandbox pagination sample 1778082871"]`
+- authenticated harness run against `test.mod.io` stayed green overall and preserved the same mod-list summary while `/me` still returned the validated normalized profile fields (`id = 71104`, `name_id = "derrickbarra"`, `username = "DerrickBarra"`)
+
+QA conclusion:
+- no additional code fix was required in this pass
+- request shaping is still correct end-to-end through `ModioListingQuery -> build_listing_request() -> prepare_request()`
+- the non-empty sandbox result now confirms the earlier interpretation: the previous `result_limit = 100` was an empty-list server echo quirk, not client-side request loss
+- with a publicly visible row present, the sandbox browse response now echoes `response_result_limit = 3`, matching the requested browse cap exactly
 
 ---
 
@@ -677,25 +748,60 @@ Repo code/docs changes: **none**. Only this plan file was updated; the sandbox a
 **Files Created/Deleted/Modified:**
 - `.plans/2026-05-06-aerobeat-vendor-modio-test-sandbox-validation.md`
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** Audit verdict: **PASS** for the final non-empty sandbox pagination conclusion.
+
+Independent truth-check performed:
+
+```bash
+godot --headless --path .testbed --script res://tests/validate_scaffold.gd
+godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit
+godot --headless --path .testbed --script res://modio_live_harness.gd -- --env test --public-only --json
+godot --headless --path .testbed --script /tmp/modio_oc_6xq_audit_probe.gd
+```
+
+Observed audit evidence:
+- scaffold validation passed
+- full fixture-driven suite stayed green at `89/89` tests
+- public sandbox harness returned HTTP `200` for the public checks and reported the non-empty mod browse result as:
+  - `requested_limit = 3`
+  - `response_result_count = 1`
+  - `response_result_limit = 3`
+  - `response_result_offset = 0`
+  - `response_result_total = 1`
+  - `sample_mod_names = ["oc-4wr sandbox pagination sample 1778082871"]`
+- independent prepared-request probe confirmed the exact outbound browse request shape on our side:
+  - final URL serialized as `https://g-1325.test.mod.io/v1/games/1325/mods?_limit=3&_offset=0&api_key=***REDACTED***`
+  - query contained `_limit = "3"`, `_offset = "0"`, and `api_key`
+
+Audit conclusion:
+- the client request-shaping path is correct end-to-end for the intended small-sample browse flow
+- the final non-empty sandbox response supports the conclusion that the earlier `result_limit = 100` observation was not dropped client pagination, but an empty-list / server-response behavior in `test.mod.io`
+- once a publicly visible row exists, the same public listing path echoes `response_result_limit = 3`, matching the requested `_limit = 3`
+
+Remaining caveats:
+- this audit confirms the `test.mod.io` sandbox behavior we currently observe, not a global guarantee for every mod.io environment or every empty-list edge case
+- plan bookkeeping is still slightly behind execution: Task 12 (`oc-dz3`) remains marked pending in this file even though the final non-empty pagination conclusion now audits cleanly
 
 ---
 
 ## Final Results
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**What We Built:** Pending.
+**What We Built:** A real-sandbox validation path for `aerobeat-vendor-modio` that corrected the `test`/`live` split, proved public read reachability on `test.mod.io`, clarified the real user-token auth lane for `/me`, fixed harness detail-summary normalization for top-level payloads, verified live `/me` parity, and set the stage for the broader master endpoint exercise that followed.
 
-**Reference Check:** Pending.
+**Reference Check:** `REF-02` through `REF-05` were validated directly through the hidden `.testbed` config and safe harness runs. The narrower findings here were later absorbed and expanded by the master plan, but the credential/auth conclusions and harness fixes from this plan remained foundational and correct.
 
 **Commits:**
-- None yet.
+- `5fe3adc` - Fix mod.io harness detail response summaries
 
-**Lessons Learned:** Pending.
+**Lessons Learned:**
+- mod.io OAuth Access client secrets are not bearer tokens for `/me`; real user tokens must come from supported auth flows like email exchange or platform/OpenID auth.
+- The `test.mod.io` sandbox is good enough for core provider-seam hardening and should be the default dev lane.
+- Narrow live `/me` parity is worth proving, but broader hardening should stay test-sandbox-first.
 
 ---
 
-*Drafted on 2026-05-06*
+*Completed on 2026-05-06*
