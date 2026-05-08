@@ -6,6 +6,8 @@ This document captures the first implementation-ready seam for real mod.io integ
 
 Keep **provider-native** concerns in this repo while allowing `aerobeat-tool-api` to compose the adapter behind an AeroBeat-facing API-manager surface.
 
+This seam document is intentionally broader than the currently approved AeroBeat v1 product surface. It records what the mod.io adapter can truthfully wrap, not what AeroBeat v1 is automatically allowed to expose in gameplay/UI, creator UX, or commerce UX.
+
 ## Seam boundaries
 
 ### This repo should own
@@ -33,6 +35,9 @@ Keep **provider-native** concerns in this repo while allowing `aerobeat-tool-api
 - gameplay/UI integration behavior
 - canonical content identity beyond provider-to-AeroBeat mapping helpers
 - install orchestration decisions above the provider seam
+- the final decision that a wrapped provider capability belongs in the approved AeroBeat v1 product surface
+
+For the current AeroBeat v1 policy lock, broad wrapped families such as wallet/checkout, direct entitlements, monetization-team operations, S2S monetization flows, rich authoring/CMS routes, social mutation, and cook/platform-management should be treated as provider seam coverage, deferred scope, or internal/operator support unless higher-layer AeroBeat docs explicitly adopt them.
 
 ## Implemented code seam
 

@@ -7,6 +7,7 @@ This is the practical version of the Unity-vs-wrapper comparison for AeroBeat pl
 The short answer:
 
 - `aerobeat-vendor-modio` is now basically **REST-complete** for the public mod.io docs we are treating as source of truth.
+- That does **not** mean AeroBeat v1 is approved to expose every wrapped capability.
 - The main thing AeroBeat still **does not** have is **Unity-style engine/runtime behavior above the REST API**.
 - That means the next work is mostly **Godot product integration work**, not "wrap more ordinary REST endpoints."
 
@@ -27,6 +28,8 @@ That is not an accidental miss. The docs mark it deprecated for in-game use and 
 ## What AeroBeat should actually care about
 
 AeroBeat should care about this split:
+
+For the current policy-locked v1, a lot of the wrapped surface should be read as **provider capability** rather than **approved product behavior**. In particular, things like direct checkout/wallet flows, broad creator-authoring coverage, rich social mutation, or monetization-team/S2S operations should remain deferred or internal unless the higher-level AeroBeat docs explicitly bring them into scope.
 
 ### 1. Things already handled by `aerobeat-vendor-modio`
 
