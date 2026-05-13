@@ -1,7 +1,7 @@
 # AeroBeat Vendor mod.io DMCA Wording Follow-up
 
 **Date:** 2026-05-13  
-**Status:** In Progress  
+**Status:** Complete
 **Agent:** Chip 🐱‍💻
 
 ---
@@ -142,24 +142,25 @@ Cross-reference note for Task 2: when softening paid-workout/checkout wording, m
 - `.plans/2026-05-13-aerobeat-vendor-modio-dmca-wording-follow-up.md`
 - touched docs only if QA/audit requires fixes
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** QA/audit completed with no further wording edits required. Independent review of `REF-02`, `REF-03`, and `REF-04` against the softened AeroBeat-side posture in `REF-05`, `REF-06`, and `REF-07` found the intended distinction is now clear: provider capability truth remains explicit (`GET /me/wallets`, `GET /me/purchased`, `POST /me/entitlements`, `POST /games/{game-id}/mods/{mod-id}/checkout`, monetization-team routes), while AeroBeat-facing paid-workout / DMCA / safe-harbor language is now consistently framed as a current working assumption pending firmer provider/legal confirmation. No technical seam drift was introduced by the wording pass: route inventory, auth/header rules, checkout mode coverage, and deferred `/me/iap/*/sync` posture remain intact (`REF-02`, `REF-03`, `REF-04`). Validation evidence was proportionate and credible for a docs-only change: reviewed the exact Task 2 commit (`37c8944`), re-read the final file content, re-checked the targeted docs with `git diff --check`, and spot-audited the final wording for lingering overstatements around direct checkout, platform billing, entitlements, and legal certainty. No fixes were necessary.
 
 ---
 
 ## Final Results
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**What We Built:** Pending.
+**What We Built:** A docs-only truth-alignment pass that keeps the vendor seam technically literal while bringing the vendor repo’s monetization/DMCA wording into line with AeroBeat’s softer current product/legal posture. The final state preserves documented mod.io capability coverage, but no longer overstates AeroBeat’s checkout, purchased-state, or safe-harbor certainty.
 
-**Reference Check:** Pending.
+**Reference Check:** `REF-02`, `REF-03`, and `REF-04` now read coherently with `REF-05`, `REF-06`, and `REF-07`: provider capability remains explicit; AeroBeat product approval remains bounded; pending provider/legal confirmation remains visible; and no route/auth/query seam claims drifted during the wording cleanup.
 
 **Commits:**
-- Pending
+- `37c8944` - docs: soften mod.io monetization legal wording
+- `(working tree only)` plan updated with Task 3 QA/audit results; no additional content fixes were required
 
-**Lessons Learned:** Pending.
+**Lessons Learned:** For adjacent vendor repos, the main risk was not technical inaccuracy but product/legal overstatement. The safest pattern is to keep route capability statements literal while explicitly labeling AeroBeat-facing monetization conclusions as current working assumptions when provider/legal confirmation is still pending.
 
 ---
 
