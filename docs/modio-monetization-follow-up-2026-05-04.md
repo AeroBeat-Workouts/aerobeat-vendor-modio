@@ -35,16 +35,17 @@ Focused follow-up on:
 - The mirrored REST endpoint corpus under `modio-docs/public/en-us/restapi/docs/` does **not** include matching `.api.mdx` pages for `/me/iap/apple/sync`, `/me/iap/google/sync`, `/me/iap/meta/sync`, `/me/iap/steam/sync`, `/me/iap/xboxlive/sync`, `/me/iap/psn/sync`, or `/me/iap/epicgames/sync`.
 - So these endpoints look **officially used and supported in practice**, but **incompletely represented in the mirrored REST reference**.
 
-### 2. The intended product shape appears to be both flows, but for different distribution contexts
+### 2. The best current reading is that mod.io supports both flows, but AeroBeat should treat them differently by distribution context
 
 **High-confidence local evidence**
 - `purchase.api.mdx`, `get-user-wallet.api.mdx`, and `get-user-purchases.api.mdx` clearly support direct mod.io wallet / checkout flows.
 - `modio-as-purchase-server.md` clearly describes platform entitlement sync into mod.io wallet/inventory through `/me/iap/*/sync`.
 
 **Interpretation**
-- mod.io appears to support **both**:
+- The provider evidence still points to mod.io supporting **both**:
   1. **platform-IAP entitlement sync into mod.io** for store/platform-native purchases
   2. **direct mod.io wallet / checkout** for distributions where mod.io can be the effective purchase layer
+- For AeroBeat, the safer current read is not “both flows are equally product-approved.” It is that store-compliant sync remains the current intended premium-workout posture for store-distributed builds, while direct mod.io checkout is a provider capability that may fit some non-store-controlled distribution contexts. That split should still be treated as a working interpretation, not a final legal or provider-policy conclusion.
 
 ### 1b. Route-by-route drift resolution snapshot
 
@@ -89,30 +90,30 @@ Practical conclusion from the drift audit:
 - **Source quality:** strong local mod.io evidence; supportive official Steam documentation snippets
 - mod.io explicitly documents `/me/iap/steam/sync` in the guide and ships SDK support.
 - Steam officially supports in-game microtransactions.
-- Practical conclusion: Steam looks like a realistic target for **platform purchase -> mod.io entitlement sync**.
-- Direct mod.io wallet/checkout may still be possible in some PC contexts, but for a Steam-distributed build the safer assumption is to prefer the **Steam-native commerce path**, with mod.io consuming or reflecting entitlements.
+- Practical conclusion: Steam still looks like a realistic target for **platform purchase -> mod.io entitlement sync**.
+- Direct mod.io wallet/checkout may still fit some PC contexts, but for a Steam-distributed build the safer current assumption is to prefer the **Steam-native commerce path**, with mod.io consuming or reflecting entitlements. That should be read as present planning guidance, not a permanently settled commerce or legal ruling.
 
 #### Apple App Store
 - **Confidence:** high for the broad restriction, medium for edge-case exceptions
 - **Source quality:** official Apple guideline/search evidence + strong local Unity/mod.io integration evidence
 - Apple requires in-app purchase for digital goods/services in App Store apps.
 - mod.io Unity code includes Apple receipt sync via `/me/iap/apple/sync`, which strongly suggests the intended compliant pattern is **Apple IAP first, then sync the entitlement into mod.io**.
-- Practical conclusion: treat **direct mod.io wallet/checkout inside an App Store-distributed iOS app as not the default safe path**. Treat Apple as **platform-IAP sync only** unless a later legal/product review identifies a very specific allowed carve-out.
+- Practical conclusion: treat **direct mod.io wallet/checkout inside an App Store-distributed iOS app as not the default safe path**. Treat Apple as **platform-IAP sync first** unless a later legal/product review identifies a very specific allowed carve-out.
 
 #### Google Play
 - **Confidence:** high
 - **Source quality:** official Google Play Payments policy + strong local Unity/mod.io integration evidence
 - Google Play policy explicitly requires Google Play Billing for digital goods/features in Play-distributed apps.
 - mod.io Unity code includes Google receipt sync via `/me/iap/google/sync`, which strongly suggests the intended compliant pattern is **Google Play Billing first, then sync into mod.io**.
-- Practical conclusion: for a Google Play build, treat mod.io wallet/checkout as **not the primary in-app payment path**. Use **Google Play IAP entitlement sync**.
+- Practical conclusion: for a Google Play build, treat mod.io wallet/checkout as **not the primary in-app payment path**. Use **Google Play IAP entitlement sync** as the safer current assumption.
 
 #### Meta Quest store
 - **Confidence:** medium
 - **Source quality:** strong local mod.io evidence; lighter official policy evidence than Apple/Google
 - mod.io explicitly documents `/me/iap/meta/sync` and requires `meta_device` + `meta_user_id`.
 - Meta official add-ons docs/snippets show durable/consumable/subscription IAP and entitlement consumption/refund behavior.
-- Practical conclusion: Meta Quest looks realistic for **Meta add-on / IAP entitlement sync into mod.io**.
-- Caveat: policy conclusions are less directly evidenced here than Apple/Google, so phrase this as an implementation fit rather than a hard legal statement.
+- Practical conclusion: Meta Quest still looks realistic for **Meta add-on / IAP entitlement sync into mod.io**.
+- Caveat: policy conclusions are less directly evidenced here than Apple/Google, so phrase this as an implementation fit and current planning assumption rather than a hard legal statement.
 
 ## Recommendation
 
@@ -131,8 +132,14 @@ Practical conclusion from the drift audit:
 - They also force an immediate product decision about which store portals AeroBeat will actually ship on first.
 - So they are better treated as the **next slice after wallet/purchases reads**, not the very next thin-wrapper slice.
 
+### Posture note
+- This recommendation is about the safer current wrapper order and AeroBeat-facing product posture, not about denying provider capability.
+- The provider evidence still supports wallet/checkout and store-sync surfaces existing.
+- The remaining open question is whether the paid-workout / DMCA / provider legal sufficiency posture stays acceptable once firmer provider guidance lands.
+
 ## Bottom line
 
 - Treat `/me/iap/*/sync` as **official enough to plan for**, but **not the cleanest first wrapper slice**.
-- Treat mod.io wallet/checkout as primarily **web/self-hosted / non-store-controlled distribution** territory.
-- For major app stores, the safer assumption is **platform-native billing + entitlement sync into mod.io**, not direct mod.io checkout inside the shipped store app.
+- Treat mod.io wallet/checkout as a documented provider capability whose **best current fit appears to be web/self-hosted or otherwise non-store-controlled distribution contexts**.
+- For major app stores, the safer current assumption is **platform-native billing + entitlement sync into mod.io**, not direct mod.io checkout inside the shipped store app.
+- For AeroBeat specifically, the provider-backed premium-workout / purchased-state model should still be described as a current intended workflow pending firmer provider/legal confirmation on the paid-workout / DMCA / safe-harbor question.
