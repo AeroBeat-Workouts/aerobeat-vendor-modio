@@ -165,13 +165,51 @@ Per `REF-03` and the dedicated drift audit in `/.plans/2026-05-04-aerobeat-vendo
 
 **Files Created/Deleted/Modified:**
 - `.testbed/modio_live_harness.gd`
-- `.testbed/modio_live_harness_lib.gd`
 - `docs/modio-paid-mods-test-server-matrix.md`
 - `.plans/2026-05-17-aerobeat-vendor-modio-paid-mods-test-server-validation.md`
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** QA executed the test-server paid-mods harness on the implementation baseline commit `a02ad49` and found one real repo-side blocker before any network validation could occur: `.testbed/modio_live_harness.gd` did not parse under Godot `4.6.2` because three locals (`owned_mod_id`, `transaction_id`, `mod_id`) relied on type inference from Variant-typed values. Minimum truthful QA fix: add explicit `: String` annotations to those three locals, then rerun validation. Post-fix validation: `godot --headless --path .testbed --script res://modio_live_harness.gd -- --paid-mods --json` succeeded and the full GUT suite passed via `godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit` (`98/98`).
+
+Exact commands run:
+```bash
+git rev-parse --short HEAD
+godot --headless --path .testbed --script res://modio_live_harness.gd -- --paid-mods --json   # initial run failed with parse errors
+godot --headless --path .testbed --script res://modio_live_harness.gd -- --paid-mods --json   # rerun after minimal QA fix
+godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit
+```
+
+Observed local setup state for this QA run:
+- `.testbed/modio.local.cfg` existed with the public `test` tuple populated enough for `ping`/`game`/`mods`.
+- `.testbed/modio.session.local.cfg` did **not** exist, so no bearer `access_token` was available.
+- Stable paid/S2S identifiers were blank in the local cfg used for this run: `service_token`, `monetization_team_id`, `owned_mod_id`, `paid_mod_id`.
+- No ephemeral paid payload inputs were present because the session cfg was absent (`entitlements_payload_json`, `checkout_payload_json`, `s2s_filters_json`, `s2s_transaction_id`).
+
+Endpoint evidence from the executed `--paid-mods --json` run:
+- Public baseline **passed**:
+  - `GET /ping` → HTTP `200`
+  - `GET /games/{game-id}` → HTTP `200` (`12962`, `AeroBeat`)
+  - `GET /games/{game-id}/mods` → HTTP `200`, but `result_total = 0`, so there was no public mod child drill-down candidate
+  - `GET /authenticate/terms` → HTTP `200`
+- Paid read lane:
+  - `GET /games/{game-id}/monetization/token-packs` → **skipped, missing setup/input** (`no access token is configured in session config`)
+  - `GET /me/wallets` → **skipped, missing setup/input** (`no access token is configured in session config`)
+  - `GET /me/purchased` → **skipped, missing setup/input** (`no access token is configured in session config`)
+- Owned paid-mod read:
+  - `GET /games/{game-id}/mods/{owned_mod_id}/monetization/team` → **skipped, missing setup/input** (`no access token is configured in session config`; stable `owned_mod_id` / `paid_mod_id` were also blank)
+- Service-token read lane:
+  - `GET /s2s/monetization-teams/{monetization-team-id}/transactions` → **skipped, missing setup/input** (`no service_token is configured in stable config`)
+  - `GET /s2s/monetization-teams/{monetization-team-id}/transactions/{transaction-id}` → **skipped, missing setup/input** (`no service_token is configured in stable config`)
+- Optional ephemeral writes:
+  - `POST /me/entitlements` → **skipped, missing setup/input** for this QA run; harness correctly kept it behind `--allow-paid-writes`, and the absent session cfg also means no `access_token` or `entitlements_payload_json` were available
+  - `POST /games/{game-id}/mods/{paid_mod_id}/checkout` → **skipped, missing setup/input** for this QA run; harness correctly kept it behind `--allow-paid-writes`, and the absent session cfg also means no `access_token`, `checkout_payload_json`, or `paid_mod_id` were available
+- Explicitly out of the default QA pass, as planned:
+  - `POST /games/{game-id}/mods/{mod-id}/monetization/team` → skipped by default opt-in guard
+  - `POST /s2s/transactions/intent|commit|clawback` → skipped by default opt-in guard
+  - `DELETE /s2s/connections/{portal-id}` → not run / still deliberately excluded from default QA
+
+Captured the endpoint-by-endpoint matrix and raw command evidence in `docs/modio-paid-mods-test-server-matrix.md`. Because a real QA fix was required, code/doc/plan changes need commit+push before handoff. Despite the setup-limited paid coverage, the repo is now ready for **audit of truthfulness**: the harness runs, the skip reasons are exact, and the remaining gap is machine-local credential/setup, not an unreported repo failure.
 
 ---
 
@@ -206,14 +244,14 @@ Per `REF-03` and the dedicated drift audit in `/.plans/2026-05-04-aerobeat-vendo
 
 **Status:** ⚠️ Partial
 
-**What We Built:** Task 1 and Task 2 are now complete. The repo now has a docs-grounded paid-mods matrix plus truthful harness/config/test support for the approved testing-server slice: token packs, wallets, purchased reads, owned monetization-team read, guarded entitlements/checkout, and guarded S2S list/detail. QA execution and independent audit remain pending.
+**What We Built:** Tasks 1 through 3 are now complete. The repo now has a docs-grounded paid-mods matrix, truthful harness/config/test support for the approved testing-server slice, and a recorded QA evidence pass showing both the one real repo-side harness blocker that was fixed and the exact machine-local setup gaps that prevented deeper credential-backed paid-route execution on this run.
 
-**Reference Check:** The implementation follows the matrix and auth boundaries captured from `REF-01` through `REF-08`, with no new vendor-adapter route invention beyond the existing documented seam.
+**Reference Check:** The implementation and QA evidence continue to follow the matrix and auth boundaries captured from `REF-01` through `REF-08`, with no new vendor-adapter route invention beyond the existing documented seam.
 
 **Commits:**
-- Pending
+- Pending QA fix commit/push for the Task 3 harness parse repair and evidence docs
 
-**Lessons Learned:** The missing work was mostly harness truthfulness, not new REST wrapper coverage. Session-local JSON payload inputs turned out to be the cleanest way to keep portal tokens, checkout bodies, and S2S one-shot inputs out of the long-lived stable config while still making the harness reproducible.
+**Lessons Learned:** The missing work was mostly harness truthfulness, not new REST wrapper coverage. In practice, the first QA pass surfaced an additional Godot-4.6 parse hazard in the harness itself, and once fixed the remaining limitations were entirely about absent local bearer/service-token/paid-payload setup rather than hidden transport failures.
 
 ---
 

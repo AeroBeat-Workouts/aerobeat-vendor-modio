@@ -391,7 +391,7 @@ func _run_optional_paid_mods_sweep(plan: Dictionary, adapter: ModioVendorAdapter
 			func(response: Dictionary) -> Dictionary:
 				return harness.summarize_user_purchased_response(adapter, response, ModioLiveHarness.DEFAULT_USER_LIMIT)
 		))
-		var owned_mod_id := config.resolve_owned_mod_id()
+		var owned_mod_id: String = config.resolve_owned_mod_id()
 		if owned_mod_id.is_empty():
 			results.append(_skipped_check("paid_monetization_team", "Read owned paid-mod monetization team", "Skipped because owned_mod_id or paid_mod_id is not configured"))
 		else:
@@ -431,7 +431,7 @@ func _run_optional_paid_mods_sweep(plan: Dictionary, adapter: ModioVendorAdapter
 				return harness.summarize_s2s_transactions_response(adapter, response, ModioLiveHarness.DEFAULT_CHILD_LIMIT)
 		)
 		results.append(s2s_transactions_result)
-		var transaction_id := config.s2s_transaction_id
+		var transaction_id: String = config.s2s_transaction_id
 		if transaction_id.is_empty():
 			transaction_id = str(s2s_transactions_result.get("details", {}).get("selected_transaction_id", 0))
 		if str(s2s_transactions_result.get("status", "")) != "ok":
@@ -491,7 +491,7 @@ func _run_paid_checkout_check(adapter: ModioVendorAdapter, config) -> Dictionary
 		return _skipped_check("paid_checkout", "Run paid checkout", "Skipped because checkout_payload_json is empty in the session config")
 	var portal := str(payload.get("portal", ""))
 	var platform := str(payload.get("platform", ""))
-	var mod_id := config.resolve_paid_mod_id(str(payload.get("mod_id", "")))
+	var mod_id: String = config.resolve_paid_mod_id(str(payload.get("mod_id", "")))
 	if mod_id.is_empty():
 		return _skipped_check("paid_checkout", "Run paid checkout", "Skipped because paid_mod_id or checkout_payload_json.mod_id is not configured")
 	var fields := _extract_guarded_fields(payload, ["portal", "platform", "mod_id"])
