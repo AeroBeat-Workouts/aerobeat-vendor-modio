@@ -146,7 +146,7 @@ Per `REF-03` and the dedicated drift audit in `/.plans/2026-05-04-aerobeat-vendo
 
 **Status:** ✅ Complete
 
-**Results:** Implemented the paid-mods harness/config slice predicted by Task 1 without widening the adapter surface. `ModioClientConfig` and `.testbed/modio_env_loader.gd` now carry truthful paid-mod inputs: stable `owned_mod_id` / `paid_mod_id`, service-token / monetization-team identifiers, and session-local JSON payload strings for entitlements, checkout, and S2S runtime inputs (`s2s_transaction_id`, delegation/idempotent fields, filters). The live harness now supports `--paid-mods`, `--allow-paid-writes`, `--allow-paid-team-write`, and `--allow-paid-s2s-writes`; the first two are wired today to run token-pack, wallet, purchased, owned monetization-team, entitlements, checkout, and S2S list/detail checks with explicit skip reasons when config or opt-ins are missing. Heavier monetization-team write and S2S mutation flows remain explicit guarded skips by default, which matches the task’s safety rule. Added/updated harness summarizers plus focused env-loader and harness fixture coverage, and documented the contract in `README.md`. Validation: `godotenv addons install`, `godot --headless --path .testbed --import`, then `godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit` (`98/98` passing). Commit/push and bead closure completed after this plan update.
+**Results:** Implemented the paid-mods harness/config slice predicted by Task 1 without widening the adapter surface. `ModioClientConfig` and `.testbed/modio_env_loader.gd` now carry truthful paid-mod inputs: stable `owned_mod_id` / `paid_mod_id`, service-token / monetization-team identifiers, and session-local JSON payload strings for entitlements, checkout, and S2S runtime inputs (`s2s_transaction_id`, delegation/idempotent fields, filters). The live harness now supports `--paid-mods` and `--allow-paid-writes` for the currently wired paid-mods read + guarded entitlements/checkout lanes; it also parses `--allow-paid-team-write` and `--allow-paid-s2s-writes`, but those two heavier write lanes remain placeholders/reserved opt-ins rather than executable flows today. Added/updated harness summarizers plus focused env-loader and harness fixture coverage, and documented the contract in `README.md`. Validation: `godotenv addons install`, `godot --headless --path .testbed --import`, then `godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit` (`98/98` passing). Commit/push and bead closure completed after this plan update.
 
 ---
 
@@ -234,24 +234,41 @@ Captured the endpoint-by-endpoint matrix and raw command evidence in `docs/modio
 - `docs/modio-paid-mods-test-server-matrix.md`
 - `.plans/2026-05-17-aerobeat-vendor-modio-paid-mods-test-server-validation.md`
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** Independent audit completed against the locked Task 1/2/3 baseline, the current `main` branch (`a02ad49`, `305fa60`), the shipped harness/config/docs, and proportionate reruns. Truth-check findings:
+
+- **QA parse-fix was minimum and correct.** `git diff a02ad49..305fa60 -- .testbed/modio_live_harness.gd` showed only three explicit `: String` annotations (`owned_mod_id`, `transaction_id`, `mod_id`) plus the plan/docs updates around that QA pass. No request logic, routing, or endpoint coverage drift was introduced by the QA repair.
+- **Endpoint matrix accounting is complete.** The executed `godot --headless --path .testbed --script res://modio_live_harness.gd -- --paid-mods --json` run matched the documented default matrix exactly: public baseline passed; bearer paid reads skipped for missing session access token; owned monetization-team read skipped on the same missing-token lane; S2S reads skipped for missing stable `service_token`; entitlements/checkout skipped because `--allow-paid-writes` was not enabled; monetization-team write and S2S write trio remained out of the default QA pass; destructive `DELETE /s2s/connections/{portal-id}` remained excluded.
+- **Skip classification is truthful.** For the observed machine state, the skips were setup/input issues, not hidden repo failures: `.testbed/modio.session.local.cfg` was absent, stable `owned_mod_id` / `paid_mod_id` / `service_token` / `monetization_team_id` were blank, and no ephemeral entitlement/checkout/S2S payload JSON was present.
+- **One small repo truth gap was found and fixed during audit.** The harness help/runtime/docs implied `--allow-paid-team-write` and `--allow-paid-s2s-writes` could unskip those heavier write lanes, but the implementation only parsed those flags and still treated both lanes as placeholders. Minimum audit fix: keep behavior unchanged, but correct the harness help text, runtime skip messaging, README, matrix doc, and Task 2 wording so the repo now truthfully states that those flags currently reserve future opt-in lanes rather than executing writes.
+- **`/me/iap/*/sync` remained excluded.** Rechecked repo docs/plan/code references and found no implementation or matrix broadening into `/me/iap/*/sync`; the existing exclusion posture from `REF-03` and the earlier drift audit remains intact.
+
+Proportionate audit reruns after the doc/runtime-truth fix:
+
+```bash
+godot --headless --path .testbed --script res://modio_live_harness.gd -- --paid-mods --json
+godot --headless --path .testbed --script res://modio_live_harness.gd -- --paid-mods --allow-paid-team-write --allow-paid-s2s-writes --json
+godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit
+```
+
+Audit verdict: the repo is now **truthful** about its paid-mods harness/config surface and QA evidence. It is **paid-mods ready for the currently wired read + guarded entitlements/checkout harness slice**, but the executed test-server run was still **credential/setup-limited** rather than a full buyer/service-token validation. The heavier monetization-team write and S2S write lanes remain documented placeholders, not shipped executable harness coverage.
 
 ---
 
 ## Final Results
 
-**Status:** ⚠️ Partial
+**Status:** ✅ Complete
 
-**What We Built:** Tasks 1 through 3 are now complete. The repo now has a docs-grounded paid-mods matrix, truthful harness/config/test support for the approved testing-server slice, and a recorded QA evidence pass showing both the one real repo-side harness blocker that was fixed and the exact machine-local setup gaps that prevented deeper credential-backed paid-route execution on this run.
+**What We Built:** Completed the paid-mods test-server validation loop through audit. The repo now has: (1) a locked paid-mods endpoint matrix, (2) truthful harness/config support for the currently wired read + guarded entitlements/checkout slice, (3) recorded QA evidence for the real Godot-4.6 parse blocker and the machine-local setup limits, and (4) an audit correction that removes the last overclaim around the reserved monetization-team/S2S write opt-in flags.
 
-**Reference Check:** The implementation and QA evidence continue to follow the matrix and auth boundaries captured from `REF-01` through `REF-08`, with no new vendor-adapter route invention beyond the existing documented seam.
+**Reference Check:** The implementation, QA evidence, and final audit continue to follow the matrix and auth boundaries captured from `REF-01` through `REF-08`. `/me/iap/*/sync` remained excluded exactly as required, and no new vendor-adapter route invention or hidden scope broadening was found.
 
 **Commits:**
-- Pending QA fix commit/push for the Task 3 harness parse repair and evidence docs
+- `305fa60` - Fix paid-mods harness parse annotations
+- Audit fix commit landed on `main` for the harness flag truthfulness correction (see final audit handoff for the exact hash)
 
-**Lessons Learned:** The missing work was mostly harness truthfulness, not new REST wrapper coverage. In practice, the first QA pass surfaced an additional Godot-4.6 parse hazard in the harness itself, and once fixed the remaining limitations were entirely about absent local bearer/service-token/paid-payload setup rather than hidden transport failures.
+**Lessons Learned:** The real remaining work is mostly credential/setup completeness, not vendor-adapter breadth. The harness needed two kinds of truth work: a tiny Godot parse repair to run at all, then a narrower audit correction so placeholder opt-in flags are described as placeholders instead of executable write lanes.
 
 ---
 

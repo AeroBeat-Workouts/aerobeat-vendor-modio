@@ -452,15 +452,21 @@ func _run_optional_paid_mods_sweep(plan: Dictionary, adapter: ModioVendorAdapter
 		results.append(_skipped_check("paid_s2s_transactions", "Read S2S monetization-team transaction history", missing_service_reason))
 		results.append(_skipped_check("paid_s2s_transaction", "Read one S2S monetization transaction", missing_service_reason))
 
+	var paid_team_write_reason := "Skipped by default; this write stays behind explicit collaborator-fixture opt-in guard"
+	if bool(plan.get("allow_paid_team_write", false)):
+		paid_team_write_reason = "Skipped because monetization-team write execution is not wired in the harness yet; the flag currently reserves the opt-in lane only"
 	results.append(_skipped_check(
 		"paid_team_write",
 		"Create/update paid-mod monetization team",
-		"Skipped by default; this write stays behind explicit collaborator-fixture opt-in guard"
+		paid_team_write_reason
 	))
+	var paid_s2s_writes_reason := "Skipped by default; these service-token writes stay behind explicit opt-in guards"
+	if bool(plan.get("allow_paid_s2s_writes", false)):
+		paid_s2s_writes_reason = "Skipped because S2S intent/commit/clawback execution is not wired in the harness yet; the flag currently reserves the opt-in lane only"
 	results.append(_skipped_check(
 		"paid_s2s_writes",
 		"Run S2S monetization intent/commit/clawback writes",
-		"Skipped by default; these service-token writes stay behind explicit opt-in guards"
+		paid_s2s_writes_reason
 	))
 	return results
 

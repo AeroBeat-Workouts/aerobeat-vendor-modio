@@ -290,8 +290,8 @@ Safety notes:
 
 - `test` remains the default target unless you explicitly select `live`
 - `--public-only` forces the harness to skip the optional authenticated user-read sweep even when a token is present
-- `--paid-mods` opt-ins the monetization validation slice; guarded writes still stay skipped unless `--allow-paid-writes` is also passed
-- monetization-team writes plus S2S intent/commit/clawback remain explicit skip guards by default so QA can validate the read matrix without triggering heavier operational mutations
+- `--paid-mods` opt-ins the monetization validation slice; guarded entitlements/checkout writes still stay skipped unless `--allow-paid-writes` is also passed
+- monetization-team writes plus S2S intent/commit/clawback remain harness placeholders today: `--allow-paid-team-write` and `--allow-paid-s2s-writes` currently reserve those opt-in lanes for future wiring, but do not execute the writes yet
 - the harness currently stops at `GET /authenticate/terms` for agreement coverage because the test-sandbox terms payload does not expose agreement type/version ids to chain into the agreement-detail routes automatically
 - real secrets stay in ignored `.testbed/*.local.cfg` files only
 
