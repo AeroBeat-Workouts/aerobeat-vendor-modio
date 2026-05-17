@@ -548,6 +548,141 @@ func summarize_user_subscriptions_presence_response(adapter, response: Dictionar
 	summary["found_expected_mod_id"] = expected_mod_id > 0 and int(summary.get("selected_mod_id", 0)) == expected_mod_id
 	return summary
 
+func summarize_game_token_packs_response(adapter, response: Dictionary, requested_limit: int = DEFAULT_CHILD_LIMIT) -> Dictionary:
+	var normalized: Dictionary = adapter.normalize_game_token_packs_response(response.get("payload", {}))
+	var skus: PackedStringArray = []
+	var selected_token_pack_id := 0
+	for entry in normalized.get("data", []):
+		if not (entry is Dictionary):
+			continue
+		if skus.size() >= requested_limit:
+			break
+		skus.append(str(entry.get("sku", "")))
+		if selected_token_pack_id <= 0:
+			selected_token_pack_id = int(entry.get("token_pack_id", entry.get("id", 0)))
+	return _list_result_summary(normalized, requested_limit, {
+		"skus": skus,
+		"selected_token_pack_id": selected_token_pack_id
+	})
+
+func summarize_user_wallet_response(adapter, response: Dictionary) -> Dictionary:
+	var data: Dictionary = adapter.normalize_user_wallet_response(response.get("payload", {}))
+	return {
+		"type": str(data.get("type", "")),
+		"payment_method_id": str(data.get("payment_method_id", "")),
+		"game_id": str(data.get("game_id", "")),
+		"currency": str(data.get("currency", "")),
+		"balance": int(data.get("balance", 0)),
+		"pending_balance": int(data.get("pending_balance", 0)),
+		"deficit": int(data.get("deficit", 0)),
+		"monetization_status": int(data.get("monetization_status", 0))
+	}
+
+func summarize_user_purchased_response(adapter, response: Dictionary, requested_limit: int = DEFAULT_USER_LIMIT) -> Dictionary:
+	var normalized: Dictionary = adapter.normalize_user_purchased_response(response.get("payload", {}))
+	var names: PackedStringArray = []
+	var selected_mod_id := 0
+	var first := _first_dictionary(normalized.get("data", []))
+	for entry in normalized.get("data", []):
+		if not (entry is Dictionary):
+			continue
+		if names.size() >= requested_limit:
+			break
+		names.append(str(entry.get("name", "")))
+		if selected_mod_id <= 0:
+			selected_mod_id = int(entry.get("id", 0))
+	return _list_result_summary(normalized, requested_limit, {
+		"selected_mod_id": selected_mod_id,
+		"sample_mod_names": names,
+		"first_price": int(first.get("price", 0)),
+		"first_tax": int(first.get("tax", 0))
+	})
+
+func summarize_user_entitlements_response(adapter, response: Dictionary, requested_limit: int = DEFAULT_USER_LIMIT) -> Dictionary:
+	var normalized: Dictionary = adapter.normalize_user_entitlements_response(response.get("payload", {}))
+	var sku_ids: PackedStringArray = []
+	var entitlement_types: Array[int] = []
+	for entry in normalized.get("data", []):
+		if not (entry is Dictionary):
+			continue
+		if sku_ids.size() >= requested_limit:
+			break
+		sku_ids.append(str(entry.get("sku_id", "")))
+		entitlement_types.append(int(entry.get("entitlement_type", 0)))
+	return _list_result_summary(normalized, requested_limit, {
+		"sku_ids": sku_ids,
+		"entitlement_types": entitlement_types
+	})
+
+func summarize_mod_monetization_team_response(adapter, response: Dictionary, requested_limit: int = DEFAULT_CHILD_LIMIT) -> Dictionary:
+	var normalized: Dictionary = adapter.normalize_mod_monetization_team_response(response.get("payload", {}))
+	var usernames: PackedStringArray = []
+	var splits: Array[int] = []
+	for entry in normalized.get("data", []):
+		if not (entry is Dictionary):
+			continue
+		if usernames.size() >= requested_limit:
+			break
+		usernames.append(str(entry.get("username", "")))
+		splits.append(int(entry.get("split", 0)))
+	return _list_result_summary(normalized, requested_limit, {
+		"usernames": usernames,
+		"splits": splits
+	})
+
+func summarize_checkout_response(adapter, response: Dictionary) -> Dictionary:
+	var normalized: Dictionary = adapter.normalize_checkout_response(
+		int(response.get("status_code", 0)),
+		response.get("headers", {}),
+		response.get("payload", {})
+	)
+	var data: Dictionary = normalized.get("data", {})
+	var mod: Dictionary = data.get("mod", {})
+	return {
+		"completed": bool(normalized.get("completed", false)),
+		"transaction_id": int(data.get("transaction_id", 0)),
+		"wallet_type": str(data.get("wallet_type", "")),
+		"balance": int(data.get("balance", 0)),
+		"mod_id": int(mod.get("id", 0)),
+		"mod_name_id": str(mod.get("name_id", ""))
+	}
+
+func summarize_s2s_transactions_response(adapter, response: Dictionary, requested_limit: int = DEFAULT_CHILD_LIMIT) -> Dictionary:
+	var normalized: Dictionary = adapter.normalize_s2s_monetization_transactions_response(response.get("payload", {}))
+	var transaction_ids: Array[int] = []
+	var gateway_names: PackedStringArray = []
+	for entry in normalized.get("data", []):
+		if not (entry is Dictionary):
+			continue
+		if transaction_ids.size() >= requested_limit:
+			break
+		transaction_ids.append(int(entry.get("id", 0)))
+		gateway_names.append(str(entry.get("gateway_name", "")))
+	var pagination: Dictionary = normalized.get("pagination", {})
+	return {
+		"requested_limit": requested_limit,
+		"transaction_ids": transaction_ids,
+		"gateway_names": gateway_names,
+		"selected_transaction_id": transaction_ids[0] if not transaction_ids.is_empty() else 0,
+		"per_page": int(pagination.get("per_page", 0)),
+		"current_page": str(pagination.get("current_page", ""))
+	}
+
+func summarize_s2s_transaction_response(adapter, response: Dictionary) -> Dictionary:
+	var normalized: Dictionary = adapter.normalize_s2s_monetization_transaction_response(response.get("payload", {}))
+	var transaction: Dictionary = normalized.get("transaction", {})
+	var items: Array = transaction.get("items", [])
+	var first_item := _first_dictionary(items)
+	var line_items: Array = first_item.get("line_items", [])
+	var first_line_item := _first_dictionary(line_items)
+	return {
+		"transaction_id": int(transaction.get("id", 0)),
+		"gateway_name": str(transaction.get("gateway_name", "")),
+		"item_count": items.size(),
+		"first_mod_id": int(first_line_item.get("mod_id", 0)),
+		"first_game_id": int(first_line_item.get("game_id", 0))
+	}
+
 func parse_args(args: PackedStringArray) -> Dictionary:
 	var options := {
 		"env": "",
@@ -556,6 +691,10 @@ func parse_args(args: PackedStringArray) -> Dictionary:
 		"help": false,
 		"public_only": false,
 		"allow_writes": false,
+		"paid_mods": false,
+		"allow_paid_writes": false,
+		"allow_paid_team_write": false,
+		"allow_paid_s2s_writes": false,
 		"stable_path": ModioEnvLoader.CONFIG_STABLE_PATH,
 		"session_path": ModioEnvLoader.CONFIG_SESSION_PATH,
 		"errors": PackedStringArray()
@@ -573,6 +712,14 @@ func parse_args(args: PackedStringArray) -> Dictionary:
 				options.public_only = true
 			"--allow-writes":
 				options.allow_writes = true
+			"--paid-mods":
+				options.paid_mods = true
+			"--allow-paid-writes":
+				options.allow_paid_writes = true
+			"--allow-paid-team-write":
+				options.allow_paid_team_write = true
+			"--allow-paid-s2s-writes":
+				options.allow_paid_s2s_writes = true
 			"--env":
 				index += 1
 				if index >= args.size():
@@ -667,6 +814,10 @@ func build_run_plan(options: Dictionary, loader: ModioEnvLoader = ModioEnvLoader
 		"checks": checks,
 		"mods_limit": int(options.get("mods_limit", DEFAULT_MODS_LIMIT)),
 		"allow_writes": bool(options.get("allow_writes", false)),
+		"paid_mods": bool(options.get("paid_mods", false)),
+		"allow_paid_writes": bool(options.get("allow_paid_writes", false)),
+		"allow_paid_team_write": bool(options.get("allow_paid_team_write", false)),
+		"allow_paid_s2s_writes": bool(options.get("allow_paid_s2s_writes", false)),
 		"stable_path": str(options.get("stable_path", ModioEnvLoader.CONFIG_STABLE_PATH)),
 		"session_path": str(options.get("session_path", ModioEnvLoader.CONFIG_SESSION_PATH))
 	}
@@ -681,21 +832,26 @@ func build_missing_config_warnings(plan: Dictionary) -> PackedStringArray:
 	return warnings
 
 func help_text() -> String:
-	return "\n".join([
+	return "
+".join([
 		"Safe mod.io live harness",
 		"",
 		"Usage:",
 		"  godot --headless --path .testbed --script res://modio_live_harness.gd -- [options]",
 		"",
 		"Options:",
-		"  --env test|live           Explicit environment selection (default: resolved from config, fallback test)",
-		"  --mods-limit <1..100>     Browse-read limit for the mods listing check (default: %d)" % DEFAULT_MODS_LIMIT,
-		"  --public-only             Skip optional authenticated /me check even if a token exists",
-		"  --allow-writes            Opt into the low-risk authenticated sandbox write sweep",
-		"  --stable-config <path>    Override stable config path (default: res://modio.local.cfg)",
-		"  --session-config <path>   Override session config path (default: res://modio.session.local.cfg)",
-		"  --json                    Emit machine-readable JSON summary",
-		"  --help                    Show this help",
+		"  --env test|live              Explicit environment selection (default: resolved from config, fallback test)",
+		"  --mods-limit <1..100>        Browse-read limit for the mods listing check (default: %d)" % DEFAULT_MODS_LIMIT,
+		"  --public-only                Skip optional authenticated /me check even if a token exists",
+		"  --allow-writes               Opt into the low-risk authenticated sandbox write sweep",
+		"  --paid-mods                  Opt into the paid-mods validation sweep (reads + guarded skips/writes)",
+		"  --allow-paid-writes          Opt into paid entitlements + checkout execution",
+		"  --allow-paid-team-write      Explicitly unskip monetization-team write placeholder",
+		"  --allow-paid-s2s-writes      Explicitly unskip S2S write placeholders",
+		"  --stable-config <path>       Override stable config path (default: res://modio.local.cfg)",
+		"  --session-config <path>      Override session config path (default: res://modio.session.local.cfg)",
+		"  --json                       Emit machine-readable JSON summary",
+		"  --help                       Show this help",
 		"",
 		"Default checks are non-destructive:",
 		"  1. GET /ping",
@@ -704,12 +860,14 @@ func help_text() -> String:
 		"  4. When at least one public mod exists, also check detail/files/file-detail/stats/tags/metadatakvp/team/dependants/dependencies on the first listed mod",
 		"  5. GET /authenticate/terms",
 		"  6. Optional authenticated sweep when an access token is present: /me, /me/games, /me/mods, /me/files, /me/subscribed, /me/ratings, /me/collections, /me/following/collections, /me/followers, /me/users/muted, plus /users/{me-id}/followers|following|collections",
-		"  7. --public-only skips the authenticated sweep but still keeps the public terms check",
+		"  7. --paid-mods adds token-packs, wallets, purchased reads, monetization-team read, guarded entitlements/checkout, and S2S history reads using config-backed inputs",
 		"",
 		"Agreement current/version reads are supported by the adapter, but the public terms payload does not",
 		"currently expose agreement type/version ids in this sandbox, so the harness stops at GET /authenticate/terms.",
 		"",
-		"Write flows stay disabled unless you explicitly pass --allow-writes. Test is the default",
+		"Paid-mods runtime inputs live in the ignored session cfg via entitlements_payload_json,",
+		"checkout_payload_json, s2s_filters_json, s2s_transaction_id, and related S2S fields.",
+		"Write flows stay disabled unless you explicitly pass their opt-in flags. Test is the default",
 		"environment unless you explicitly select live via --env live, MODIO_ENV=live, or the",
 		"local cfg override chain.",
 	])

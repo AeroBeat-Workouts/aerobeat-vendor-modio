@@ -18,6 +18,10 @@ func test_parse_args_supports_safe_cli_flags() -> void:
 		"--mods-limit", "9",
 		"--public-only",
 		"--allow-writes",
+		"--paid-mods",
+		"--allow-paid-writes",
+		"--allow-paid-team-write",
+		"--allow-paid-s2s-writes",
 		"--json",
 		"--stable-config", "user://stable.cfg",
 		"--session-config", "user://session.cfg"
@@ -27,6 +31,10 @@ func test_parse_args_supports_safe_cli_flags() -> void:
 	assert_eq(options.mods_limit, 9)
 	assert_true(options.public_only)
 	assert_true(options.allow_writes)
+	assert_true(options.paid_mods)
+	assert_true(options.allow_paid_writes)
+	assert_true(options.allow_paid_team_write)
+	assert_true(options.allow_paid_s2s_writes)
 	assert_true(options.json)
 	assert_eq(options.stable_path, "user://stable.cfg")
 	assert_eq(options.session_path, "user://session.cfg")
@@ -75,6 +83,31 @@ func test_build_run_plan_includes_optional_auth_check_when_token_exists() -> voi
 	assert_eq(plan.environment, "live")
 	assert_false(plan.config.use_test_environment)
 	assert_false(bool(plan.checks[3].get("skip", false)))
+
+func test_build_run_plan_carries_paid_mod_flags_and_loaded_inputs() -> void:
+	_write_config(STABLE_PATH, _stable_config("test"))
+	_write_config(SESSION_PATH, _session_config("", "", "session-token"))
+
+	var harness := ModioLiveHarness.new()
+	var plan := harness.build_run_plan({
+		"env": "test",
+		"mods_limit": 5,
+		"public_only": false,
+		"paid_mods": true,
+		"allow_paid_writes": true,
+		"allow_paid_team_write": false,
+		"allow_paid_s2s_writes": false,
+		"stable_path": STABLE_PATH,
+		"session_path": SESSION_PATH
+	})
+
+	assert_true(plan.paid_mods)
+	assert_true(plan.allow_paid_writes)
+	assert_eq(plan.config.owned_mod_id, "3001")
+	assert_eq(plan.config.paid_mod_id, "4001")
+	assert_eq(str(plan.config.paid_checkout_input.get("mod_id", "")), "4001")
+	assert_eq(str(plan.config.paid_entitlements_input.get("portal", "")), "epicgames")
+	assert_eq(plan.config.s2s_transaction_id, "1234")
 
 func test_build_missing_config_warnings_detects_required_public_tuple() -> void:
 	_write_config(STABLE_PATH, "[modio]\ndefault_environment=\"test\"\n\n[modio.test]\ngame_id=\"\"\napi_key=\"\"\n\n[modio.live]\ngame_id=\"2001\"\napi_key=\"live-key\"\n")
@@ -307,6 +340,51 @@ func test_summarize_authenticated_user_read_sweep_responses_from_existing_fixtur
 	assert_eq(user_collections_summary.first_collection_id, 3001)
 	assert_eq(user_collections_summary.first_name_id, "starter-bundle")
 
+func test_summarize_paid_mod_read_and_write_responses_from_existing_fixtures() -> void:
+	var harness := ModioLiveHarness.new()
+	var adapter := ModioVendorAdapter.new()
+
+	var token_packs := harness.summarize_game_token_packs_response(adapter, {"payload": _fixture("game_token_packs.json")}, 5)
+	assert_eq(token_packs.response_result_total, 2)
+	assert_eq(token_packs.selected_token_pack_id, 101)
+	assert_eq(token_packs.skus[0], "AEROBEAT_TOKEN_PACK_A")
+
+	var wallet := harness.summarize_user_wallet_response(adapter, {"payload": _fixture("wallet.json")})
+	assert_eq(wallet.currency, "USD")
+	assert_eq(wallet.balance, 1200)
+
+	var purchased := harness.summarize_user_purchased_response(adapter, {"payload": _fixture("purchased.json")}, 5)
+	assert_eq(purchased.selected_mod_id, 1001)
+	assert_eq(purchased.first_price, 499)
+	assert_eq(purchased.sample_mod_names[0], "Cardio Blaster")
+
+	var entitlements := harness.summarize_user_entitlements_response(adapter, {"payload": _fixture("entitlements.json")}, 5)
+	assert_eq(entitlements.response_result_total, 2)
+	assert_eq(entitlements.sku_ids[0], "AEROBEAT_TOKEN_PACK_A")
+	assert_eq(entitlements.entitlement_types[1], 1)
+
+	var monetization_team := harness.summarize_mod_monetization_team_response(adapter, {"payload": _fixture("mod_monetization_team.json")}, 5)
+	assert_eq(monetization_team.response_result_total, 2)
+	assert_eq(monetization_team.usernames[0], "Coach Chip")
+	assert_eq(monetization_team.splits[0], 70)
+
+	var checkout := harness.summarize_checkout_response(adapter, {
+		"status_code": 200,
+		"headers": {},
+		"payload": _fixture("checkout_success.json")
+	})
+	assert_true(checkout.completed)
+	assert_eq(checkout.transaction_id, 654321)
+	assert_eq(checkout.mod_name_id, "cardio-pack")
+
+	var s2s_transactions := harness.summarize_s2s_transactions_response(adapter, {"payload": _fixture("s2s_transactions.json")}, 5)
+	assert_eq(s2s_transactions.selected_transaction_id, 1234)
+	assert_eq(s2s_transactions.gateway_names[0], "tilia")
+
+	var s2s_transaction := harness.summarize_s2s_transaction_response(adapter, {"payload": _fixture("s2s_transaction.json")})
+	assert_eq(s2s_transaction.transaction_id, 1234)
+	assert_eq(s2s_transaction.first_mod_id, 1001)
+
 func test_summarize_low_risk_write_sweep_responses_from_existing_fixtures() -> void:
 	var harness := ModioLiveHarness.new()
 	var adapter := ModioVendorAdapter.new()
@@ -378,19 +456,23 @@ func _stable_config(default_environment: String) -> String:
 		"game_id=\"1001\"\n",
 		"api_key=\"test-key\"\n",
 		"base_url=\"\"\n",
-		"service_token=\"\"\n",
+		"service_token=\"service-test\"\n",
 		"portal=\"steam\"\n",
 		"platform=\"WINDOWS\"\n",
-		"monetization_team_id=\"\"\n",
+		"monetization_team_id=\"88\"\n",
+		"owned_mod_id=\"3001\"\n",
+		"paid_mod_id=\"4001\"\n",
 		"\n",
 		"[modio.live]\n",
 		"game_id=\"2001\"\n",
 		"api_key=\"live-key\"\n",
 		"base_url=\"\"\n",
-		"service_token=\"\"\n",
+		"service_token=\"service-live\"\n",
 		"portal=\"steam\"\n",
 		"platform=\"WINDOWS\"\n",
-		"monetization_team_id=\"\"\n"
+		"monetization_team_id=\"188\"\n",
+		"owned_mod_id=\"3002\"\n",
+		"paid_mod_id=\"4002\"\n"
 	])
 
 func _session_config(environment: String, host_kind: String, access_token: String) -> String:
@@ -402,10 +484,30 @@ func _session_config(environment: String, host_kind: String, access_token: Strin
 		"[modio.test]\n",
 		"access_token=\"%s\"\n" % access_token,
 		"user_id=\"1111\"\n",
+		"s2s_transaction_id=\"1234\"\n",
+		"s2s_delegation_token=\"delegation-token\"\n",
+		"s2s_intent_idempotent_key=\"intent-idem\"\n",
+		"s2s_commit_idempotent_key=\"commit-idem\"\n",
+		"entitlements_payload_json=\"{\\\"portal\\\":\\\"epicgames\\\",\\\"fields\\\":{\\\"game_id\\\":\\\"1001\\\",\\\"epicgames_token\\\":\\\"epic-token\\\",\\\"epicgames_sandbox_id\\\":\\\"sandbox-id\\\"}}\"\n",
+		"checkout_payload_json=\"{\\\"portal\\\":\\\"steam\\\",\\\"mod_id\\\":\\\"4001\\\",\\\"fields\\\":{\\\"idempotent_key\\\":\\\"checkout-idem\\\",\\\"type\\\":0,\\\"display_amount\\\":499}}\"\n",
+		"s2s_filters_json=\"{\\\"transaction_type\\\":[\\\"PAID\\\"],\\\"monetization_team_id\\\":\\\"88\\\"}\"\n",
+		"s2s_intent_payload_json=\"\"\n",
+		"s2s_commit_payload_json=\"\"\n",
+		"s2s_clawback_payload_json=\"\"\n",
 		"\n",
 		"[modio.live]\n",
 		"access_token=\"%s\"\n" % access_token,
-		"user_id=\"2222\"\n"
+		"user_id=\"2222\"\n",
+		"s2s_transaction_id=\"1234\"\n",
+		"s2s_delegation_token=\"delegation-token\"\n",
+		"s2s_intent_idempotent_key=\"intent-idem\"\n",
+		"s2s_commit_idempotent_key=\"commit-idem\"\n",
+		"entitlements_payload_json=\"{\\\"portal\\\":\\\"epicgames\\\",\\\"fields\\\":{\\\"game_id\\\":\\\"2001\\\",\\\"epicgames_token\\\":\\\"epic-token\\\",\\\"epicgames_sandbox_id\\\":\\\"sandbox-id\\\"}}\"\n",
+		"checkout_payload_json=\"{\\\"portal\\\":\\\"steam\\\",\\\"mod_id\\\":\\\"4001\\\",\\\"fields\\\":{\\\"idempotent_key\\\":\\\"checkout-idem\\\",\\\"type\\\":0,\\\"display_amount\\\":499}}\"\n",
+		"s2s_filters_json=\"{\\\"transaction_type\\\":[\\\"PAID\\\"],\\\"monetization_team_id\\\":\\\"88\\\"}\"\n",
+		"s2s_intent_payload_json=\"\"\n",
+		"s2s_commit_payload_json=\"\"\n",
+		"s2s_clawback_payload_json=\"\"\n"
 	])
 
 func _write_config(path: String, content: String) -> void:

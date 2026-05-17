@@ -38,6 +38,7 @@ func _initialize() -> void:
 	results.append_array(_run_public_mod_child_checks(adapter, config, mods_result))
 	results.append(_run_terms_check(adapter, config))
 	results.append_array(_run_optional_auth_checks(plan, adapter, config))
+	results.append_array(_run_optional_paid_mods_sweep(plan, adapter, config))
 	results.append_array(_run_optional_low_risk_write_sweep(plan, adapter, config, mods_result))
 
 	var summary := {
@@ -47,6 +48,8 @@ func _initialize() -> void:
 		"game_id": config.game_id,
 		"public_only": bool(options.get("public_only", false)),
 		"allow_writes": bool(plan.get("allow_writes", false)),
+		"paid_mods": bool(plan.get("paid_mods", false)),
+		"allow_paid_writes": bool(plan.get("allow_paid_writes", false)),
 		"checks": results,
 		"ok": _results_are_ok(results)
 	}
@@ -355,6 +358,161 @@ func _run_authenticated_user_read_sweep(adapter: ModioVendorAdapter, config, me_
 			return harness.summarize_user_collections_response(adapter, response, ModioLiveHarness.DEFAULT_USER_LIMIT)
 	))
 	return results
+
+func _run_optional_paid_mods_sweep(plan: Dictionary, adapter: ModioVendorAdapter, config) -> Array[Dictionary]:
+	var results: Array[Dictionary] = []
+	if not bool(plan.get("paid_mods", false)):
+		return results
+
+	var harness := ModioLiveHarness.new()
+	var user_query := ModioListingQuery.new("", PackedStringArray(), ModioLiveHarness.DEFAULT_USER_LIMIT, 0)
+	if config.has_access_token():
+		results.append(_run_check(
+			"paid_token_packs",
+			"Read game monetization token packs",
+			adapter.build_game_token_packs_request(),
+			config,
+			func(response: Dictionary) -> Dictionary:
+				return harness.summarize_game_token_packs_response(adapter, response, ModioLiveHarness.DEFAULT_CHILD_LIMIT)
+		))
+		results.append(_run_check(
+			"paid_wallet",
+			"Read authenticated user wallet",
+			adapter.build_user_wallet_request(),
+			config,
+			func(response: Dictionary) -> Dictionary:
+				return harness.summarize_user_wallet_response(adapter, response)
+		))
+		results.append(_run_check(
+			"paid_purchased",
+			"Read authenticated user purchased paid mods",
+			adapter.build_user_purchased_request(user_query),
+			config,
+			func(response: Dictionary) -> Dictionary:
+				return harness.summarize_user_purchased_response(adapter, response, ModioLiveHarness.DEFAULT_USER_LIMIT)
+		))
+		var owned_mod_id := config.resolve_owned_mod_id()
+		if owned_mod_id.is_empty():
+			results.append(_skipped_check("paid_monetization_team", "Read owned paid-mod monetization team", "Skipped because owned_mod_id or paid_mod_id is not configured"))
+		else:
+			results.append(_run_check(
+				"paid_monetization_team",
+				"Read owned paid-mod monetization team",
+				adapter.build_mod_monetization_team_request(owned_mod_id),
+				config,
+				func(response: Dictionary) -> Dictionary:
+					return harness.summarize_mod_monetization_team_response(adapter, response, ModioLiveHarness.DEFAULT_CHILD_LIMIT)
+			))
+	else:
+		var missing_access_reason := "Skipped because no access token is configured in session config"
+		results.append(_skipped_check("paid_token_packs", "Read game monetization token packs", missing_access_reason))
+		results.append(_skipped_check("paid_wallet", "Read authenticated user wallet", missing_access_reason))
+		results.append(_skipped_check("paid_purchased", "Read authenticated user purchased paid mods", missing_access_reason))
+		results.append(_skipped_check("paid_monetization_team", "Read owned paid-mod monetization team", missing_access_reason))
+
+	if not bool(plan.get("allow_paid_writes", false)):
+		var disabled_reason := "Skipped unless --allow-paid-writes is explicitly enabled"
+		results.append(_skipped_check("paid_entitlements", "Run paid entitlement sync", disabled_reason))
+		results.append(_skipped_check("paid_checkout", "Run paid checkout", disabled_reason))
+	else:
+		results.append(_run_paid_entitlements_check(adapter, config))
+		results.append(_run_paid_checkout_check(adapter, config))
+
+	if config.has_service_token():
+		var s2s_filters_input: Dictionary = config.paid_s2s_filters_input.duplicate(true)
+		var s2s_filters: Dictionary = _extract_guarded_fields(s2s_filters_input, ["monetization_team_id"])
+		var s2s_team_id := str(s2s_filters_input.get("monetization_team_id", ""))
+		var s2s_transactions_result := _run_check(
+			"paid_s2s_transactions",
+			"Read S2S monetization-team transaction history",
+			adapter.build_s2s_monetization_transactions_request(s2s_filters, s2s_team_id),
+			config,
+			func(response: Dictionary) -> Dictionary:
+				return harness.summarize_s2s_transactions_response(adapter, response, ModioLiveHarness.DEFAULT_CHILD_LIMIT)
+		)
+		results.append(s2s_transactions_result)
+		var transaction_id := config.s2s_transaction_id
+		if transaction_id.is_empty():
+			transaction_id = str(s2s_transactions_result.get("details", {}).get("selected_transaction_id", 0))
+		if str(s2s_transactions_result.get("status", "")) != "ok":
+			results.append(_skipped_check("paid_s2s_transaction", "Read one S2S monetization transaction", "Skipped because S2S monetization-team transaction history failed"))
+		elif transaction_id.is_empty() or transaction_id == "0":
+			results.append(_skipped_check("paid_s2s_transaction", "Read one S2S monetization transaction", "Skipped because no s2s_transaction_id was configured and the list response returned no transaction id"))
+		else:
+			results.append(_run_check(
+				"paid_s2s_transaction",
+				"Read one S2S monetization transaction",
+				adapter.build_s2s_monetization_transaction_request(transaction_id, s2s_team_id),
+				config,
+				func(response: Dictionary) -> Dictionary:
+					return harness.summarize_s2s_transaction_response(adapter, response)
+			))
+	else:
+		var missing_service_reason := "Skipped because no service_token is configured in stable config"
+		results.append(_skipped_check("paid_s2s_transactions", "Read S2S monetization-team transaction history", missing_service_reason))
+		results.append(_skipped_check("paid_s2s_transaction", "Read one S2S monetization transaction", missing_service_reason))
+
+	results.append(_skipped_check(
+		"paid_team_write",
+		"Create/update paid-mod monetization team",
+		"Skipped by default; this write stays behind explicit collaborator-fixture opt-in guard"
+	))
+	results.append(_skipped_check(
+		"paid_s2s_writes",
+		"Run S2S monetization intent/commit/clawback writes",
+		"Skipped by default; these service-token writes stay behind explicit opt-in guards"
+	))
+	return results
+
+func _run_paid_entitlements_check(adapter: ModioVendorAdapter, config) -> Dictionary:
+	if not config.has_access_token():
+		return _skipped_check("paid_entitlements", "Run paid entitlement sync", "Skipped because no access token is configured in session config")
+	var payload: Dictionary = config.paid_entitlements_input.duplicate(true)
+	if payload.is_empty():
+		return _skipped_check("paid_entitlements", "Run paid entitlement sync", "Skipped because entitlements_payload_json is empty in the session config")
+	var portal := str(payload.get("portal", ""))
+	var platform := str(payload.get("platform", ""))
+	var fields := _extract_guarded_fields(payload, ["portal", "platform"])
+	var harness := ModioLiveHarness.new()
+	return _run_check(
+		"paid_entitlements",
+		"Run paid entitlement sync",
+		adapter.build_user_entitlements_request(fields, portal, platform),
+		config,
+		func(response: Dictionary) -> Dictionary:
+			return harness.summarize_user_entitlements_response(adapter, response, ModioLiveHarness.DEFAULT_USER_LIMIT)
+	)
+
+func _run_paid_checkout_check(adapter: ModioVendorAdapter, config) -> Dictionary:
+	if not config.has_access_token():
+		return _skipped_check("paid_checkout", "Run paid checkout", "Skipped because no access token is configured in session config")
+	var payload: Dictionary = config.paid_checkout_input.duplicate(true)
+	if payload.is_empty():
+		return _skipped_check("paid_checkout", "Run paid checkout", "Skipped because checkout_payload_json is empty in the session config")
+	var portal := str(payload.get("portal", ""))
+	var platform := str(payload.get("platform", ""))
+	var mod_id := config.resolve_paid_mod_id(str(payload.get("mod_id", "")))
+	if mod_id.is_empty():
+		return _skipped_check("paid_checkout", "Run paid checkout", "Skipped because paid_mod_id or checkout_payload_json.mod_id is not configured")
+	var fields := _extract_guarded_fields(payload, ["portal", "platform", "mod_id"])
+	var harness := ModioLiveHarness.new()
+	return _run_check(
+		"paid_checkout",
+		"Run paid checkout",
+		adapter.build_checkout_request(mod_id, fields, portal, platform),
+		config,
+		func(response: Dictionary) -> Dictionary:
+			return harness.summarize_checkout_response(adapter, response)
+	)
+
+func _extract_guarded_fields(payload: Dictionary, reserved_keys: Array[String]) -> Dictionary:
+	var explicit_fields = payload.get("fields", null)
+	if explicit_fields is Dictionary:
+		return explicit_fields.duplicate(true)
+	var fields := payload.duplicate(true)
+	for key in reserved_keys:
+		fields.erase(key)
+	return fields
 
 func _run_optional_low_risk_write_sweep(plan: Dictionary, adapter: ModioVendorAdapter, config, mods_result: Dictionary) -> Array[Dictionary]:
 	var results: Array[Dictionary] = []

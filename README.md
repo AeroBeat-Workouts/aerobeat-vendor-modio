@@ -250,6 +250,12 @@ Environment selection precedence (first match wins):
 
 Only `test` and `live` are supported. Leave `base_url` blank unless you are intentionally overriding host resolution.
 
+Paid-mods harness inputs are split intentionally:
+
+- stable cfg (`modio.local.cfg`): long-lived environment facts like `service_token`, `monetization_team_id`, `owned_mod_id`, and `paid_mod_id`
+- session cfg (`modio.session.local.cfg`): ephemeral per-run values like `entitlements_payload_json`, `checkout_payload_json`, `s2s_filters_json`, `s2s_transaction_id`, and S2S delegation/idempotent keys
+- each `*_payload_json` value should be a JSON object; for entitlements/checkout, keep `portal` / `platform` at the top level and put the raw request body under `fields`, for example `{"portal":"epicgames","fields":{...}}`
+
 ### Run the safe live harness
 
 From the repo root:
@@ -257,6 +263,8 @@ From the repo root:
 ```bash
 godot --headless --path .testbed --script res://modio_live_harness.gd -- --help
 godot --headless --path .testbed --script res://modio_live_harness.gd -- --json
+godot --headless --path .testbed --script res://modio_live_harness.gd -- --paid-mods --json
+godot --headless --path .testbed --script res://modio_live_harness.gd -- --paid-mods --allow-paid-writes --json
 godot --headless --path .testbed --script res://modio_live_harness.gd -- --env live --json
 ```
 
@@ -271,14 +279,20 @@ What it does on the first pass:
    - when a public mod exists, drills into the first returned mod for detail/files/file-detail/stats/dependants/tags/metadatakvp/team/dependencies
    - `GET /authenticate/terms`
    - optional authenticated user-read sweep when `modio.session.local.cfg` contains an `access_token`: `GET /me`, `/me/games`, `/me/mods`, `/me/files`, `/me/subscribed`, `/me/ratings`, `/me/collections`, `/me/following/collections`, `/me/followers`, `/me/users/muted`, plus derived `/users/{me-id}/followers`, `/users/{me-id}/following`, and `/users/{me-id}/collections`
-4. exits non-zero on any failed network check or if the selected environment is missing the required public tuple (`game_id`, `api_key`)
+4. when `--paid-mods` is enabled, also exercises the paid-mods matrix the harness can truthfully support today:
+   - bearer reads: `GET /games/{game-id}/monetization/token-packs`, `GET /me/wallets`, `GET /me/purchased`
+   - owned paid-mod read: `GET /games/{game-id}/mods/{owned_mod_id}/monetization/team`
+   - guarded writes: `POST /me/entitlements`, `POST /games/{game-id}/mods/{paid_mod_id}/checkout`
+   - service-token reads: `GET /s2s/monetization-teams/{monetization-team-id}/transactions`, then detail via configured or discovered `transaction_id`
+5. exits non-zero on any failed network check or if the selected environment is missing the required public tuple (`game_id`, `api_key`)
 
 Safety notes:
 
 - `test` remains the default target unless you explicitly select `live`
 - `--public-only` forces the harness to skip the optional authenticated user-read sweep even when a token is present
+- `--paid-mods` opt-ins the monetization validation slice; guarded writes still stay skipped unless `--allow-paid-writes` is also passed
+- monetization-team writes plus S2S intent/commit/clawback remain explicit skip guards by default so QA can validate the read matrix without triggering heavier operational mutations
 - the harness currently stops at `GET /authenticate/terms` for agreement coverage because the test-sandbox terms payload does not expose agreement type/version ids to chain into the agreement-detail routes automatically
-- the harness never performs create/update/delete/upload flows
 - real secrets stay in ignored `.testbed/*.local.cfg` files only
 
 ### Restore dev/test dependencies

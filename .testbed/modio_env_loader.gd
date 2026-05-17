@@ -46,9 +46,21 @@ func build_client_config(
 	var portal := _read_string(stable_config, stable_env_section, "portal", "")
 	var platform := _read_string(stable_config, stable_env_section, "platform", "")
 	var monetization_team_id := _read_string(stable_config, stable_env_section, "monetization_team_id", "")
+	var owned_mod_id := _read_string(stable_config, stable_env_section, "owned_mod_id", "")
+	var paid_mod_id := _read_string(stable_config, stable_env_section, "paid_mod_id", "")
 
 	var access_token := _read_string(session_config, session_env_section, "access_token", "")
 	var user_id := _read_string(session_config, session_env_section, "user_id", "")
+	var s2s_transaction_id := _read_string(session_config, session_env_section, "s2s_transaction_id", "")
+	var s2s_delegation_token := _read_string(session_config, session_env_section, "s2s_delegation_token", "")
+	var s2s_intent_idempotent_key := _read_string(session_config, session_env_section, "s2s_intent_idempotent_key", "")
+	var s2s_commit_idempotent_key := _read_string(session_config, session_env_section, "s2s_commit_idempotent_key", "")
+	var paid_entitlements_input := _read_json_dictionary(session_config, session_env_section, "entitlements_payload_json")
+	var paid_checkout_input := _read_json_dictionary(session_config, session_env_section, "checkout_payload_json")
+	var paid_s2s_filters_input := _read_json_dictionary(session_config, session_env_section, "s2s_filters_json")
+	var paid_s2s_intent_input := _read_json_dictionary(session_config, session_env_section, "s2s_intent_payload_json")
+	var paid_s2s_commit_input := _read_json_dictionary(session_config, session_env_section, "s2s_commit_payload_json")
+	var paid_s2s_clawback_input := _read_json_dictionary(session_config, session_env_section, "s2s_clawback_payload_json")
 
 	return ModioClientConfig.new(
 		game_id,
@@ -62,7 +74,19 @@ func build_client_config(
 		user_id,
 		selected_env == ENV_TEST,
 		service_token,
-		monetization_team_id
+		monetization_team_id,
+		owned_mod_id,
+		paid_mod_id,
+		s2s_transaction_id,
+		s2s_delegation_token,
+		s2s_intent_idempotent_key,
+		s2s_commit_idempotent_key,
+		paid_entitlements_input,
+		paid_checkout_input,
+		paid_s2s_filters_input,
+		paid_s2s_intent_input,
+		paid_s2s_commit_input,
+		paid_s2s_clawback_input
 	)
 
 func resolve_environment(
@@ -114,6 +138,16 @@ func _read_string(config: ConfigFile, section: String, key: String, fallback: St
 	if config.has_section_key(section, key):
 		return str(config.get_value(section, key, fallback)).strip_edges()
 	return fallback
+
+func _read_json_dictionary(config: ConfigFile, section: String, key: String) -> Dictionary:
+	var raw := _read_string(config, section, key, "")
+	if raw.is_empty():
+		return {}
+	var parsed = JSON.parse_string(raw)
+	if parsed is Dictionary:
+		return parsed
+	push_error("Expected %s.%s to contain a JSON object" % [section, key])
+	return {}
 
 func _normalize_environment(value: String) -> String:
 	var candidate := value.strip_edges().to_lower()

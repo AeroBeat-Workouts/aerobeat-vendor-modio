@@ -81,6 +81,26 @@ func test_session_host_kind_override_applies() -> void:
 
 	assert_eq(config.host_kind, ModioClientConfig.HOST_USER)
 
+
+func test_paid_mod_and_runtime_json_inputs_are_loaded_from_config() -> void:
+	_write_config(STABLE_PATH, _stable_config("test"))
+	_write_config(SESSION_PATH, _session_config("", ""))
+
+	var loader := ModioEnvLoader.new()
+	var config := loader.build_client_config("", STABLE_PATH, SESSION_PATH)
+
+	assert_eq(config.owned_mod_id, "3001")
+	assert_eq(config.paid_mod_id, "4001")
+	assert_eq(config.s2s_transaction_id, "1234")
+	assert_eq(config.s2s_delegation_token, "delegation-token")
+	assert_eq(config.s2s_intent_idempotent_key, "intent-idem")
+	assert_eq(config.s2s_commit_idempotent_key, "commit-idem")
+	assert_eq(config.paid_entitlements_input.portal, "epicgames")
+	assert_eq(config.paid_entitlements_input.fields.game_id, "1001")
+	assert_eq(config.paid_checkout_input.mod_id, "4001")
+	assert_eq(config.paid_checkout_input.fields.idempotent_key, "checkout-idem")
+	assert_eq(config.paid_s2s_filters_input.transaction_type[0], "PAID")
+
 func test_accept_language_defaults_when_missing() -> void:
 	var content := _stable_config("test").replace("accept_language=\"en-US\"\n", "accept_language=\"\"\n")
 	_write_config(STABLE_PATH, content)
@@ -102,19 +122,23 @@ func _stable_config(default_environment: String) -> String:
 		"game_id=\"1001\"\n",
 		"api_key=\"test-key\"\n",
 		"base_url=\"\"\n",
-		"service_token=\"\"\n",
+		"service_token=\"service-test\"\n",
 		"portal=\"steam\"\n",
 		"platform=\"WINDOWS\"\n",
-		"monetization_team_id=\"\"\n",
+		"monetization_team_id=\"88\"\n",
+		"owned_mod_id=\"3001\"\n",
+		"paid_mod_id=\"4001\"\n",
 		"\n",
 		"[modio.live]\n",
 		"game_id=\"2001\"\n",
 		"api_key=\"live-key\"\n",
 		"base_url=\"\"\n",
-		"service_token=\"\"\n",
+		"service_token=\"service-live\"\n",
 		"portal=\"steam\"\n",
 		"platform=\"WINDOWS\"\n",
-		"monetization_team_id=\"\"\n"
+		"monetization_team_id=\"188\"\n",
+		"owned_mod_id=\"3002\"\n",
+		"paid_mod_id=\"4002\"\n"
 	])
 
 func _session_config(environment: String, host_kind: String) -> String:
@@ -126,10 +150,30 @@ func _session_config(environment: String, host_kind: String) -> String:
 		"[modio.test]\n",
 		"access_token=\"test-token\"\n",
 		"user_id=\"1111\"\n",
+		"s2s_transaction_id=\"1234\"\n",
+		"s2s_delegation_token=\"delegation-token\"\n",
+		"s2s_intent_idempotent_key=\"intent-idem\"\n",
+		"s2s_commit_idempotent_key=\"commit-idem\"\n",
+		"entitlements_payload_json=\"{\\\"portal\\\":\\\"epicgames\\\",\\\"fields\\\":{\\\"game_id\\\":\\\"1001\\\"}}\"\n",
+		"checkout_payload_json=\"{\\\"portal\\\":\\\"steam\\\",\\\"mod_id\\\":\\\"4001\\\",\\\"fields\\\":{\\\"idempotent_key\\\":\\\"checkout-idem\\\",\\\"type\\\":0,\\\"display_amount\\\":499}}\"\n",
+		"s2s_filters_json=\"{\\\"transaction_type\\\":[\\\"PAID\\\"]}\"\n",
+		"s2s_intent_payload_json=\"\"\n",
+		"s2s_commit_payload_json=\"\"\n",
+		"s2s_clawback_payload_json=\"\"\n",
 		"\n",
 		"[modio.live]\n",
 		"access_token=\"live-token\"\n",
-		"user_id=\"2222\"\n"
+		"user_id=\"2222\"\n",
+		"s2s_transaction_id=\"1234\"\n",
+		"s2s_delegation_token=\"delegation-token\"\n",
+		"s2s_intent_idempotent_key=\"intent-idem\"\n",
+		"s2s_commit_idempotent_key=\"commit-idem\"\n",
+		"entitlements_payload_json=\"{\\\"portal\\\":\\\"epicgames\\\",\\\"fields\\\":{\\\"game_id\\\":\\\"2001\\\"}}\"\n",
+		"checkout_payload_json=\"{\\\"portal\\\":\\\"steam\\\",\\\"mod_id\\\":\\\"4001\\\",\\\"fields\\\":{\\\"idempotent_key\\\":\\\"checkout-idem\\\",\\\"type\\\":0,\\\"display_amount\\\":499}}\"\n",
+		"s2s_filters_json=\"{\\\"transaction_type\\\":[\\\"PAID\\\"]}\"\n",
+		"s2s_intent_payload_json=\"\"\n",
+		"s2s_commit_payload_json=\"\"\n",
+		"s2s_clawback_payload_json=\"\"\n"
 	])
 
 func _write_config(path: String, content: String) -> void:

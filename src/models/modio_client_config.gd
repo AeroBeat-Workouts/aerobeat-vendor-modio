@@ -18,6 +18,18 @@ var platform: String
 var host_kind: String
 var user_id: String
 var monetization_team_id: String
+var owned_mod_id: String
+var paid_mod_id: String
+var s2s_transaction_id: String
+var s2s_delegation_token: String
+var s2s_intent_idempotent_key: String
+var s2s_commit_idempotent_key: String
+var paid_entitlements_input: Dictionary
+var paid_checkout_input: Dictionary
+var paid_s2s_filters_input: Dictionary
+var paid_s2s_intent_input: Dictionary
+var paid_s2s_commit_input: Dictionary
+var paid_s2s_clawback_input: Dictionary
 var use_test_environment: bool
 
 func _init(
@@ -32,7 +44,19 @@ func _init(
 	p_user_id: String = "",
 	p_use_test_environment: bool = false,
 	p_service_token: String = "",
-	p_monetization_team_id: String = ""
+	p_monetization_team_id: String = "",
+	p_owned_mod_id: String = "",
+	p_paid_mod_id: String = "",
+	p_s2s_transaction_id: String = "",
+	p_s2s_delegation_token: String = "",
+	p_s2s_intent_idempotent_key: String = "",
+	p_s2s_commit_idempotent_key: String = "",
+	p_paid_entitlements_input: Dictionary = {},
+	p_paid_checkout_input: Dictionary = {},
+	p_paid_s2s_filters_input: Dictionary = {},
+	p_paid_s2s_intent_input: Dictionary = {},
+	p_paid_s2s_commit_input: Dictionary = {},
+	p_paid_s2s_clawback_input: Dictionary = {}
 ) -> void:
 	game_id = p_game_id.strip_edges()
 	api_key = p_api_key.strip_edges()
@@ -45,6 +69,18 @@ func _init(
 	host_kind = p_host_kind.strip_edges().to_lower()
 	user_id = p_user_id.strip_edges()
 	monetization_team_id = p_monetization_team_id.strip_edges()
+	owned_mod_id = p_owned_mod_id.strip_edges()
+	paid_mod_id = p_paid_mod_id.strip_edges()
+	s2s_transaction_id = p_s2s_transaction_id.strip_edges()
+	s2s_delegation_token = p_s2s_delegation_token.strip_edges()
+	s2s_intent_idempotent_key = p_s2s_intent_idempotent_key.strip_edges()
+	s2s_commit_idempotent_key = p_s2s_commit_idempotent_key.strip_edges()
+	paid_entitlements_input = p_paid_entitlements_input.duplicate(true)
+	paid_checkout_input = p_paid_checkout_input.duplicate(true)
+	paid_s2s_filters_input = p_paid_s2s_filters_input.duplicate(true)
+	paid_s2s_intent_input = p_paid_s2s_intent_input.duplicate(true)
+	paid_s2s_commit_input = p_paid_s2s_commit_input.duplicate(true)
+	paid_s2s_clawback_input = p_paid_s2s_clawback_input.duplicate(true)
 	use_test_environment = p_use_test_environment
 
 func has_public_credentials() -> bool:
@@ -73,6 +109,22 @@ func build_default_headers() -> Dictionary:
 	if not platform.is_empty():
 		headers["X-Modio-Platform"] = platform
 	return headers
+
+func resolve_owned_mod_id(explicit_mod_id: String = "") -> String:
+	var candidate := explicit_mod_id.strip_edges()
+	if not candidate.is_empty():
+		return candidate
+	if not owned_mod_id.is_empty():
+		return owned_mod_id
+	return paid_mod_id
+
+func resolve_paid_mod_id(explicit_mod_id: String = "") -> String:
+	var candidate := explicit_mod_id.strip_edges()
+	if not candidate.is_empty():
+		return candidate
+	if not paid_mod_id.is_empty():
+		return paid_mod_id
+	return owned_mod_id
 
 func _normalize_base_url(value: String) -> String:
 	return value.strip_edges().rstrip("/")
