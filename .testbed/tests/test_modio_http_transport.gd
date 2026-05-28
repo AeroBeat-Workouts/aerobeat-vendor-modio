@@ -1,9 +1,9 @@
 extends GutTest
 
-const ModioClientConfig = preload("res://src/models/modio_client_config.gd")
-const ModioListingQuery = preload("res://src/models/modio_listing_query.gd")
-const ModioHttpTransport = preload("res://src/network/modio_http_transport.gd")
-const ModioVendorAdapter = preload("res://src/modio_vendor_adapter.gd")
+const ModioClientConfig = preload("res://addons/aerobeat-vendor-modio/src/models/modio_client_config.gd")
+const ModioListingQuery = preload("res://addons/aerobeat-vendor-modio/src/models/modio_listing_query.gd")
+const ModioHttpTransport = preload("res://addons/aerobeat-vendor-modio/src/network/modio_http_transport.gd")
+const ModioVendorAdapter = preload("res://addons/aerobeat-vendor-modio/src/modio_vendor_adapter.gd")
 
 var _recorded_requests: Array = []
 var _queued_responses: Array = []

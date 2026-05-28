@@ -3,22 +3,22 @@ extends SceneTree
 func _initialize() -> void:
 	var failures: PackedStringArray = []
 	var required_files := [
-		"res://src/modio_vendor_adapter.gd",
-		"res://src/models/modio_client_config.gd",
-		"res://src/models/modio_listing_query.gd",
-		"res://src/models/modio_download_request.gd",
-		"res://src/network/modio_http_transport.gd"
+		"res://addons/aerobeat-vendor-modio/src/modio_vendor_adapter.gd",
+		"res://addons/aerobeat-vendor-modio/src/models/modio_client_config.gd",
+		"res://addons/aerobeat-vendor-modio/src/models/modio_listing_query.gd",
+		"res://addons/aerobeat-vendor-modio/src/models/modio_download_request.gd",
+		"res://addons/aerobeat-vendor-modio/src/network/modio_http_transport.gd"
 	]
 
 	for path in required_files:
 		if not FileAccess.file_exists(path):
 			failures.append("Missing required scaffold file: %s" % path)
 
-	var config_script := load("res://src/models/modio_client_config.gd")
-	var query_script := load("res://src/models/modio_listing_query.gd")
-	var download_script := load("res://src/models/modio_download_request.gd")
-	var transport_script := load("res://src/network/modio_http_transport.gd")
-	var adapter_script := load("res://src/modio_vendor_adapter.gd")
+	var config_script := load("res://addons/aerobeat-vendor-modio/src/models/modio_client_config.gd")
+	var query_script := load("res://addons/aerobeat-vendor-modio/src/models/modio_listing_query.gd")
+	var download_script := load("res://addons/aerobeat-vendor-modio/src/models/modio_download_request.gd")
+	var transport_script := load("res://addons/aerobeat-vendor-modio/src/network/modio_http_transport.gd")
+	var adapter_script := load("res://addons/aerobeat-vendor-modio/src/modio_vendor_adapter.gd")
 
 	if config_script == null or query_script == null or download_script == null or transport_script == null or adapter_script == null:
 		failures.append("One or more scripts failed to load.")

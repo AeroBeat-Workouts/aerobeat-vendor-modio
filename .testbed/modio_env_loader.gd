@@ -1,7 +1,7 @@
 class_name ModioEnvLoader
 extends RefCounted
 
-const ModioClientConfig = preload("res://src/models/modio_client_config.gd")
+const ModioClientConfig = preload("res://addons/aerobeat-vendor-modio/src/models/modio_client_config.gd")
 
 const ENV_TEST := "test"
 const ENV_LIVE := "live"

@@ -1,10 +1,10 @@
 extends GutTest
 
-const ModioClientConfig = preload("res://src/models/modio_client_config.gd")
-const ModioListingQuery = preload("res://src/models/modio_listing_query.gd")
-const ModioDownloadRequest = preload("res://src/models/modio_download_request.gd")
-const ModioHttpTransport = preload("res://src/network/modio_http_transport.gd")
-const ModioVendorAdapter = preload("res://src/modio_vendor_adapter.gd")
+const ModioClientConfig = preload("res://addons/aerobeat-vendor-modio/src/models/modio_client_config.gd")
+const ModioListingQuery = preload("res://addons/aerobeat-vendor-modio/src/models/modio_listing_query.gd")
+const ModioDownloadRequest = preload("res://addons/aerobeat-vendor-modio/src/models/modio_download_request.gd")
+const ModioHttpTransport = preload("res://addons/aerobeat-vendor-modio/src/network/modio_http_transport.gd")
+const ModioVendorAdapter = preload("res://addons/aerobeat-vendor-modio/src/modio_vendor_adapter.gd")
 
 func test_builds_email_and_external_auth_requests_with_hardened_expiry_handling() -> void:
 	var adapter := _build_adapter()

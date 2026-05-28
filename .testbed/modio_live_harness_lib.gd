@@ -1,7 +1,7 @@
 class_name ModioLiveHarness
 extends RefCounted
 
-const ModioClientConfig = preload("res://src/models/modio_client_config.gd")
+const ModioClientConfig = preload("res://addons/aerobeat-vendor-modio/src/models/modio_client_config.gd")
 const ModioEnvLoader = preload("res://modio_env_loader.gd")
 
 const DEFAULT_MODS_LIMIT := 3
