@@ -17,8 +17,7 @@ Thumbs.db
 .nomedia
 
 # GodotEnv package workbench
-.testbed/addons/*
-!.testbed/addons/.editorconfig
+.testbed/addons/
 .testbed/.addons/
 
 # mod.io local config (testbed only)
