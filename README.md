@@ -205,6 +205,7 @@ Game-level capability interpretation now also exposes `community_policy.allows_n
 
 ```text
 src/
+├── AeroModIOManager.gd
 ├── modio_vendor_adapter.gd
 ├── models/
 │   ├── modio_client_config.gd
@@ -214,7 +215,8 @@ src/
     └── modio_http_transport.gd
 ```
 
-- `modio_vendor_adapter.gd` is the provider-facing entry seam for future composition by `aerobeat-tool-api`.
+- `AeroModIOManager.gd` is the repo-owned/vendor-facing facade for downstream composition inside AeroBeat tooling. It owns config + transport wiring and keeps `ModioVendorAdapter` behind a clearer package seam.
+- `modio_vendor_adapter.gd` remains the internal/provider-facing seam with the full docs-first request-builder + normalization surface.
 - `models/` holds provider-local config and request/download/query DTOs.
 - `network/` holds transport helpers that remain mod.io-specific.
 
@@ -227,7 +229,7 @@ This repo uses the AeroBeat GodotEnv package convention.
 - GodotEnv cache: `.testbed/.addons/`
 - Hidden workbench project: `.testbed/project.godot`
 - Repo-local validation/tests: `.testbed/tests/`
-- Repo package bridge: `.testbed/src -> ../src`
+- Repo package mount: `.testbed/addons/aerobeat-vendor-modio -> ../`
 
 The repo root remains the published package boundary. Development and validation happen from the hidden `.testbed/` project.
 
@@ -255,6 +257,23 @@ Paid-mods harness inputs are split intentionally:
 - stable cfg (`modio.local.cfg`): long-lived environment facts like `service_token`, `monetization_team_id`, `owned_mod_id`, and `paid_mod_id`
 - session cfg (`modio.session.local.cfg`): ephemeral per-run values like `entitlements_payload_json`, `checkout_payload_json`, `s2s_filters_json`, `s2s_transaction_id`, and S2S delegation/idempotent keys
 - each `*_payload_json` value should be a JSON object; for entitlements/checkout, keep `portal` / `platform` at the top level and put the raw request body under `fields`, for example `{"portal":"epicgames","fields":{...}}`
+
+### Scene-based proving surface
+
+The hidden `.testbed/` project now includes one fully separate scene per key mod.io function group.
+There is intentionally **no index scene**.
+
+- `.testbed/scenes/public_catalog_testbed.tscn`
+  - public connectivity + catalog/detail reads
+- `.testbed/scenes/authenticated_user_testbed.tscn`
+  - authenticated `/me` + user-state reads
+- `.testbed/scenes/safe_write_testbed.tscn`
+  - reversible low-risk sandbox writes (subscribe / unsubscribe / positive rating)
+- `.testbed/scenes/paid_mods_testbed.tscn`
+  - paid-mod reads plus guarded paid/team/S2S posture notes
+- shared scene behavior lives in `.testbed/scripts/modio_scene_runner.gd`
+
+Open any scene directly from the `.testbed/` editor project and press **Run Checks** to execute that slice against the currently selected local config.
 
 ### Run the safe live harness
 
@@ -314,6 +333,13 @@ From the repo root:
 godot --editor --path .testbed
 ```
 
+Then open one of the dedicated scene entrypoints:
+
+- `res://scenes/public_catalog_testbed.tscn`
+- `res://scenes/authenticated_user_testbed.tscn`
+- `res://scenes/safe_write_testbed.tscn`
+- `res://scenes/paid_mods_testbed.tscn`
+
 ### Import smoke check
 
 From the repo root:
@@ -328,6 +354,7 @@ From the repo root:
 
 ```bash
 godot --headless --path .testbed --script res://tests/validate_scaffold.gd
+godot --headless --path .testbed --script res://tests/validate_modio_testbed_scenes.gd
 ```
 
 ### Run the fixture-driven wrapper tests

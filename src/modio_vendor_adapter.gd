@@ -1,10 +1,10 @@
 class_name ModioVendorAdapter
 extends RefCounted
 
-const ModioClientConfig = preload("res://src/models/modio_client_config.gd")
-const ModioListingQuery = preload("res://src/models/modio_listing_query.gd")
-const ModioDownloadRequest = preload("res://src/models/modio_download_request.gd")
-const ModioHttpTransport = preload("res://src/network/modio_http_transport.gd")
+const ModioClientConfig = preload("models/modio_client_config.gd")
+const ModioListingQuery = preload("models/modio_listing_query.gd")
+const ModioDownloadRequest = preload("models/modio_download_request.gd")
+const ModioHttpTransport = preload("network/modio_http_transport.gd")
 
 const PROVIDER_NAME := "modio"
 const COMMON_YEAR_SECONDS := 31536000

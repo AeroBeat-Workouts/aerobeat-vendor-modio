@@ -43,6 +43,12 @@ For the current AeroBeat v1 policy lock, broad wrapped families such as wallet/c
 
 The current slice now exposes a larger request-builder and normalization seam:
 
+- `AeroModIOManager`
+  - repo-owned/vendor-facing facade in `src/`
+  - owns config + transport wiring for this package
+  - intentionally composes `ModioVendorAdapter` instead of replacing the provider seam
+  - gives the hidden `.testbed/` scenes a clearer package entrypoint while the legacy harness path stays intact during parity rollout
+
 - `ModioVendorAdapter`
   - auth/session request builders
     - `build_email_security_code_request(...)`

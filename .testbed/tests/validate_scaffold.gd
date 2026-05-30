@@ -3,6 +3,7 @@ extends SceneTree
 func _initialize() -> void:
 	var failures: PackedStringArray = []
 	var required_files := [
+		"res://addons/aerobeat-vendor-modio/src/AeroModIOManager.gd",
 		"res://addons/aerobeat-vendor-modio/src/modio_vendor_adapter.gd",
 		"res://addons/aerobeat-vendor-modio/src/models/modio_client_config.gd",
 		"res://addons/aerobeat-vendor-modio/src/models/modio_listing_query.gd",
@@ -18,13 +19,15 @@ func _initialize() -> void:
 	var query_script := load("res://addons/aerobeat-vendor-modio/src/models/modio_listing_query.gd")
 	var download_script := load("res://addons/aerobeat-vendor-modio/src/models/modio_download_request.gd")
 	var transport_script := load("res://addons/aerobeat-vendor-modio/src/network/modio_http_transport.gd")
+	var manager_script := load("res://addons/aerobeat-vendor-modio/src/AeroModIOManager.gd")
 	var adapter_script := load("res://addons/aerobeat-vendor-modio/src/modio_vendor_adapter.gd")
 
-	if config_script == null or query_script == null or download_script == null or transport_script == null or adapter_script == null:
+	if config_script == null or query_script == null or download_script == null or transport_script == null or manager_script == null or adapter_script == null:
 		failures.append("One or more scripts failed to load.")
 	else:
 		var config = config_script.new("demo-game", "demo-key", config_script.DEFAULT_BASE_URL, "user-token", "en-US", "steam", "WINDOWS")
 		var transport = transport_script.new()
+		var manager = manager_script.new(config, transport)
 		var adapter = adapter_script.new(config, transport)
 		var auth_request: Dictionary = adapter.build_auth_exchange_request("demo-code", 1777777777)
 		var listing_request: Dictionary = adapter.build_listing_request(query_script.new("boxing"))
@@ -50,6 +53,8 @@ func _initialize() -> void:
 			adapter.resolve_download_request_from_modfile("1234", modfiles_response.data[0])
 		)
 
+		if manager.get_provider_name() != "modio":
+			failures.append("Expected AeroModIOManager to report the modio provider name.")
 		if auth_request.get("path", "") != "/oauth/emailexchange":
 			failures.append("Unexpected auth path: %s" % auth_request.get("path", "<missing>"))
 		if listing_request.get("path", "") != "/games/demo-game/mods":
