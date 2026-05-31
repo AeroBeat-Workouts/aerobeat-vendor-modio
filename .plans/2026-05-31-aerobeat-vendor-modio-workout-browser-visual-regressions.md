@@ -2,7 +2,7 @@
 
 **Date:** 2026-05-31  
 **Status:** In Progress  
-**Last Updated:** 2026-05-31 15:32 EDT  
+**Last Updated:** 2026-05-31 15:58 EDT  
 **Blocked Reason:** None  
 **Agent:** `main`
 
@@ -121,9 +121,9 @@ Exact coder recommendations:
 **Files Created/Deleted/Modified:**
 - `.plans/2026-05-31-aerobeat-vendor-modio-workout-browser-visual-regressions.md`
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Not started.
+**Results:** QA reran the repo validation surface and the browser-facing proving seam after coder commit `0b9efaa` (`Fix workout browser listing viewport regression`). Validation passed with: `godot --headless --path .testbed --script res://tests/validate_modio_testbed_scenes.gd`, `godot --headless --path .testbed --script res://tests/qa_verify_scene_output_updates.gd`, and `godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit`. A focused scene-level QA probe against `res://scenes/workout_browser.tscn` with the repo’s local testbed config confirmed the public catalog path is no longer lying visually: `public_result_count=2`, `card_count=2`, `page_text="Page 1 of 1 · showing 2 of 2"`, scroll viewport height `603`, first card height `402`, and the first visible CTA button reads `Open Details` with `disabled=false`. That verifies the browser now shows visible, clickable cards instead of the blank area from `REF-07`. Warning cleanup outcome: the screenshot’s parser-warning spam from same-name `class_name` shadowing, the shadowing `name` parameter, and the unused placeholder-text parameter no longer appeared in the validation/scene runs. Residual warnings were limited to two pre-existing/non-blocking seams outside this bead’s visual regression scope: (1) `qa_verify_scene_output_updates.gd` still emits the known ObjectDB/resource-in-use warnings on exit, which the coder already called out as pre-existing and out-of-scope, and (2) GUT still prints one `Float/Int comparison` test-framework warning during `test_modio_vendor_adapter.gd`; this is not a browser-scene parser warning and did not correspond to a failed assertion or new regression in the touched browser files. Auditor follow-up later corrected one QA overstatement: the full live harness with stored-session auth was **not** reproducible as passing in the local config because the saved `/me` token now returns 401, so authenticated live-harness success should not be treated as part of this bead’s proof.
 
 ---
 
@@ -142,9 +142,13 @@ Exact coder recommendations:
 **Files Created/Deleted/Modified:**
 - `.plans/2026-05-31-aerobeat-vendor-modio-workout-browser-visual-regressions.md`
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Not started.
+**Results:** Independent audit confirmed the fix is real and the bead is done, with one documentation correction to the QA handoff. Diff review of coder commit `0b9efaa` showed the browser-layout seam was fixed narrowly by giving the listing browser root/scroll viewport explicit expansion and by naming those nodes for testability, while the warning cleanup removed the same-name `class_name` shadowing preloads plus the `name`/unused-parameter warnings without widening scope. Audit validation reran `godot --headless --path .testbed --script res://tests/validate_modio_testbed_scenes.gd`, `godot --headless --path .testbed --script res://tests/qa_verify_scene_output_updates.gd`, and `godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit`; all passed. A separate ad-hoc auditor scene probe (not the checked-in regression test) instantiated `res://scenes/workout_browser.tscn`, injected two public results, called `_update_listing_ui("public")`, and measured `card_count=2`, `scroll_size_y=603`, `scroll_rect_y=603`, `first_card_size_y=298`, plus a visible enabled `Open Details` button. That independently proves the browser now renders visible selectable cards instead of only reporting loaded state.
+
+Warning cleanup also held up under audit: the parser-warning seam from `REF-08` no longer reproduced in the touched browser/env/session scripts, and file review confirmed the shadowing preloads were removed from `modio_workout_browser_testbed.gd`, `modio_env_loader.gd`, and `modio_session_config_store.gd`, `_listing_controls(name: String, ...)` became `_listing_controls(control_name: String, ...)`, and `_placeholder_texture(text: String)` became `_placeholder_texture(_text: String)`. Remaining warnings were accurately classifiable as pre-existing/out-of-scope rather than ignored: `qa_verify_scene_output_updates.gd` still exits with the known ObjectDB/resource-in-use warning despite returning success, and GUT still reports one unrelated `Float/Int comparison` framework warning during `test_modio_vendor_adapter.gd`.
+
+For the prior public/session/layout seam, the audit split the proof by behavior: public-fetch still passes via `godot --headless --path .testbed --script res://scripts/modio_live_harness.gd -- --json --public-only` (all public reads `ok`), session restore still passes via `test_ready_restores_saved_email_without_wiping_session_values`, and layout still passes via the scene validation plus the independent viewport/card probe. One QA claim needed correction: the full live harness with stored-session auth does **not** currently pass in this local config because `godot --headless --path .testbed --script res://scripts/modio_live_harness.gd -- --json` now returns a 401 on `/me` (`error_ref 11005`, invalid/revoked/malformed access token) and exits non-zero. That failure appears to be environment/session-token drift rather than a regression from this UI/layout change because the failing seam is remote auth validity, while the touched code and restored-session unit path still behave correctly. No audit-sized product defect was found in the fix itself, so no code changes were required.
 
 ---
 
@@ -165,16 +169,16 @@ Exact coder recommendations:
 
 ## Final Results
 
-**Status:** ⚠️ Partial
+**Status:** ✅ Complete
 
-**What We Built:** Completed the research/audit pass for the visual regression. The current evidence says the browser already fetches and populates cards, but the listing viewport collapses to zero height, so the populated grid is clipped out of view. Also isolated the exact parser-warning sources in the browser/env/session helper scripts.
+**What We Built:** Fixed the workout-browser visual regression so loaded public/workout/subscribed results render as visible selectable cards again, and cleaned the screenshoted parser-warning seam in the touched browser/env/session helper scripts.
 
-**Reference Check:** `REF-07` is explained by the zero-height listing viewport despite non-empty public results. `REF-08` is explained by legitimate parser warnings from same-name local preloads plus the `name`/unused-`text` parameter warnings in `REF-03`/`REF-04`/`REF-05`.
+**Reference Check:** `REF-07` is now satisfied: independent audit confirmed the loaded-public state also renders a non-zero-height browser viewport with visible cards and an enabled `Open Details` CTA, rather than a blank clipped area. `REF-08` is satisfied for the targeted warning seam: the same-name `class_name` shadowing warnings plus the `name`/unused-`text` parser warnings no longer reproduce. Remaining warnings were reviewed and accurately classified as pre-existing/out-of-scope (`qa_verify_scene_output_updates.gd` ObjectDB/resource-in-use exit warning and one unrelated GUT `Float/Int comparison` framework warning).
 
 **Commits:**
-- None yet.
+- `0b9efaa` - Fix workout browser listing viewport regression
 
-**Lessons Learned:** A proving surface can have the right data/state transitions and still fail operator trust if the visible container collapses. Screenshot-driven review caught a layout regression that data/status assertions alone would miss.
+**Lessons Learned:** For UI regressions, “data loaded” is not enough proof. The audit needs a visible-viewport assertion or scene probe so populated-but-clipped content cannot masquerade as a working browser. Also, QA notes should distinguish product regressions from environment drift; the stored auth token in the local session config expired, so the full live harness no longer proves authenticated reads even though the UI/session code path itself still does.
 
 ---
 
