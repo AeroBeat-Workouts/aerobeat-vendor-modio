@@ -2,7 +2,7 @@ class_name ModioLiveHarness
 extends RefCounted
 
 const ModioClientConfig = preload("res://addons/aerobeat-vendor-modio/src/models/modio_client_config.gd")
-const ModioEnvLoader = preload("res://modio_env_loader.gd")
+const ModioEnvLoader = preload("res://scripts/modio_env_loader.gd")
 
 const DEFAULT_MODS_LIMIT := 3
 const DEFAULT_CHILD_LIMIT := 5
@@ -837,7 +837,7 @@ func help_text() -> String:
 		"Safe mod.io live harness",
 		"",
 		"Usage:",
-		"  godot --headless --path .testbed --script res://modio_live_harness.gd -- [options]",
+		"  godot --headless --path .testbed --script res://scripts/modio_live_harness.gd -- [options]",
 		"",
 		"Options:",
 		"  --env test|live              Explicit environment selection (default: resolved from config, fallback test)",
@@ -848,8 +848,8 @@ func help_text() -> String:
 		"  --allow-paid-writes          Opt into paid entitlements + checkout execution",
 		"  --allow-paid-team-write      Reserve the monetization-team write opt-in lane (currently a placeholder; no execution yet)",
 		"  --allow-paid-s2s-writes      Reserve the S2S write opt-in lane (currently a placeholder; no execution yet)",
-		"  --stable-config <path>       Override stable config path (default: res://modio.local.cfg)",
-		"  --session-config <path>      Override session config path (default: res://modio.session.local.cfg)",
+		"  --stable-config <path>       Override stable config path (default: res://configs/modio.local.cfg)",
+		"  --session-config <path>      Override session config path (default: res://configs/modio.session.local.cfg)",
 		"  --json                       Emit machine-readable JSON summary",
 		"  --help                       Show this help",
 		"",

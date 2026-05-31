@@ -233,7 +233,7 @@ That keeps transient CDN delivery behavior local to the vendor seam and out of A
 
 The current validation layer is fixture-driven and based on current official API shapes documented in:
 
-- `docs/modio-rest-api-research-2026-05-02.md`
+- `.testbed/docs/modio-rest-api-research-2026-05-02.md`
 - `/home/derrick/.openclaw/workspace/projects/modio/modio-docs`
 - `/home/derrick/.openclaw/workspace/projects/modio/modio-sdk`
 - `/home/derrick/.openclaw/workspace/projects/modio/modio-unity`

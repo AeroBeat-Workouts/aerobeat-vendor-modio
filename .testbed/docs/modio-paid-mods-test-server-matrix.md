@@ -2,17 +2,17 @@
 
 _Date:_ 2026-05-17  
 _Repo:_ `aerobeat-vendor-modio`  
-_Target:_ `test` environment via `.testbed/modio_live_harness.gd` on commit `a02ad49` baseline, with one QA harness parse fix applied locally before execution.
+_Target:_ `test` environment via `.testbed/scripts/modio_live_harness.gd` on commit `a02ad49` baseline, with one QA harness parse fix applied locally before execution.
 
 ## Exact commands run
 
 ```bash
 git rev-parse --short HEAD
 
-godot --headless --path .testbed --script res://modio_live_harness.gd -- --paid-mods --json
-# failed before execution because res://modio_live_harness.gd had GDScript parse errors
+godot --headless --path .testbed --script res://scripts/modio_live_harness.gd -- --paid-mods --json
+# failed before execution because res://scripts/modio_live_harness.gd had GDScript parse errors
 
-godot --headless --path .testbed --script res://modio_live_harness.gd -- --paid-mods --json
+godot --headless --path .testbed --script res://scripts/modio_live_harness.gd -- --paid-mods --json
 # rerun after the minimal parse fix
 
 godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit
@@ -20,8 +20,8 @@ godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://te
 
 ## Local config state observed during QA
 
-- `.testbed/modio.local.cfg` exists.
-- `.testbed/modio.session.local.cfg` does **not** exist.
+- `.testbed/configs/modio.local.cfg` exists.
+- `.testbed/configs/modio.session.local.cfg` does **not** exist.
 - Stable `test` tuple has the public baseline fields populated (`game_id`, `api_key`, default test base URL resolution succeeded).
 - Stable paid/S2S fields needed for deeper paid validation were blank in the local cfg used for this run:
   - `service_token`
@@ -36,7 +36,7 @@ godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://te
 
 ## Repo-side QA blocker found and fixed
 
-The first paid-mods harness run failed before any network request because Godot 4.6 rejected three local-variable declarations in `.testbed/modio_live_harness.gd` that relied on type inference from Variant-typed values:
+The first paid-mods harness run failed before any network request because Godot 4.6 rejected three local-variable declarations in `.testbed/scripts/modio_live_harness.gd` that relied on type inference from Variant-typed values:
 
 - `owned_mod_id`
 - `transaction_id`
@@ -57,7 +57,7 @@ Minimum fix applied: add explicit `: String` annotations to those three locals. 
 | 1 | `GET /games/{game-id}/monetization/token-packs` | **SKIP — missing setup/input** | Harness skip reason: `Skipped because no access token is configured in session config` |
 | 1 | `GET /me/wallets` | **SKIP — missing setup/input** | Harness skip reason: `Skipped because no access token is configured in session config` |
 | 1 | `GET /me/purchased` | **SKIP — missing setup/input** | Harness skip reason: `Skipped because no access token is configured in session config` |
-| 2 | `GET /games/{game-id}/mods/{owned_mod_id}/monetization/team` | **SKIP — missing setup/input** | The bearer-token lane was unavailable because `.testbed/modio.session.local.cfg` was absent. Stable `owned_mod_id` / `paid_mod_id` were also blank, so this route lacked both a user token and a concrete paid mod id. Harness-reported reason during this run: `Skipped because no access token is configured in session config`. |
+| 2 | `GET /games/{game-id}/mods/{owned_mod_id}/monetization/team` | **SKIP — missing setup/input** | The bearer-token lane was unavailable because `.testbed/configs/modio.session.local.cfg` was absent. Stable `owned_mod_id` / `paid_mod_id` were also blank, so this route lacked both a user token and a concrete paid mod id. Harness-reported reason during this run: `Skipped because no access token is configured in session config`. |
 | 3 | `GET /s2s/monetization-teams/{monetization-team-id}/transactions` | **SKIP — missing setup/input** | Harness skip reason: `Skipped because no service_token is configured in stable config` |
 | 3 | `GET /s2s/monetization-teams/{monetization-team-id}/transactions/{transaction-id}` | **SKIP — missing setup/input** | Harness skip reason: `Skipped because no service_token is configured in stable config` |
 | 4 | `POST /me/entitlements` | **SKIP — missing setup/input** | Not attempted because explicit ephemeral session payloads were not present and `--allow-paid-writes` was correctly left off for the default QA pass. Harness reason in this run: `Skipped unless --allow-paid-writes is explicitly enabled`. Under the observed config state, even with the flag this route would still have been blocked by missing access token and missing `entitlements_payload_json`. |

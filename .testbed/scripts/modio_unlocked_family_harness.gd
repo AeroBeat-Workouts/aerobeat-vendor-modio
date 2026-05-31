@@ -1,10 +1,10 @@
 extends SceneTree
 
-const ModioEnvLoader = preload("res://modio_env_loader.gd")
+const ModioEnvLoader = preload("res://scripts/modio_env_loader.gd")
 const ModioVendorAdapter = preload("res://addons/aerobeat-vendor-modio/src/modio_vendor_adapter.gd")
 const ModioHttpTransport = preload("res://addons/aerobeat-vendor-modio/src/network/modio_http_transport.gd")
 const ModioListingQuery = preload("res://addons/aerobeat-vendor-modio/src/models/modio_listing_query.gd")
-const ModioLiveHarness = preload("res://modio_live_harness_lib.gd")
+const ModioLiveHarness = preload("res://scripts/modio_live_harness_lib.gd")
 
 const SAMPLE_MOD_LIMIT := 5
 const COMMENT_LIMIT := 5

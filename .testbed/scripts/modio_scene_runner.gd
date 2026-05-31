@@ -2,7 +2,7 @@ class_name ModioSceneRunner
 extends RefCounted
 
 const AeroModIOManager = preload("res://addons/aerobeat-vendor-modio/src/AeroModIOManager.gd")
-const ModioEnvLoader = preload("res://modio_env_loader.gd")
+const ModioEnvLoader = preload("res://scripts/modio_env_loader.gd")
 
 func build_manager(explicit_env: String = "") -> Dictionary:
 	var loader = ModioEnvLoader.new()
@@ -67,24 +67,24 @@ func _build_group_checks(group_id: String, manager: AeroModIOManager) -> Array[D
 					_ready_check("me", "Read authenticated user profile"),
 					_ready_check("user_reads", "Inspect authenticated user-state endpoints")
 				]
-			return [_skipped_check("auth", "Run authenticated user checks", "No access token configured in .testbed/modio.session.local.cfg")]
+			return [_skipped_check("auth", "Run authenticated user checks", "No access token configured in .testbed/configs/modio.session.local.cfg")]
 		"safe_write":
 			if manager.has_access_token():
 				return [
 					_ready_check("safe_write", "Run reversible sandbox subscribe / unsubscribe / rating checks"),
 					_skipped_check("safe_write_guard", "Paid/team/S2S write lanes", "Preserved safe-write posture outside the scene-based slice")
 				]
-			return [_skipped_check("safe_write", "Run reversible sandbox write checks", "No access token configured in .testbed/modio.session.local.cfg")]
+			return [_skipped_check("safe_write", "Run reversible sandbox write checks", "No access token configured in .testbed/configs/modio.session.local.cfg")]
 		"paid_mods":
 			var checks: Array[Dictionary] = []
 			if manager.has_access_token():
 				checks.append(_ready_check("paid_reads", "Inspect token packs, wallet, purchased mods, and monetization-team reads"))
 			else:
-				checks.append(_skipped_check("paid_auth", "Inspect authenticated paid-mod surfaces", "No access token configured in .testbed/modio.session.local.cfg"))
+				checks.append(_skipped_check("paid_auth", "Inspect authenticated paid-mod surfaces", "No access token configured in .testbed/configs/modio.session.local.cfg"))
 			if manager.has_service_token():
 				checks.append(_ready_check("paid_s2s_reads", "Inspect S2S transaction history entrypoints"))
 			else:
-				checks.append(_skipped_check("paid_s2s_reads", "Inspect S2S transaction history entrypoints", "No service_token configured in .testbed/modio.local.cfg"))
+				checks.append(_skipped_check("paid_s2s_reads", "Inspect S2S transaction history entrypoints", "No service_token configured in .testbed/configs/modio.local.cfg"))
 			checks.append(_skipped_check("paid_write_guard", "Paid/team/S2S writes", "Checkout, entitlement sync, monetization-team writes, and S2S writes stay guarded"))
 			return checks
 	return [_skipped_check("unknown", "Unknown scene group", "Unsupported scene group: %s" % group_id)]

@@ -8,8 +8,8 @@ const ENV_LIVE := "live"
 const DEFAULT_ENVIRONMENT := ENV_TEST
 const MODIO_ENV_VAR := "MODIO_ENV"
 
-const CONFIG_STABLE_PATH := "res://modio.local.cfg"
-const CONFIG_SESSION_PATH := "res://modio.session.local.cfg"
+const CONFIG_STABLE_PATH := "res://configs/modio.local.cfg"
+const CONFIG_SESSION_PATH := "res://configs/modio.session.local.cfg"
 
 const VALID_ENVIRONMENTS := [ENV_TEST, ENV_LIVE]
 

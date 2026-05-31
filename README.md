@@ -235,19 +235,19 @@ The repo root remains the published package boundary. Development and validation
 
 ### Private mod.io config (testbed only)
 
-Local credentials live in `.testbed/` and are **ignored by git**. Copy the templates and fill in your real values:
+Local credentials live in `.testbed/configs/` and are **ignored by git**. Copy the templates and fill in your real values:
 
 ```bash
-cp .testbed/modio.local.example.cfg .testbed/modio.local.cfg
-cp .testbed/modio.session.local.example.cfg .testbed/modio.session.local.cfg
+cp .testbed/configs/modio.local.example.cfg .testbed/configs/modio.local.cfg
+cp .testbed/configs/modio.session.local.example.cfg .testbed/configs/modio.session.local.cfg
 ```
 
 Environment selection precedence (first match wins):
 
 1. explicit harness argument `--env test|live`
 2. `MODIO_ENV=test|live`
-3. `.testbed/modio.session.local.cfg` `[modio] environment`
-4. `.testbed/modio.local.cfg` `[modio] default_environment`
+3. `.testbed/configs/modio.session.local.cfg` `[modio] environment`
+4. `.testbed/configs/modio.local.cfg` `[modio] default_environment`
 5. fallback to `test`
 
 Only `test` and `live` are supported. Leave `base_url` blank unless you are intentionally overriding host resolution.
@@ -280,11 +280,11 @@ Open any scene directly from the `.testbed/` editor project and press **Run Chec
 From the repo root:
 
 ```bash
-godot --headless --path .testbed --script res://modio_live_harness.gd -- --help
-godot --headless --path .testbed --script res://modio_live_harness.gd -- --json
-godot --headless --path .testbed --script res://modio_live_harness.gd -- --paid-mods --json
-godot --headless --path .testbed --script res://modio_live_harness.gd -- --paid-mods --allow-paid-writes --json
-godot --headless --path .testbed --script res://modio_live_harness.gd -- --env live --json
+godot --headless --path .testbed --script res://scripts/modio_live_harness.gd -- --help
+godot --headless --path .testbed --script res://scripts/modio_live_harness.gd -- --json
+godot --headless --path .testbed --script res://scripts/modio_live_harness.gd -- --paid-mods --json
+godot --headless --path .testbed --script res://scripts/modio_live_harness.gd -- --paid-mods --allow-paid-writes --json
+godot --headless --path .testbed --script res://scripts/modio_live_harness.gd -- --env live --json
 ```
 
 What it does on the first pass:
@@ -312,7 +312,7 @@ Safety notes:
 - `--paid-mods` opt-ins the monetization validation slice; guarded entitlements/checkout writes still stay skipped unless `--allow-paid-writes` is also passed
 - monetization-team writes plus S2S intent/commit/clawback remain harness placeholders today: `--allow-paid-team-write` and `--allow-paid-s2s-writes` currently reserve those opt-in lanes for future wiring, but do not execute the writes yet
 - the harness currently stops at `GET /authenticate/terms` for agreement coverage because the test-sandbox terms payload does not expose agreement type/version ids to chain into the agreement-detail routes automatically
-- real secrets stay in ignored `.testbed/*.local.cfg` files only
+- real secrets stay in ignored `.testbed/configs/*.local.cfg` files only
 
 ### Restore dev/test dependencies
 
@@ -367,8 +367,8 @@ godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://te
 
 ## References used for the current implementation
 
-- research note: [`docs/modio-rest-api-research-2026-05-02.md`](docs/modio-rest-api-research-2026-05-02.md)
-- seam plan: [`docs/modio-seam-plan.md`](docs/modio-seam-plan.md)
+- research note: [`.testbed/docs/modio-rest-api-research-2026-05-02.md`](.testbed/docs/modio-rest-api-research-2026-05-02.md)
+- seam plan: [`.testbed/docs/modio-seam-plan.md`](.testbed/docs/modio-seam-plan.md)
 - primary local docs mirror: `/home/derrick/.openclaw/workspace/projects/modio/modio-docs`
 - official behavior sanity references:
   - `/home/derrick/.openclaw/workspace/projects/modio/modio-sdk`
@@ -376,4 +376,4 @@ godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://te
 
 ## Seam plan
 
-See [`docs/modio-seam-plan.md`](docs/modio-seam-plan.md).
+See [`.testbed/docs/modio-seam-plan.md`](.testbed/docs/modio-seam-plan.md).
