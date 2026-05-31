@@ -175,7 +175,7 @@ Targeted QA findings: the public-detail flow now truthfully exposes `Subscribe` 
 **Commits:**
 - `726bbd6` - Implement workout browser CTA and download follow-up
 - `ca7dfba` - Record workout browser CTA/download QA verdict
-- Pending auditor plan-update commit/push.
+- `374049c` - Record workout browser CTA/session/download audit verdict
 
 **Lessons Learned:** The provider seam was already strong enough; the real work was making the operator-facing UI respect capability truth. The most important discipline was deriving state from auth/subscription/download facts instead of from whichever tab happened to launch the detail view, and then keeping the operator-facing copy tightly aligned with the underlying auth/download contracts.
 
