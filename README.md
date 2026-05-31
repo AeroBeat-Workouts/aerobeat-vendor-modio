@@ -257,7 +257,7 @@ Paid-mods harness inputs are split intentionally:
 - stable cfg (`modio.local.cfg`): long-lived environment facts like `service_token`, `monetization_team_id`, `owned_mod_id`, and `paid_mod_id`
 - session cfg (`modio.session.local.cfg`): ephemeral per-run values like `access_token`, `user_id`, `entitlements_payload_json`, `checkout_payload_json`, `s2s_filters_json`, `s2s_transaction_id`, and S2S delegation/idempotent keys
 - each `*_payload_json` value should be a JSON object; for entitlements/checkout, keep `portal` / `platform` at the top level and put the raw request body under `fields`, for example `{"portal":"epicgames","fields":{...}}`
-- the default Workout Browser scene reads Game ID + API key from `modio.local.cfg`, reads the selected environment / access token / user id from `modio.session.local.cfg`, and writes newly exchanged auth/session values back into `modio.session.local.cfg`
+- the default Workout Browser scene reads Game ID + API key from `modio.local.cfg`, reads the selected environment / athlete email / access token / user id from `modio.session.local.cfg`, writes updated auth/session values back into `modio.session.local.cfg`, auto-loads the public catalog on reopen when public config is present, and attempts a truthful `/me` + wallet + purchase-history refresh when a stored token exists
 
 ### Scene-based proving surface
 

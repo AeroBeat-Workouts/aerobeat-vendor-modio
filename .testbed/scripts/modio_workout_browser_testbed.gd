@@ -7,10 +7,13 @@ const ModioEnvLoader = preload("res://scripts/modio_env_loader.gd")
 const ModioSessionConfigStore = preload("res://scripts/modio_session_config_store.gd")
 const ModioWorkoutBrowserState = preload("res://scripts/modio_workout_browser_state.gd")
 
-const TAB_PUBLIC_INDEX := 0
-const TAB_PROFILE_INDEX := 1
-const TAB_WORKOUT_INDEX := 2
-const TAB_SUBSCRIBED_INDEX := 3
+const GLOBAL_TAB_CONNECTION_INDEX := 0
+const GLOBAL_TAB_AUTH_INDEX := 1
+const GLOBAL_TAB_BROWSER_INDEX := 2
+const BROWSER_TAB_PUBLIC_INDEX := 0
+const BROWSER_TAB_PROFILE_INDEX := 1
+const BROWSER_TAB_WORKOUT_INDEX := 2
+const BROWSER_TAB_SUBSCRIBED_INDEX := 3
 const CARD_PREVIEW_SIZE := Vector2i(320, 180)
 const IMAGE_CACHE_DIR := "user://modio_workout_browser_images"
 const SORT_OPTIONS := [
@@ -40,6 +43,7 @@ var _security_code_line_edit: LineEdit
 var _exchange_code_button: Button
 var _clear_session_button: Button
 var _auth_state_label: Label
+var _global_tab_container: TabContainer
 var _tab_container: TabContainer
 var _profile_summary_label: RichTextLabel
 var _profile_raw_toggle: CheckBox
@@ -89,6 +93,7 @@ func _ready() -> void:
 	_ensure_ui_built()
 	_load_initial_state()
 	_refresh_all_ui()
+	_restore_saved_runtime_state()
 
 func describe_scene_surface() -> Dictionary:
 	_ensure_ui_built()
@@ -98,6 +103,7 @@ func describe_scene_surface() -> Dictionary:
 		"main_scene": ProjectSettings.get_setting("application/run/main_scene", ""),
 		"has_connection_controls": is_instance_valid(_server_option_button) and is_instance_valid(_game_id_line_edit) and is_instance_valid(_api_key_line_edit),
 		"has_auth_controls": is_instance_valid(_email_line_edit) and is_instance_valid(_security_code_line_edit),
+		"has_global_tabs": is_instance_valid(_global_tab_container),
 		"has_tab_container": is_instance_valid(_tab_container),
 		"has_detail_overlay": is_instance_valid(_detail_overlay),
 		"has_output": true,
@@ -122,6 +128,7 @@ func _build_ui() -> void:
 
 	var root := VBoxContainer.new()
 	root.name = "VBoxContainer"
+	root.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	root.add_theme_constant_override("separation", 12)
 	margin.add_child(root)
 
@@ -131,28 +138,51 @@ func _build_ui() -> void:
 	title.add_theme_font_size_override("font_size", 28)
 	root.add_child(title)
 
-	root.add_child(_build_connection_panel())
-	root.add_child(_build_auth_panel())
-
 	_status_label = Label.new()
 	_status_label.name = "StatusLabel"
 	_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	root.add_child(_status_label)
 
+	_global_tab_container = TabContainer.new()
+	_global_tab_container.name = "GlobalTabContainer"
+	_global_tab_container.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	root.add_child(_global_tab_container)
+
+	var connection_tab := VBoxContainer.new()
+	connection_tab.name = "ConnectionTab"
+	connection_tab.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	connection_tab.add_child(_build_connection_panel())
+	_global_tab_container.add_child(connection_tab)
+	_global_tab_container.set_tab_title(GLOBAL_TAB_CONNECTION_INDEX, "Connection")
+
+	var auth_tab := VBoxContainer.new()
+	auth_tab.name = "AuthTab"
+	auth_tab.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	auth_tab.add_child(_build_auth_panel())
+	_global_tab_container.add_child(auth_tab)
+	_global_tab_container.set_tab_title(GLOBAL_TAB_AUTH_INDEX, "Auth")
+
+	var browser_tab := VBoxContainer.new()
+	browser_tab.name = "BrowserTab"
+	browser_tab.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	browser_tab.add_theme_constant_override("separation", 8)
+	_global_tab_container.add_child(browser_tab)
+	_global_tab_container.set_tab_title(GLOBAL_TAB_BROWSER_INDEX, "Browser")
+
 	_tab_container = TabContainer.new()
-	_tab_container.name = "TabContainer"
+	_tab_container.name = "BrowserTabContainer"
 	_tab_container.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_tab_container.tab_changed.connect(_on_tab_changed)
-	root.add_child(_tab_container)
+	browser_tab.add_child(_tab_container)
 
 	_tab_container.add_child(_build_public_tab())
-	_tab_container.set_tab_title(TAB_PUBLIC_INDEX, "Public Catalog")
+	_tab_container.set_tab_title(BROWSER_TAB_PUBLIC_INDEX, "Public Catalog")
 	_tab_container.add_child(_build_profile_tab())
-	_tab_container.set_tab_title(TAB_PROFILE_INDEX, "Profile")
+	_tab_container.set_tab_title(BROWSER_TAB_PROFILE_INDEX, "Profile")
 	_tab_container.add_child(_build_workout_tab())
-	_tab_container.set_tab_title(TAB_WORKOUT_INDEX, "Workout Browser")
+	_tab_container.set_tab_title(BROWSER_TAB_WORKOUT_INDEX, "Workout Browser")
 	_tab_container.add_child(_build_subscribed_tab())
-	_tab_container.set_tab_title(TAB_SUBSCRIBED_INDEX, "Subscribed Workouts")
+	_tab_container.set_tab_title(BROWSER_TAB_SUBSCRIBED_INDEX, "Subscribed Workouts")
 
 	_detail_overlay = _build_detail_overlay()
 	add_child(_detail_overlay)
@@ -243,7 +273,7 @@ func _build_auth_panel() -> Control:
 	inner.add_child(heading)
 
 	var description := Label.new()
-	description.text = "Real mod.io athlete auth uses emailrequest → emailexchange. No username/password façade here."
+	description.text = "Real mod.io athlete auth uses emailrequest → emailexchange. Saved email + token state can be restored here, but athlete username/display-name edits are not supported through our current public REST access."
 	description.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	inner.add_child(description)
 
@@ -258,6 +288,7 @@ func _build_auth_panel() -> Control:
 	_email_line_edit = LineEdit.new()
 	_email_line_edit.name = "EmailLineEdit"
 	_email_line_edit.placeholder_text = "athlete@example.com"
+	_email_line_edit.text_changed.connect(_on_email_text_changed)
 	email_box.add_child(_email_line_edit)
 
 	_request_code_button = Button.new()
@@ -600,7 +631,11 @@ func _load_initial_state() -> void:
 	_state.api_key = _base_config.api_key
 	_state.access_token = _base_config.access_token
 	_state.user_id = _base_config.user_id
-	_state.status_text = "Public browsing works with Game ID + API Key. Athlete-only tabs unlock after email-code auth."
+	_state.email = _store.read_env_value(resolved_env, "email")
+	_state.last_requested_email = _store.read_env_value(resolved_env, "last_requested_email", ModioEnvLoader.CONFIG_SESSION_PATH, _state.email)
+	_state.active_tab = _store.read_env_value(resolved_env, "browser_tab", ModioEnvLoader.CONFIG_SESSION_PATH, ModioWorkoutBrowserState.TAB_PUBLIC)
+	_state.raw_debug_sections["saved_token_restore_note"] = "Stored token detected. Rehydrating /me + wallet + purchases on reopen." if _state.is_authenticated() else ""
+	_state.status_text = "Public browsing auto-loads when valid Game ID + API Key are already configured. Athlete-only tabs unlock after email-code auth."
 	_rebuild_manager()
 
 func _rebuild_manager() -> void:
@@ -632,8 +667,9 @@ func _refresh_all_ui() -> void:
 	_server_option_button.select(0 if _state.environment == ModioEnvLoader.ENV_TEST else 1)
 	_game_id_line_edit.text = _state.game_id
 	_api_key_line_edit.text = _state.api_key
-	_storage_disclosure_label.text = "Game ID + API key are read from %s. Auth/session values are read from and written back to %s." % [ModioEnvLoader.CONFIG_STABLE_PATH, _store.get_storage_path()]
-	_email_line_edit.text = _state.email
+	_storage_disclosure_label.text = "Game ID + API key are read from %s. Athlete email + auth/session values are read from and written back to %s." % [ModioEnvLoader.CONFIG_STABLE_PATH, _store.get_storage_path()]
+	if _email_line_edit.text != _state.email:
+		_email_line_edit.text = _state.email
 	_auth_state_label.text = _build_auth_state_text()
 	_status_label.text = _state.status_text
 	_update_profile_ui()
@@ -643,22 +679,65 @@ func _refresh_all_ui() -> void:
 	_update_listing_ui(ModioWorkoutBrowserState.TAB_PUBLIC)
 	_update_listing_ui(ModioWorkoutBrowserState.TAB_WORKOUT)
 	_update_listing_ui(ModioWorkoutBrowserState.TAB_SUBSCRIBED)
-	_tab_container.set_tab_disabled(TAB_PROFILE_INDEX, not _state.is_authenticated())
-	_tab_container.set_tab_disabled(TAB_WORKOUT_INDEX, not _state.is_authenticated())
-	_tab_container.set_tab_disabled(TAB_SUBSCRIBED_INDEX, not _state.is_authenticated())
-	if not _state.is_authenticated() and _tab_container.current_tab != TAB_PUBLIC_INDEX:
-		_tab_container.current_tab = TAB_PUBLIC_INDEX
+	_tab_container.set_tab_disabled(BROWSER_TAB_PROFILE_INDEX, not _state.is_authenticated())
+	_tab_container.set_tab_disabled(BROWSER_TAB_WORKOUT_INDEX, not _state.is_authenticated())
+	_tab_container.set_tab_disabled(BROWSER_TAB_SUBSCRIBED_INDEX, not _state.is_authenticated())
+	_sync_browser_tab_selection()
 
 func _build_auth_state_text() -> String:
 	var lines := PackedStringArray()
 	lines.append("Server: %s" % _state.environment.capitalize())
 	lines.append("Session path: %s" % _store.get_storage_path())
+	lines.append("Athlete email: %s" % (_state.email if not _state.email.is_empty() else "(not saved yet)"))
 	if _state.is_authenticated():
 		lines.append("Access token loaded: yes")
 		lines.append("User ID: %s" % (_state.user_id if not _state.user_id.is_empty() else "(will refresh from /me)"))
 	else:
 		lines.append("Access token loaded: no")
+	var restore_note := str(_state.raw_debug_sections.get("saved_token_restore_note", "")).strip_edges()
+	if not restore_note.is_empty():
+		lines.append(restore_note)
 	return "\n".join(lines)
+
+
+func _restore_saved_runtime_state() -> void:
+	if is_instance_valid(_global_tab_container):
+		_global_tab_container.current_tab = GLOBAL_TAB_BROWSER_INDEX
+	if _state.can_browse_public():
+		_fetch_listing(ModioWorkoutBrowserState.TAB_PUBLIC)
+	if _state.is_authenticated():
+		_refresh_profile_data(false, true)
+
+func _persist_session_state(extra_values: Dictionary = {}) -> Dictionary:
+	var values := {
+		"access_token": _state.access_token,
+		"user_id": _state.user_id,
+		"email": _state.email,
+		"last_requested_email": _state.last_requested_email,
+		"browser_tab": _state.active_tab
+	}
+	values.merge(extra_values, true)
+	return _store.save_session_values(_state.environment, values)
+
+func _sync_browser_tab_selection() -> void:
+	if not is_instance_valid(_tab_container):
+		return
+	var target_index := _browser_tab_index_for_context(_state.active_tab)
+	if not _state.is_authenticated() and target_index != BROWSER_TAB_PUBLIC_INDEX:
+		target_index = BROWSER_TAB_PUBLIC_INDEX
+	if _tab_container.current_tab != target_index:
+		_tab_container.current_tab = target_index
+
+func _browser_tab_index_for_context(context: String) -> int:
+	match context:
+		ModioWorkoutBrowserState.TAB_PROFILE:
+			return BROWSER_TAB_PROFILE_INDEX
+		ModioWorkoutBrowserState.TAB_WORKOUT:
+			return BROWSER_TAB_WORKOUT_INDEX
+		ModioWorkoutBrowserState.TAB_SUBSCRIBED:
+			return BROWSER_TAB_SUBSCRIBED_INDEX
+		_:
+			return BROWSER_TAB_PUBLIC_INDEX
 
 func _sync_query_controls(context: String) -> void:
 	var query := _state.query_for_context(context)
@@ -835,7 +914,7 @@ func _empty_listing_text(context: String) -> String:
 		ModioWorkoutBrowserState.TAB_WORKOUT:
 			return "Authenticate, then fetch workouts to browse athlete-only actions."
 		_:
-			return "Enter connection values and fetch public workouts."
+			return "Saved connection values auto-load the public catalog on reopen; otherwise apply connection values and fetch public workouts."
 
 func _build_mod_card(entry: Dictionary, context: String) -> Control:
 	var card := PanelContainer.new()
@@ -1046,10 +1125,11 @@ func _on_request_code_pressed() -> void:
 		_set_status("Enter an email before requesting a security code.")
 		return
 	_state.email = email
+	_state.last_requested_email = email
+	_persist_session_state()
 	_rebuild_manager()
 	var response := _manager.execute_adapter_request("build_email_security_code_request", [email])
 	if bool(response.get("ok", false)):
-		_state.last_requested_email = email
 		_state.raw_debug_sections["email_request"] = response.get("payload", {})
 		_set_status("Security code requested for %s. Check the inbox, then use emailexchange below." % email)
 		_refresh_all_ui()
@@ -1070,10 +1150,9 @@ func _on_exchange_code_pressed(_submitted_text: String = "") -> void:
 	_state.access_token = str(payload.get("access_token", "")).strip_edges()
 	_state.last_security_code = code
 	_state.raw_debug_sections["auth_exchange"] = payload
+	_state.raw_debug_sections["saved_token_restore_note"] = "Access token exchanged. Refreshing /me + wallet + purchases now."
 	_rebuild_manager()
-	var persisted := _store.save_session_values(_state.environment, {
-		"access_token": _state.access_token
-	})
+	var persisted := _persist_session_state()
 	if not bool(persisted.get("ok", false)):
 		_set_status("Exchanged code, but failed to persist access_token to %s." % _store.get_storage_path())
 		_refresh_all_ui()
@@ -1083,15 +1162,18 @@ func _on_exchange_code_pressed(_submitted_text: String = "") -> void:
 
 func _on_clear_session_pressed() -> void:
 	_state.clear_session()
-	_store.clear_session_values(_state.environment, PackedStringArray(["access_token", "user_id"]))
+	_state.email = ""
+	_state.last_requested_email = ""
+	_state.raw_debug_sections["saved_token_restore_note"] = ""
+	_store.clear_session_values(_state.environment, PackedStringArray(["access_token", "user_id", "email", "last_requested_email", "browser_tab"]))
 	_rebuild_manager()
-	_set_status("Cleared access_token and user_id from %s." % _store.get_storage_path())
+	_set_status("Cleared saved athlete email, access_token, user_id, and browser restore state from %s." % _store.get_storage_path())
 	_refresh_all_ui()
 
 func _on_profile_refresh_pressed() -> void:
-	_refresh_profile_data(false)
+	_refresh_profile_data(false, false)
 
-func _refresh_profile_data(open_profile_tab: bool) -> void:
+func _refresh_profile_data(open_profile_tab: bool, restoring_saved_token: bool = false) -> void:
 	if not _state.is_authenticated():
 		_set_status("Profile refresh requires a valid access token.")
 		_refresh_all_ui()
@@ -1099,15 +1181,14 @@ func _refresh_profile_data(open_profile_tab: bool) -> void:
 	_rebuild_manager()
 	var me_response := _manager.execute_adapter_request("build_authenticated_user_request")
 	if not bool(me_response.get("ok", false)):
+		_state.raw_debug_sections["saved_token_restore_note"] = "Stored token loaded from session config, but automatic /me refresh failed. Re-run email-code auth if this session is stale." if restoring_saved_token else ""
 		_set_status(_response_error_message(me_response, "Failed to load /me."))
+		_refresh_all_ui()
 		return
 	_state.profile = _manager.normalize_with_adapter("normalize_authenticated_user_response", [me_response.get("payload", {})])
 	_state.raw_debug_sections["profile"] = me_response.get("payload", {})
 	_state.user_id = str(_state.profile.get("id", _state.user_id))
-	_store.save_session_values(_state.environment, {
-		"access_token": _state.access_token,
-		"user_id": _state.user_id
-	})
+	_persist_session_state()
 	_rebuild_manager()
 	var wallet_response := _manager.execute_adapter_request("build_user_wallet_request", [_state.game_id])
 	if bool(wallet_response.get("ok", false)):
@@ -1121,14 +1202,15 @@ func _refresh_profile_data(open_profile_tab: bool) -> void:
 		_state.raw_debug_sections["purchased"] = purchased_response.get("payload", {})
 	else:
 		_state.purchased = {"error": _response_error_message(purchased_response, "Failed to load purchase history."), "data": []}
+	_state.raw_debug_sections["saved_token_restore_note"] = "Stored token successfully rehydrated athlete profile, wallet, and purchase history on reopen." if restoring_saved_token else ""
 	_set_status("Loaded athlete profile, wallet, and purchase history. Session values are stored in %s." % _store.get_storage_path())
 	if open_profile_tab:
-		_tab_container.current_tab = TAB_PROFILE_INDEX
+		_state.active_tab = ModioWorkoutBrowserState.TAB_PROFILE
 	_refresh_all_ui()
 
 func _update_profile_ui() -> void:
 	if not _state.is_authenticated():
-		_profile_summary_label.text = "Authenticate to inspect the athlete profile, wallet, and purchase history."
+		_profile_summary_label.text = "Authenticate to inspect the athlete profile, wallet, and purchase history. Username/display-name edits stay out of scope because the current public REST seam does not support them."
 		_profile_raw_text.text = ""
 		return
 	var profile := _state.profile
@@ -1145,6 +1227,8 @@ func _update_profile_ui() -> void:
 	lines.append("Profile URL: %s" % str(profile.get("profile_url", "")))
 	lines.append("Language / TZ: %s / %s" % [str(profile.get("language", "")), str(profile.get("timezone", ""))])
 	lines.append("Authenticated: %s" % str(bool(profile.get("is_authenticated", false))))
+	lines.append("Athlete email: %s" % (_state.email if not _state.email.is_empty() else "(not saved yet)"))
+	lines.append("Profile editing: deferred/read-only via current REST seam")
 	lines.append("")
 	lines.append("[b]Wallet[/b]")
 	if wallet.has("error"):
@@ -1178,14 +1262,15 @@ func _response_error_message(response: Dictionary, fallback: String) -> String:
 
 func _on_tab_changed(index: int) -> void:
 	match index:
-		TAB_PROFILE_INDEX:
+		BROWSER_TAB_PROFILE_INDEX:
 			_state.active_tab = ModioWorkoutBrowserState.TAB_PROFILE
-		TAB_WORKOUT_INDEX:
+		BROWSER_TAB_WORKOUT_INDEX:
 			_state.active_tab = ModioWorkoutBrowserState.TAB_WORKOUT
-		TAB_SUBSCRIBED_INDEX:
+		BROWSER_TAB_SUBSCRIBED_INDEX:
 			_state.active_tab = ModioWorkoutBrowserState.TAB_SUBSCRIBED
 		_:
 			_state.active_tab = ModioWorkoutBrowserState.TAB_PUBLIC
+	_persist_session_state()
 
 func _on_connection_field_changed(_index: int) -> void:
 	_state.environment = ModioEnvLoader.ENV_TEST if _server_option_button.selected == 0 else ModioEnvLoader.ENV_LIVE
@@ -1207,8 +1292,13 @@ func _on_reload_defaults_pressed() -> void:
 	_load_initial_state()
 	_set_status("Reloaded environment defaults from the current local config files.")
 	_refresh_all_ui()
+	_restore_saved_runtime_state()
 
 func _truncate(value: String, max_chars: int) -> String:
 	if value.length() <= max_chars:
 		return value
 	return "%s…" % value.substr(0, max_chars)
+
+func _on_email_text_changed(new_text: String) -> void:
+	_state.email = new_text.strip_edges()
+	_auth_state_label.text = _build_auth_state_text()

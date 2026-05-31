@@ -49,22 +49,32 @@ func _verify_main_scene(failures: PackedStringArray) -> void:
 		return
 	root.add_child(instance)
 	await process_frame
-	var connection_panel := instance.get_node_or_null("MarginContainer/VBoxContainer/ConnectionPanel")
-	var auth_panel := instance.get_node_or_null("MarginContainer/VBoxContainer/AuthPanel")
-	var tab_container: TabContainer = instance.get_node_or_null("MarginContainer/VBoxContainer/TabContainer")
+	var global_tab_container: TabContainer = instance.get_node_or_null("MarginContainer/VBoxContainer/GlobalTabContainer")
+	var connection_panel := instance.get_node_or_null("MarginContainer/VBoxContainer/GlobalTabContainer/ConnectionTab/ConnectionPanel")
+	var auth_panel := instance.get_node_or_null("MarginContainer/VBoxContainer/GlobalTabContainer/AuthTab/AuthPanel")
+	var tab_container: TabContainer = instance.get_node_or_null("MarginContainer/VBoxContainer/GlobalTabContainer/BrowserTab/BrowserTabContainer")
 	var detail_overlay := instance.find_child("DetailOverlay", true, false)
 	var detail_action: Button = instance.find_child("DetailActionButton", true, false)
+	if global_tab_container == null:
+		failures.append("Main scene missing GlobalTabContainer")
+	else:
+		if global_tab_container.get_tab_title(0) != "Connection":
+			failures.append("Unexpected global tab 0 title: %s" % global_tab_container.get_tab_title(0))
+		if global_tab_container.get_tab_title(1) != "Auth":
+			failures.append("Unexpected global tab 1 title: %s" % global_tab_container.get_tab_title(1))
+		if global_tab_container.get_tab_title(2) != "Browser":
+			failures.append("Unexpected global tab 2 title: %s" % global_tab_container.get_tab_title(2))
 	if connection_panel == null:
 		failures.append("Main scene missing ConnectionPanel")
 	if auth_panel == null:
 		failures.append("Main scene missing AuthPanel")
 	if tab_container == null:
-		failures.append("Main scene missing TabContainer")
+		failures.append("Main scene missing BrowserTabContainer")
 	else:
 		if tab_container.get_tab_title(0) != "Public Catalog":
-			failures.append("Unexpected tab 0 title: %s" % tab_container.get_tab_title(0))
+			failures.append("Unexpected browser tab 0 title: %s" % tab_container.get_tab_title(0))
 		if tab_container.get_tab_title(2) != "Workout Browser":
-			failures.append("Unexpected tab 2 title: %s" % tab_container.get_tab_title(2))
+			failures.append("Unexpected browser tab 2 title: %s" % tab_container.get_tab_title(2))
 	if detail_overlay == null:
 		failures.append("Main scene missing DetailOverlay")
 	elif detail_action == null:
