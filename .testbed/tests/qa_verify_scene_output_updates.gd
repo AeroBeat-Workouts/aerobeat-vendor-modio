@@ -1,6 +1,6 @@
 extends SceneTree
 
-const SCENES := [
+const SMOKE_SCENES := [
 	{
 		"path": "res://scenes/public_catalog_testbed.tscn",
 		"group": "public_catalog"
@@ -24,7 +24,53 @@ func _initialize() -> void:
 
 func _run() -> void:
 	var failures: PackedStringArray = []
-	for scene_config in SCENES:
+	_verify_main_scene(failures)
+	_verify_smoke_scenes(failures)
+
+	if failures.is_empty():
+		print("Scene output update QA passed for all mod.io testbed scenes.")
+		quit(0)
+		return
+
+	for failure in failures:
+		push_error(failure)
+		print(failure)
+	quit(1)
+
+func _verify_main_scene(failures: PackedStringArray) -> void:
+	var scene_path := "res://scenes/workout_browser.tscn"
+	var packed_scene: PackedScene = load(scene_path)
+	if packed_scene == null:
+		failures.append("Failed to load main scene: %s" % scene_path)
+		return
+	var instance: Node = packed_scene.instantiate()
+	if instance == null:
+		failures.append("Failed to instantiate main scene: %s" % scene_path)
+		return
+	root.add_child(instance)
+	await process_frame
+	var connection_panel := instance.get_node_or_null("MarginContainer/VBoxContainer/ConnectionPanel")
+	var auth_panel := instance.get_node_or_null("MarginContainer/VBoxContainer/AuthPanel")
+	var tab_container: TabContainer = instance.get_node_or_null("MarginContainer/VBoxContainer/TabContainer")
+	var detail_overlay := instance.get_node_or_null("DetailOverlay")
+	if connection_panel == null:
+		failures.append("Main scene missing ConnectionPanel")
+	if auth_panel == null:
+		failures.append("Main scene missing AuthPanel")
+	if tab_container == null:
+		failures.append("Main scene missing TabContainer")
+	else:
+		if tab_container.get_tab_title(0) != "Public Catalog":
+			failures.append("Unexpected tab 0 title: %s" % tab_container.get_tab_title(0))
+		if tab_container.get_tab_title(2) != "Workout Browser":
+			failures.append("Unexpected tab 2 title: %s" % tab_container.get_tab_title(2))
+	if detail_overlay == null:
+		failures.append("Main scene missing DetailOverlay")
+	instance.queue_free()
+	await process_frame
+
+func _verify_smoke_scenes(failures: PackedStringArray) -> void:
+	for scene_config in SMOKE_SCENES:
 		var scene_path := String(scene_config.get("path", ""))
 		var expected_group := String(scene_config.get("group", ""))
 		var packed_scene: PackedScene = load(scene_path)
@@ -75,19 +121,5 @@ func _run() -> void:
 		if final_text.contains("Press Run Checks"):
 			failures.append("Initial prompt still present after run for %s" % scene_path)
 
-		print("Verified scene output update: %s" % scene_path)
-		print(final_text)
-		print("---")
-
 		instance.queue_free()
 		await process_frame
-
-	if failures.is_empty():
-		print("Scene output update QA passed for all mod.io testbed scenes.")
-		quit(0)
-		return
-
-	for failure in failures:
-		push_error(failure)
-		print(failure)
-	quit(1)

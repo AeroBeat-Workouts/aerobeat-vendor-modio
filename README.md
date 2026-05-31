@@ -255,25 +255,28 @@ Only `test` and `live` are supported. Leave `base_url` blank unless you are inte
 Paid-mods harness inputs are split intentionally:
 
 - stable cfg (`modio.local.cfg`): long-lived environment facts like `service_token`, `monetization_team_id`, `owned_mod_id`, and `paid_mod_id`
-- session cfg (`modio.session.local.cfg`): ephemeral per-run values like `entitlements_payload_json`, `checkout_payload_json`, `s2s_filters_json`, `s2s_transaction_id`, and S2S delegation/idempotent keys
+- session cfg (`modio.session.local.cfg`): ephemeral per-run values like `access_token`, `user_id`, `entitlements_payload_json`, `checkout_payload_json`, `s2s_filters_json`, `s2s_transaction_id`, and S2S delegation/idempotent keys
 - each `*_payload_json` value should be a JSON object; for entitlements/checkout, keep `portal` / `platform` at the top level and put the raw request body under `fields`, for example `{"portal":"epicgames","fields":{...}}`
+- the default Workout Browser scene reads Game ID + API key from `modio.local.cfg`, reads the selected environment / access token / user id from `modio.session.local.cfg`, and writes newly exchanged auth/session values back into `modio.session.local.cfg`
 
 ### Scene-based proving surface
 
-The hidden `.testbed/` project now includes one fully separate scene per key mod.io function group.
-There is intentionally **no index scene**.
+The hidden `.testbed/` project now has a default operator-facing Workout Browser scene plus the older focused smoke-test entrypoints.
 
+- `.testbed/scenes/workout_browser.tscn`
+  - default `.testbed` entrypoint with editable `Test|Live` server target, Game ID, API Key, email-code athlete auth, profile summary, public browse, athlete browse, subscribed-workout pagination, and subscribe/unsubscribe detail CTAs
 - `.testbed/scenes/public_catalog_testbed.tscn`
-  - public connectivity + catalog/detail reads
+  - focused smoke scene for public connectivity + catalog/detail reads
 - `.testbed/scenes/authenticated_user_testbed.tscn`
-  - authenticated `/me` + user-state reads
+  - focused smoke scene for authenticated `/me` + user-state reads
 - `.testbed/scenes/safe_write_testbed.tscn`
-  - reversible low-risk sandbox writes (subscribe / unsubscribe / positive rating)
+  - focused smoke scene for reversible low-risk sandbox writes (subscribe / unsubscribe / positive rating)
 - `.testbed/scenes/paid_mods_testbed.tscn`
-  - paid-mod reads plus guarded paid/team/S2S posture notes
-- shared scene behavior lives in `.testbed/scripts/modio_scene_runner.gd`
+  - focused smoke scene for paid-mod reads plus guarded paid/team/S2S posture notes
+- shared smoke-scene behavior lives in `.testbed/scripts/modio_scene_runner.gd`
+- Workout Browser controller/state helpers live in `.testbed/scripts/modio_workout_browser_testbed.gd`, `.testbed/scripts/modio_workout_browser_state.gd`, and `.testbed/scripts/modio_session_config_store.gd`
 
-Open any scene directly from the `.testbed/` editor project and press **Run Checks** to execute that slice against the currently selected local config.
+Open the default scene by running the `.testbed/` project normally, or open any individual smoke scene directly from the `.testbed/` editor project.
 
 ### Run the safe live harness
 
@@ -333,8 +336,10 @@ From the repo root:
 godot --editor --path .testbed
 ```
 
-Then open one of the dedicated scene entrypoints:
+The project now defaults to `res://scenes/workout_browser.tscn`.
+You can still open the dedicated scene entrypoints directly when you want a narrow smoke pass:
 
+- `res://scenes/workout_browser.tscn`
 - `res://scenes/public_catalog_testbed.tscn`
 - `res://scenes/authenticated_user_testbed.tscn`
 - `res://scenes/safe_write_testbed.tscn`
