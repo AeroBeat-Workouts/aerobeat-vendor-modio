@@ -1,8 +1,6 @@
 class_name ModioSessionConfigStore
 extends RefCounted
 
-const ModioEnvLoader = preload("res://scripts/modio_env_loader.gd")
-
 func get_storage_path(path: String = ModioEnvLoader.CONFIG_SESSION_PATH) -> String:
 	return path
 

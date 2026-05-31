@@ -1,12 +1,5 @@
 extends Control
 
-const AeroModIOManager = preload("res://addons/aerobeat-vendor-modio/src/AeroModIOManager.gd")
-const ModioClientConfig = preload("res://addons/aerobeat-vendor-modio/src/models/modio_client_config.gd")
-const ModioListingQuery = preload("res://addons/aerobeat-vendor-modio/src/models/modio_listing_query.gd")
-const ModioEnvLoader = preload("res://scripts/modio_env_loader.gd")
-const ModioSessionConfigStore = preload("res://scripts/modio_session_config_store.gd")
-const ModioWorkoutBrowserState = preload("res://scripts/modio_workout_browser_state.gd")
-
 const GLOBAL_TAB_CONNECTION_INDEX := 0
 const GLOBAL_TAB_AUTH_INDEX := 1
 const GLOBAL_TAB_BROWSER_INDEX := 2
@@ -446,9 +439,9 @@ func _build_subscribed_tab() -> Control:
 	tab.add_child(browser.root)
 	return tab
 
-func _listing_controls(name: String, on_fetch: Callable, on_page_shift: Callable, assign_fields: Callable) -> Control:
+func _listing_controls(control_name: String, on_fetch: Callable, on_page_shift: Callable, assign_fields: Callable) -> Control:
 	var panel := PanelContainer.new()
-	panel.name = name
+	panel.name = control_name
 	var inner := VBoxContainer.new()
 	inner.add_theme_constant_override("separation", 8)
 	panel.add_child(inner)
@@ -458,7 +451,7 @@ func _listing_controls(name: String, on_fetch: Callable, on_page_shift: Callable
 	inner.add_child(row)
 
 	var search := LineEdit.new()
-	search.name = "%sSearchLineEdit" % name
+	search.name = "%sSearchLineEdit" % control_name
 	search.placeholder_text = "Search workouts"
 	search.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	search.text_submitted.connect(func(_text: String) -> void:
@@ -467,25 +460,25 @@ func _listing_controls(name: String, on_fetch: Callable, on_page_shift: Callable
 	row.add_child(search)
 
 	var sort_button := OptionButton.new()
-	sort_button.name = "%sSortOptionButton" % name
+	sort_button.name = "%sSortOptionButton" % control_name
 	for option in SORT_OPTIONS:
 		sort_button.add_item(option.label)
 	row.add_child(sort_button)
 
 	var tags := LineEdit.new()
-	tags.name = "%sTagsLineEdit" % name
+	tags.name = "%sTagsLineEdit" % control_name
 	tags.placeholder_text = "tags (comma-separated, all)"
 	tags.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(tags)
 
 	var tags_not := LineEdit.new()
-	tags_not.name = "%sExcludeTagsLineEdit" % name
+	tags_not.name = "%sExcludeTagsLineEdit" % control_name
 	tags_not.placeholder_text = "exclude tags"
 	tags_not.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(tags_not)
 
 	var fetch_button := Button.new()
-	fetch_button.name = "%sFetchButton" % name
+	fetch_button.name = "%sFetchButton" % control_name
 	fetch_button.text = "Fetch"
 	fetch_button.pressed.connect(func() -> void:
 		on_fetch.call()
@@ -497,7 +490,7 @@ func _listing_controls(name: String, on_fetch: Callable, on_page_shift: Callable
 	inner.add_child(pagination)
 
 	var prev_button := Button.new()
-	prev_button.name = "%sPrevButton" % name
+	prev_button.name = "%sPrevButton" % control_name
 	prev_button.text = "Previous"
 	prev_button.pressed.connect(func() -> void:
 		on_page_shift.call(-1)
@@ -505,13 +498,13 @@ func _listing_controls(name: String, on_fetch: Callable, on_page_shift: Callable
 	pagination.add_child(prev_button)
 
 	var page_label := Label.new()
-	page_label.name = "%sPageLabel" % name
+	page_label.name = "%sPageLabel" % control_name
 	page_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	page_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	pagination.add_child(page_label)
 
 	var next_button := Button.new()
-	next_button.name = "%sNextButton" % name
+	next_button.name = "%sNextButton" % control_name
 	next_button.text = "Next"
 	next_button.pressed.connect(func() -> void:
 		on_page_shift.call(1)
@@ -523,9 +516,13 @@ func _listing_controls(name: String, on_fetch: Callable, on_page_shift: Callable
 
 func _listing_browser(grid_name: String, empty_name: String) -> Dictionary:
 	var root := VBoxContainer.new()
+	root.name = "%sRoot" % grid_name
+	root.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	root.add_theme_constant_override("separation", 8)
 
 	var scroll := ScrollContainer.new()
+	scroll.name = "%sScroll" % grid_name
+	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	root.add_child(scroll)
 
@@ -1020,7 +1017,7 @@ func _extract_image_url(entry: Dictionary) -> String:
 			return str(first.get("thumb_320x180", first.get("original", "")))
 	return ""
 
-func _placeholder_texture(text: String) -> Texture2D:
+func _placeholder_texture(_text: String) -> Texture2D:
 	var image := Image.create(CARD_PREVIEW_SIZE.x, CARD_PREVIEW_SIZE.y, false, Image.FORMAT_RGBA8)
 	image.fill(Color(0.12, 0.12, 0.16, 1.0))
 	return ImageTexture.create_from_image(image)
