@@ -117,9 +117,11 @@ The fourth seam is downloads. The mod.io docs clearly expose modfile download da
 **Files Created/Deleted/Modified:**
 - `.plans/2026-05-31-aerobeat-vendor-modio-workout-browser-download-and-session-follow-up.md`
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Not started.
+**Results:** QA completed without finding a QA-sized defect. Automated validation passed end-to-end: `validate_scaffold.gd`, `validate_modio_testbed_scenes.gd`, `qa_verify_scene_output_updates.gd`, the focused `test_modio_workout_browser_testbed.gd` coverage embedded in the full GUT suite, and the full repo test run (`106/106` passing). A safe live harness pass against the configured mod.io test environment also succeeded for both public-only and authenticated sweeps: public browse still returned the two expected workout fixtures, public detail + modfile reads still exposed real file metadata (`16165` / `22742`, `oc-meid-build-1778103465-0p1u.zip`), authenticated `/me` and `/me/subscribed` reads still worked, and the subscribed listing still surfaced the expected workout instead of silently regressing.
+
+Targeted QA findings: the public-detail flow now truthfully exposes `Subscribe` when athlete auth is absent/present as appropriate, the right-docked slideout is present in-scene and usable via the validated detail controls, and subscribed detail still flips to `Unsubscribe` instead of hiding the CTA. Session copy is also truthful: the UI/README describe the email-code path as a revocable/re-authable direct in-game bearer session with roughly a one-year max request, not as a permanent login or dashboard-extended token. Download behavior also matches the required truth surface: the controller refreshes mod detail before save, resolves a fresh expiring delivery URL from the latest modfile metadata, requires a destination path (with explicit field + browse dialog support), writes bytes via `FileAccess`, md5-checks when metadata is present, disables Download when no modfile `binary_url` exists, and reports explicit failure messages for empty-path, missing-modfile, invalid-download-URL, refresh-failure, HTTP, write-open, and md5-mismatch cases.
 
 ---
 
@@ -166,12 +168,13 @@ The fourth seam is downloads. The mod.io docs clearly expose modfile download da
 
 **Status:** ⚠️ Partial
 
-**What We Built:** Coder implementation complete for the public/detail CTA fix, right-docked slideout redesign, truthful session-lifetime copy, and first-pass ZIP download workflow. QA + auditor stages are still pending in the parent plan, but the code/doc/test slice is now landed locally and validated.
+**What We Built:** Coder implementation and QA are now complete for the public/detail CTA fix, right-docked slideout redesign, truthful session-lifetime copy, and first-pass ZIP download workflow. The remaining stage in the parent plan is the independent auditor pass.
 
-**Reference Check:** `REF-02` and `REF-03` now reflect the new slideout/download UI and CTA logic, while `REF-05`, `REF-06`, and `REF-07` still anchor the truthful token/download behavior: download URLs are treated as fresh expiring delivery URLs, and the email-code path is described as roughly one-year-max direct bearer auth rather than a permanent-login seam.
+**Reference Check:** `REF-02` and `REF-03` now reflect the new slideout/download UI and CTA logic, while `REF-05`, `REF-06`, and `REF-07` still anchor the truthful token/download behavior: download URLs are treated as fresh expiring delivery URLs, and the email-code path is described as roughly one-year-max direct bearer auth rather than a permanent-login seam. QA also revalidated no silent regressions against the public browse / subscribed / session reads by running the repo validators plus the safe live harness against the configured test environment.
 
 **Commits:**
-- Pending coder commit/push.
+- `726bbd6` - Implement workout browser CTA and download follow-up
+- Pending QA plan-update commit/push.
 
 **Lessons Learned:** The provider seam was already strong enough; the real work was making the operator-facing UI respect capability truth. The most important discipline was deriving state from auth/subscription/download facts instead of from whichever tab happened to launch the detail view.
 
