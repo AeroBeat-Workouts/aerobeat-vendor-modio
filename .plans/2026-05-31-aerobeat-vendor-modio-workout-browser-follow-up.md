@@ -109,11 +109,13 @@ The third seam is athlete naming. Derrick wants a fast yes/no answer on whether 
 - `.plans/`
 
 **Files Created/Deleted/Modified:**
+- `.testbed/scripts/modio_workout_browser_testbed.gd`
+- `.testbed/tests/test_modio_workout_browser_testbed.gd`
 - `.plans/2026-05-31-aerobeat-vendor-modio-workout-browser-follow-up.md`
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Not started.
+**Results:** QA found one real follow-up defect before audit: the scene startup path was persisting browser-tab state during `_build_ui()` / initial tab-selection before `_load_initial_state()` had restored the saved session values, which silently wiped the saved `email`, `access_token`, and `user_id` on open. Fixed this by suspending session persistence during the initial scene build/load/restore sequence, then re-enabling persistence after startup completes. Added a regression GUT test (`test_modio_workout_browser_testbed.gd`) that seeds `modio.session.local.cfg`, instantiates the Workout Browser scene, and asserts the saved email/token/browser-tab values survive startup while the email field restores correctly. QA then re-ran `validate_modio_testbed_scenes.gd`, `qa_verify_scene_output_updates.gd`, the full GUT suite (`103/103`), and a live headless reopen harness. Verified outcomes: (1) the public test-server catalog auto-loads the expected workouts `oc-meid collection seed 1 1778103465` and `oc-4wr sandbox pagination sample 1778082871` without manual refresh, (2) the top-level `Connection` / `Auth` / `Browser` tabs are present, (3) seeded athlete email now restores on reopen, (4) a stale stored token now truthfully reports `/me` restore failure while still surfacing the saved email and token-loaded state, (5) public vs athlete-only browser tabs remain separated by auth state, and (6) athlete-name editing remains deferred/read-only with explicit unsupported messaging.
 
 ---
 
@@ -152,14 +154,14 @@ The third seam is athlete naming. Derrick wants a fast yes/no answer on whether 
 
 **Status:** ⚠️ Partial
 
-**What We Built:** Research plus coder implementation are now complete for the follow-up slice. The Workout Browser scene now auto-loads the public catalog when saved public config is already present, reorganizes the top-level UI into `Connection` / `Auth` / `Browser`, persists/restores athlete email with the reusable auth/browser session values, and attempts a truthful reopen rehydration of `/me` + wallet + purchase history from a stored token while explicitly warning when that restore fails. Unsupported athlete username/display-name editing remains out of scope and is presented only as deferred/read-only.
+**What We Built:** Research, coder implementation, and QA are now complete for the follow-up slice. The Workout Browser scene now auto-loads the public catalog when saved public config is already present, reorganizes the top-level UI into `Connection` / `Auth` / `Browser`, persists/restores athlete email with the reusable auth/browser session values, and attempts a truthful reopen rehydration of `/me` + wallet + purchase history from a stored token while explicitly warning when that restore fails. QA also fixed a startup regression where the scene wiped saved session values before initial-state restore, which was the reason athlete email/token reopen behavior still looked broken despite the earlier coder pass. Unsupported athlete username/display-name editing remains out of scope and is presented only as deferred/read-only.
 
-**Reference Check:** `REF-03`, `REF-04`, `REF-05`, `REF-07`, and `REF-08` were checked during implementation. The final coder-pass behavior matches the research findings: the fix is controller UX + persistence/layout work, not a provider browse change, and no unsupported profile-edit mutation was invented.
+**Reference Check:** `REF-03`, `REF-04`, `REF-05`, `REF-07`, and `REF-08` were checked during implementation and QA. The final behavior matches the research findings: the fix is controller UX + persistence/layout work, not a provider browse change, and no unsupported profile-edit mutation was invented.
 
 **Commits:**
-- Pending coder commit/push in this bead handoff.
+- Pending QA commit/push in this bead handoff.
 
-**Lessons Learned:** The biggest win here was treating reopen behavior as a truthfulness problem, not just a storage problem: persisting a token is not enough if the scene implies a richer restored athlete session than it actually rehydrates.
+**Lessons Learned:** The biggest win here was treating reopen behavior as a truthfulness problem, not just a storage problem: persisting a token is not enough if the scene implies a richer restored athlete session than it actually rehydrates. The QA regression also showed that startup-time UI signals can quietly invalidate persistence features even when the underlying storage layer is correct.
 
 ---
 

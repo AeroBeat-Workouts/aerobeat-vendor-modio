@@ -31,6 +31,7 @@ var _manager: AeroModIOManager
 var _base_config: ModioClientConfig
 var _image_cache: Dictionary = {}
 var _ui_built: bool = false
+var _suspend_session_persistence: bool = false
 
 var _status_label: Label
 var _server_option_button: OptionButton
@@ -90,10 +91,12 @@ var _detail_status_label: Label
 
 func _ready() -> void:
 	name = "WorkoutBrowserTestbed"
+	_suspend_session_persistence = true
 	_ensure_ui_built()
 	_load_initial_state()
 	_refresh_all_ui()
 	_restore_saved_runtime_state()
+	_suspend_session_persistence = false
 
 func describe_scene_surface() -> Dictionary:
 	_ensure_ui_built()
@@ -1270,6 +1273,8 @@ func _on_tab_changed(index: int) -> void:
 			_state.active_tab = ModioWorkoutBrowserState.TAB_SUBSCRIBED
 		_:
 			_state.active_tab = ModioWorkoutBrowserState.TAB_PUBLIC
+	if _suspend_session_persistence:
+		return
 	_persist_session_state()
 
 func _on_connection_field_changed(_index: int) -> void:
