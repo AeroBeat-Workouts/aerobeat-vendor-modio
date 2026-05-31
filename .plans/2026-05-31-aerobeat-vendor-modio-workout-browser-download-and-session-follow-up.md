@@ -1,8 +1,8 @@
 # AeroBeat Vendor mod.io Workout Browser Download + Session Follow-Up
 
 **Date:** 2026-05-31  
-**Status:** In Progress  
-**Last Updated:** 2026-05-31 18:19 EDT  
+**Status:** Complete  
+**Last Updated:** 2026-05-31 18:34 EDT  
 **Blocked Reason:** None  
 **Agent:** `main`
 
@@ -140,9 +140,9 @@ Targeted QA findings: the public-detail flow now truthfully exposes `Subscribe` 
 **Files Created/Deleted/Modified:**
 - `.plans/2026-05-31-aerobeat-vendor-modio-workout-browser-download-and-session-follow-up.md`
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Not started.
+**Results:** Independent audit passed without finding an audit-sized defect. I verified the implementation directly in `modio_workout_browser_testbed.gd`, reran the repo validators (`validate_scaffold.gd`, `validate_modio_testbed_scenes.gd`, `qa_verify_scene_output_updates.gd`), reran the full GUT suite (`106/106` passing), and reran safe live harness sweeps against the configured mod.io test environment for both `--public-only` and authenticated reads. The public-detail CTA fix is real: `_apply_detail_action_state()` no longer keys purely off the launching tab string, because a public detail can still flip to `Unsubscribe` when the same mod is already present in subscribed state via `_is_mod_in_listing(TAB_SUBSCRIBED, mod_id)`, and otherwise it truthfully exposes `Subscribe` gated only by auth + valid mod id. The right-docked slideout is also real and covered in scene/test validation (`DetailPanel` mounted under `DetailDockRow`). Token-lifetime/configurability messaging remains honest against the current seam and local docs mirror: the email-code exchange explicitly requests at most one common year, the adapter clamps that request to a one-year max for this route, and the UI/README correctly describe this as revocable/re-authable session state rather than a permanent login or hidden dashboard toggle. The Download action is also truthful: it refreshes mod detail before save, resolves a fresh expiring `binary_url` from the latest modfile metadata, requires an explicit operator-controlled save path, writes bytes locally, and only promises optional md5 verification when provider metadata exists. Live harness evidence also confirmed earlier public browse / subscribed / session behavior was not silently regressed: public browse still returns the expected fixtures, authenticated `/me` still works, and `/me/subscribed` still returns the expected workout in the test environment.
 
 ---
 
@@ -166,17 +166,18 @@ Targeted QA findings: the public-detail flow now truthfully exposes `Subscribe` 
 
 ## Final Results
 
-**Status:** ⚠️ Partial
+**Status:** ✅ Complete
 
-**What We Built:** Coder implementation and QA are now complete for the public/detail CTA fix, right-docked slideout redesign, truthful session-lifetime copy, and first-pass ZIP download workflow. The remaining stage in the parent plan is the independent auditor pass.
+**What We Built:** The Workout Browser follow-up is now fully implemented, QA-verified, and auditor-approved: public detail truthfully exposes subscribe/unsubscribe state, the detail surface is a right-docked slideout with bottom CTA/download controls, session-lifetime messaging matches the actual mod.io seam, and the first-pass ZIP download flow uses fresh modfile delivery metadata plus an operator-controlled save path.
 
-**Reference Check:** `REF-02` and `REF-03` now reflect the new slideout/download UI and CTA logic, while `REF-05`, `REF-06`, and `REF-07` still anchor the truthful token/download behavior: download URLs are treated as fresh expiring delivery URLs, and the email-code path is described as roughly one-year-max direct bearer auth rather than a permanent-login seam. QA also revalidated no silent regressions against the public browse / subscribed / session reads by running the repo validators plus the safe live harness against the configured test environment.
+**Reference Check:** `REF-02` and `REF-03` reflect the final right-docked slideout/download UI and CTA logic. `REF-05`, `REF-06`, and `REF-07` continue to anchor the truth claims the audit checked: email-code auth is capped to the documented one-common-year direct bearer seam, not a permanent or secretly dashboard-extendable login; modfile download URLs are expiring delivery URLs that must be refreshed rather than stored/reused; and the current wrapper only promises save-to-path plus optional md5 verification when the provider surfaces hash metadata. Audit reruns also confirmed the earlier public browse / subscribed / session behavior remained intact.
 
 **Commits:**
 - `726bbd6` - Implement workout browser CTA and download follow-up
-- Pending QA plan-update commit/push.
+- `ca7dfba` - Record workout browser CTA/download QA verdict
+- Pending auditor plan-update commit/push.
 
-**Lessons Learned:** The provider seam was already strong enough; the real work was making the operator-facing UI respect capability truth. The most important discipline was deriving state from auth/subscription/download facts instead of from whichever tab happened to launch the detail view.
+**Lessons Learned:** The provider seam was already strong enough; the real work was making the operator-facing UI respect capability truth. The most important discipline was deriving state from auth/subscription/download facts instead of from whichever tab happened to launch the detail view, and then keeping the operator-facing copy tightly aligned with the underlying auth/download contracts.
 
 ---
 
