@@ -55,6 +55,9 @@ func _verify_main_scene(failures: PackedStringArray) -> void:
 	var tab_container: TabContainer = instance.get_node_or_null("MarginContainer/VBoxContainer/GlobalTabContainer/BrowserTab/BrowserTabContainer")
 	var detail_overlay := instance.find_child("DetailOverlay", true, false)
 	var detail_action: Button = instance.find_child("DetailActionButton", true, false)
+	var detail_download: Button = instance.find_child("DetailDownloadButton", true, false)
+	var detail_path: LineEdit = instance.find_child("DetailDownloadPathLineEdit", true, false)
+	var detail_panel: PanelContainer = instance.find_child("DetailPanel", true, false)
 	if global_tab_container == null:
 		failures.append("Main scene missing GlobalTabContainer")
 	else:
@@ -79,25 +82,35 @@ func _verify_main_scene(failures: PackedStringArray) -> void:
 		failures.append("Main scene missing DetailOverlay")
 	elif detail_action == null:
 		failures.append("Main scene missing DetailActionButton")
+	elif detail_download == null or detail_path == null or detail_panel == null:
+		failures.append("Main scene missing download slideout controls")
 	else:
 		var sample_entries: Array = _fixture("mods.json").get("data", [])
 		if sample_entries.is_empty():
 			failures.append("Fixture mods.json did not contain any sample entries for detail QA")
 		else:
 			var sample_entry: Dictionary = sample_entries[0]
+			instance.get("_state").access_token = ""
 			instance.call("_open_detail", sample_entry, "public")
 			await process_frame
 			if not detail_overlay.visible:
 				failures.append("Detail overlay did not open for public context")
-			if detail_action.visible:
-				failures.append("Public detail should not expose a subscribe/unsubscribe CTA")
+			if not detail_action.visible or detail_action.text != "Subscribe" or not detail_action.disabled:
+				failures.append("Public detail should expose a disabled Subscribe CTA until athlete auth exists")
+			if detail_panel.get_parent().name != "DetailDockRow":
+				failures.append("Detail panel is not mounted in the right-docked slideout row")
+			if detail_download.disabled:
+				failures.append("Public detail should expose the first-pass Download action when modfile metadata exists")
+			if detail_path.text.is_empty():
+				failures.append("Detail download path should be prefilled for the operator")
 			instance.call("_close_detail_overlay")
 			await process_frame
 
+			instance.get("_state").access_token = "qa-token"
 			instance.call("_open_detail", sample_entry, "workout")
 			await process_frame
-			if not detail_action.visible or detail_action.text != "Subscribe":
-				failures.append("Workout detail did not expose the Subscribe CTA")
+			if not detail_action.visible or detail_action.text != "Subscribe" or detail_action.disabled:
+				failures.append("Workout detail did not expose an enabled Subscribe CTA for authenticated athletes")
 			instance.call("_close_detail_overlay")
 			await process_frame
 

@@ -258,13 +258,14 @@ Paid-mods harness inputs are split intentionally:
 - session cfg (`modio.session.local.cfg`): ephemeral per-run values like `access_token`, `user_id`, `entitlements_payload_json`, `checkout_payload_json`, `s2s_filters_json`, `s2s_transaction_id`, and S2S delegation/idempotent keys
 - each `*_payload_json` value should be a JSON object; for entitlements/checkout, keep `portal` / `platform` at the top level and put the raw request body under `fields`, for example `{"portal":"epicgames","fields":{...}}`
 - the default Workout Browser scene reads Game ID + API key from `modio.local.cfg`, reads the selected environment / athlete email / access token / user id from `modio.session.local.cfg`, writes updated auth/session values back into `modio.session.local.cfg`, auto-loads the public catalog on reopen when public config is present, and attempts a truthful `/me` + wallet + purchase-history refresh when a stored token exists
+- the in-game email-code auth flow now explicitly requests the longest direct bearer expiry this seam can honestly ask for (roughly one common year max). It should still be described as revocable/re-authable session state, not as a permanent-login or dashboard-configurable beyond-docs token policy.
 
 ### Scene-based proving surface
 
 The hidden `.testbed/` project now has a default operator-facing Workout Browser scene plus the older focused smoke-test entrypoints.
 
 - `.testbed/scenes/workout_browser.tscn`
-  - default `.testbed` entrypoint with editable `Test|Live` server target, Game ID, API Key, email-code athlete auth, profile summary, public browse, athlete browse, subscribed-workout pagination, and subscribe/unsubscribe detail CTAs
+  - default `.testbed` entrypoint with editable `Test|Live` server target, Game ID, API Key, email-code athlete auth, profile summary, public browse, athlete browse, subscribed-workout pagination, a right-docked workout-detail slideout, truthful subscribe/unsubscribe CTA state across public + athlete contexts, and first-pass ZIP download saves using fresh modfile delivery URLs plus optional md5 verification
 - `.testbed/scenes/public_catalog_testbed.tscn`
   - focused smoke scene for public connectivity + catalog/detail reads
 - `.testbed/scenes/authenticated_user_testbed.tscn`

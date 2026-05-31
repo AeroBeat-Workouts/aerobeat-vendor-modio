@@ -9,6 +9,10 @@ const BROWSER_TAB_WORKOUT_INDEX := 2
 const BROWSER_TAB_SUBSCRIBED_INDEX := 3
 const CARD_PREVIEW_SIZE := Vector2i(320, 180)
 const IMAGE_CACHE_DIR := "user://modio_workout_browser_images"
+const DOWNLOAD_CACHE_DIR := "user://modio_workout_browser_downloads"
+const DETAIL_ACTION_SUBSCRIBE := "subscribe"
+const DETAIL_ACTION_UNSUBSCRIBE := "unsubscribe"
+const AUTH_TOKEN_REQUEST_MAX_SECONDS := 31536000
 const SORT_OPTIONS := [
 	{"label": "Recently Updated", "value": "-date_updated"},
 	{"label": "Newest", "value": "-date_live"},
@@ -80,7 +84,14 @@ var _detail_image: TextureRect
 var _detail_summary_label: RichTextLabel
 var _detail_close_button: Button
 var _detail_action_button: Button
+var _detail_download_button: Button
+var _detail_download_path_line_edit: LineEdit
+var _detail_download_browse_button: Button
+var _detail_download_hint_label: Label
 var _detail_status_label: Label
+var _detail_file_dialog: FileDialog
+var _detail_entry: Dictionary = {}
+var _detail_action_mode: String = ""
 
 func _ready() -> void:
 	name = "WorkoutBrowserTestbed"
@@ -269,7 +280,7 @@ func _build_auth_panel() -> Control:
 	inner.add_child(heading)
 
 	var description := Label.new()
-	description.text = "Real mod.io athlete auth uses emailrequest → emailexchange. Saved email + token state can be restored here, but athlete username/display-name edits are not supported through our current public REST access."
+	description.text = "Real mod.io athlete auth uses emailrequest → emailexchange. That in-game bearer path already defaults to roughly the longest direct session mod.io documents (about one common year), but it is not a permanent-login toggle and longer silent renewals would require a different backend OAuth architecture. Saved email + token state can be restored here, but athlete username/display-name edits are not supported through our current public REST access."
 	description.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	inner.add_child(description)
 
@@ -552,44 +563,66 @@ func _build_detail_overlay() -> ColorRect:
 	overlay.color = Color(0, 0, 0, 0.65)
 	overlay.visible = false
 
-	var center := CenterContainer.new()
-	center.name = "CenterContainer"
-	overlay.add_child(center)
+	var dock_row := HBoxContainer.new()
+	dock_row.name = "DetailDockRow"
+	dock_row.set_anchors_preset(Control.PRESET_FULL_RECT)
+	overlay.add_child(dock_row)
+
+	var spacer := Control.new()
+	spacer.name = "DetailDockSpacer"
+	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	dock_row.add_child(spacer)
 
 	_detail_panel = PanelContainer.new()
 	_detail_panel.name = "DetailPanel"
-	_detail_panel.custom_minimum_size = Vector2(820, 560)
-	center.add_child(_detail_panel)
+	_detail_panel.custom_minimum_size = Vector2(560, 0)
+	_detail_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	dock_row.add_child(_detail_panel)
 
 	var margin := MarginContainer.new()
-	margin.add_theme_constant_override("margin_left", 16)
-	margin.add_theme_constant_override("margin_top", 16)
-	margin.add_theme_constant_override("margin_right", 16)
-	margin.add_theme_constant_override("margin_bottom", 16)
+	margin.add_theme_constant_override("margin_left", 20)
+	margin.add_theme_constant_override("margin_top", 20)
+	margin.add_theme_constant_override("margin_right", 20)
+	margin.add_theme_constant_override("margin_bottom", 20)
 	_detail_panel.add_child(margin)
 
 	var root := VBoxContainer.new()
-	root.add_theme_constant_override("separation", 8)
+	root.name = "DetailPanelRoot"
+	root.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	root.add_theme_constant_override("separation", 12)
 	margin.add_child(root)
 
 	var header := HBoxContainer.new()
+	header.alignment = BoxContainer.ALIGNMENT_END
 	root.add_child(header)
+
+	var title_box := VBoxContainer.new()
+	title_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	title_box.add_theme_constant_override("separation", 4)
+	header.add_child(title_box)
+
+	var eyebrow := Label.new()
+	eyebrow.name = "DetailEyebrowLabel"
+	eyebrow.text = "Workout Details"
+	eyebrow.modulate = Color(0.8, 0.84, 0.92, 0.9)
+	title_box.add_child(eyebrow)
 
 	_detail_title_label = Label.new()
 	_detail_title_label.name = "DetailTitleLabel"
 	_detail_title_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_detail_title_label.add_theme_font_size_override("font_size", 22)
-	header.add_child(_detail_title_label)
+	_detail_title_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_detail_title_label.add_theme_font_size_override("font_size", 24)
+	title_box.add_child(_detail_title_label)
 
 	_detail_close_button = Button.new()
 	_detail_close_button.name = "DetailCloseButton"
-	_detail_close_button.text = "X"
+	_detail_close_button.text = "Close"
 	_detail_close_button.pressed.connect(_close_detail_overlay)
 	header.add_child(_detail_close_button)
 
 	_detail_image = TextureRect.new()
 	_detail_image.name = "DetailImage"
-	_detail_image.custom_minimum_size = Vector2(640, 240)
+	_detail_image.custom_minimum_size = Vector2(0, 280)
 	_detail_image.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	_detail_image.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	root.add_child(_detail_image)
@@ -600,21 +633,78 @@ func _build_detail_overlay() -> ColorRect:
 	_detail_summary_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	root.add_child(_detail_summary_label)
 
+	var download_panel := PanelContainer.new()
+	download_panel.name = "DetailDownloadPanel"
+	root.add_child(download_panel)
+
+	var download_margin := MarginContainer.new()
+	download_margin.add_theme_constant_override("margin_left", 12)
+	download_margin.add_theme_constant_override("margin_top", 12)
+	download_margin.add_theme_constant_override("margin_right", 12)
+	download_margin.add_theme_constant_override("margin_bottom", 12)
+	download_panel.add_child(download_margin)
+
+	var download_root := VBoxContainer.new()
+	download_root.add_theme_constant_override("separation", 8)
+	download_margin.add_child(download_root)
+
+	var download_title := Label.new()
+	download_title.text = "Download"
+	download_title.add_theme_font_size_override("font_size", 18)
+	download_root.add_child(download_title)
+
+	_detail_download_hint_label = Label.new()
+	_detail_download_hint_label.name = "DetailDownloadHintLabel"
+	_detail_download_hint_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	download_root.add_child(_detail_download_hint_label)
+
+	var download_row := HBoxContainer.new()
+	download_row.add_theme_constant_override("separation", 8)
+	download_root.add_child(download_row)
+
+	_detail_download_path_line_edit = LineEdit.new()
+	_detail_download_path_line_edit.name = "DetailDownloadPathLineEdit"
+	_detail_download_path_line_edit.placeholder_text = "Choose a ZIP save path"
+	_detail_download_path_line_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	download_row.add_child(_detail_download_path_line_edit)
+
+	_detail_download_browse_button = Button.new()
+	_detail_download_browse_button.name = "DetailDownloadBrowseButton"
+	_detail_download_browse_button.text = "Browse…"
+	_detail_download_browse_button.pressed.connect(_on_detail_download_browse_pressed)
+	download_row.add_child(_detail_download_browse_button)
+
 	_detail_status_label = Label.new()
 	_detail_status_label.name = "DetailStatusLabel"
 	_detail_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	root.add_child(_detail_status_label)
 
 	var footer := HBoxContainer.new()
+	footer.name = "DetailFooter"
+	footer.alignment = BoxContainer.ALIGNMENT_END
 	root.add_child(footer)
-	var spacer := Control.new()
-	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	footer.add_child(spacer)
+
+	_detail_download_button = Button.new()
+	_detail_download_button.name = "DetailDownloadButton"
+	_detail_download_button.text = "Download ZIP"
+	_detail_download_button.pressed.connect(_on_detail_download_pressed)
+	footer.add_child(_detail_download_button)
+
 	_detail_action_button = Button.new()
 	_detail_action_button.name = "DetailActionButton"
 	_detail_action_button.visible = false
+	_detail_action_button.custom_minimum_size = Vector2(220, 52)
 	_detail_action_button.pressed.connect(_on_detail_action_pressed)
 	footer.add_child(_detail_action_button)
+
+	_detail_file_dialog = FileDialog.new()
+	_detail_file_dialog.name = "DetailDownloadFileDialog"
+	_detail_file_dialog.file_mode = FileDialog.FILE_MODE_SAVE_FILE
+	_detail_file_dialog.access = FileDialog.ACCESS_FILESYSTEM
+	_detail_file_dialog.title = "Save Workout ZIP"
+	_detail_file_dialog.filters = PackedStringArray(["*.zip ; ZIP archive"])
+	_detail_file_dialog.file_selected.connect(_on_detail_download_path_selected)
+	overlay.add_child(_detail_file_dialog)
 	return overlay
 
 func _field_label(text: String) -> Label:
@@ -1038,21 +1128,15 @@ func _load_image_bytes(image: Image, headers: PackedStringArray, body: PackedByt
 	return image.load_png_from_buffer(body)
 
 func _open_detail(entry: Dictionary, context: String) -> void:
+	_detail_entry = entry.duplicate(true)
 	_state.selected_mod_id = int(entry.get("id", 0))
 	_state.selected_mod_context = context
 	_detail_title_label.text = str(entry.get("name", "Workout"))
 	_detail_summary_label.text = _detail_bbcode(entry)
 	_detail_status_label.text = ""
 	_set_preview_texture(_detail_image, entry)
-	match context:
-		ModioWorkoutBrowserState.TAB_WORKOUT:
-			_detail_action_button.visible = true
-			_detail_action_button.text = "Subscribe"
-		ModioWorkoutBrowserState.TAB_SUBSCRIBED:
-			_detail_action_button.visible = true
-			_detail_action_button.text = "Unsubscribe"
-		_:
-			_detail_action_button.visible = false
+	_apply_detail_download_state(entry)
+	_apply_detail_action_state(entry, context)
 	_detail_overlay.visible = true
 
 func _detail_bbcode(entry: Dictionary) -> String:
@@ -1077,21 +1161,82 @@ func _detail_bbcode(entry: Dictionary) -> String:
 				metadata_pairs.append("%s=%s" % [key, JSON.stringify(value)])
 			else:
 				metadata_pairs.append(str(item))
+	var modfile: Dictionary = entry.get("modfile", {})
+	var filehash: Dictionary = modfile.get("filehash", {}) if modfile is Dictionary else {}
 	return "\n".join([
 		"[b]Summary[/b]\n%s" % str(entry.get("summary", "")),
 		"[b]Description[/b]\n%s" % str(entry.get("description_plaintext", entry.get("description", ""))),
 		"[b]Tags[/b] %s" % (", ".join(tags) if not tags.is_empty() else "(none)"),
 		"[b]Downloads[/b] %s" % str(entry.get("stats", {}).get("downloads_total", 0)),
 		"[b]Subscribers[/b] %s" % str(entry.get("stats", {}).get("subscribers_total", 0)),
+		"[b]Latest File[/b] %s" % str(modfile.get("filename", "(not exposed on this entry)")),
+		"[b]Expected MD5[/b] %s" % str(filehash.get("md5", "(not exposed)")),
 		"[b]Price[/b] %s | [b]Tax[/b] %s" % [str(entry.get("price", 0)), str(entry.get("tax", 0))],
 		"[b]Metadata[/b] %s" % ("; ".join(metadata_pairs) if not metadata_pairs.is_empty() else "(none)"),
 		"[b]Profile URL[/b] %s" % str(entry.get("profile_url", ""))
 	])
 
+func _apply_detail_action_state(entry: Dictionary, context: String) -> void:
+	var mod_id := int(entry.get("id", 0))
+	var is_subscribed := context == ModioWorkoutBrowserState.TAB_SUBSCRIBED or _is_mod_in_listing(ModioWorkoutBrowserState.TAB_SUBSCRIBED, mod_id)
+	if is_subscribed:
+		_detail_action_mode = DETAIL_ACTION_UNSUBSCRIBE
+		_detail_action_button.visible = true
+		_detail_action_button.disabled = not _state.is_authenticated()
+		_detail_action_button.text = "Unsubscribe"
+		if not _state.is_authenticated():
+			_detail_status_label.text = "This workout appears in subscribed state, but this session needs athlete auth before it can send unsubscribe writes."
+		return
+	if mod_id <= 0:
+		_detail_action_mode = ""
+		_detail_action_button.visible = true
+		_detail_action_button.disabled = true
+		_detail_action_button.text = "Subscribe Unavailable"
+		_detail_status_label.text = "This workout is missing a valid mod id, so subscribe is unavailable."
+		return
+	_detail_action_mode = DETAIL_ACTION_SUBSCRIBE
+	_detail_action_button.visible = true
+	_detail_action_button.text = "Subscribe"
+	_detail_action_button.disabled = not _state.is_authenticated()
+	if not _state.is_authenticated():
+		_detail_status_label.text = "Authenticate with the email-code flow to subscribe from public or athlete browser details."
+
+func _apply_detail_download_state(entry: Dictionary) -> void:
+	var modfile: Dictionary = entry.get("modfile", {}) if entry.get("modfile", null) is Dictionary else {}
+	var filename := str(modfile.get("filename", "workout.zip")).strip_edges()
+	if filename.is_empty():
+		filename = "workout-%s.zip" % str(entry.get("id", "download"))
+	var default_path := _default_download_path(filename)
+	if _detail_download_path_line_edit.text.strip_edges().is_empty() or _detail_download_path_line_edit.text.begins_with(ProjectSettings.globalize_path(DOWNLOAD_CACHE_DIR)):
+		_detail_download_path_line_edit.text = default_path
+	var has_download_metadata := not str(modfile.get("download", {}).get("binary_url", "")).is_empty()
+	_detail_download_button.disabled = not has_download_metadata
+	_detail_download_hint_label.text = "Each download uses a fresh mod.io delivery URL and saves to the exact ZIP path you choose. The hashed binary_url is treated as expiring transport, not a permanent link."
+	if not has_download_metadata:
+		_detail_download_hint_label.text += "\nThis entry does not currently expose modfile download metadata, so Download stays disabled."
+
+func _default_download_path(filename: String) -> String:
+	var download_dir := OS.get_system_dir(OS.SYSTEM_DIR_DOWNLOADS)
+	if download_dir.is_empty():
+		download_dir = ProjectSettings.globalize_path(DOWNLOAD_CACHE_DIR)
+	DirAccess.make_dir_recursive_absolute(download_dir)
+	return download_dir.path_join(filename)
+
+func _is_mod_in_listing(context: String, mod_id: int) -> bool:
+	if mod_id <= 0:
+		return false
+	for entry in _state.listing_for_context(context).get("data", []):
+		if entry is Dictionary and int(entry.get("id", 0)) == mod_id:
+			return true
+	return false
+
 func _close_detail_overlay() -> void:
 	_detail_overlay.visible = false
 	_detail_action_button.disabled = false
+	_detail_download_button.disabled = false
 	_detail_status_label.text = ""
+	_detail_action_mode = ""
+	_detail_entry = {}
 
 func _on_detail_action_pressed() -> void:
 	if _state.selected_mod_id <= 0:
@@ -1101,13 +1246,15 @@ func _on_detail_action_pressed() -> void:
 		return
 	_rebuild_manager()
 	var response: Dictionary
-	if _state.selected_mod_context == ModioWorkoutBrowserState.TAB_SUBSCRIBED:
+	if _detail_action_mode == DETAIL_ACTION_UNSUBSCRIBE:
 		response = _manager.execute_adapter_request("build_unsubscribe_request", [str(_state.selected_mod_id)])
 		if bool(response.get("ok", false)):
 			_state.remove_subscribed_mod(_state.selected_mod_id)
+			_state.selected_mod_context = ModioWorkoutBrowserState.TAB_PUBLIC
 			_detail_status_label.text = "Unsubscribed successfully. Removed from the subscribed list immediately."
 			_update_listing_ui(ModioWorkoutBrowserState.TAB_SUBSCRIBED)
 			_update_profile_ui()
+			_apply_detail_action_state(_detail_entry, ModioWorkoutBrowserState.TAB_PUBLIC)
 			return
 		_detail_status_label.text = _response_error_message(response, "Failed to unsubscribe.")
 		return
@@ -1115,9 +1262,137 @@ func _on_detail_action_pressed() -> void:
 	if bool(response.get("ok", false)):
 		var normalized = _manager.normalize_with_adapter("normalize_subscription_write_response", [int(response.get("status_code", 0)), response.get("headers", {}), response.get("payload", {})])
 		var already := bool(normalized.get("already_subscribed", false)) if normalized is Dictionary else false
+		_state.selected_mod_context = ModioWorkoutBrowserState.TAB_SUBSCRIBED
 		_detail_status_label.text = "Already subscribed." if already else "Subscribed successfully."
+		_apply_detail_action_state(_detail_entry, ModioWorkoutBrowserState.TAB_SUBSCRIBED)
 		return
 	_detail_status_label.text = _response_error_message(response, "Failed to subscribe.")
+
+func _on_detail_download_browse_pressed() -> void:
+	if not is_instance_valid(_detail_file_dialog):
+		return
+	_detail_file_dialog.current_path = _detail_download_path_line_edit.text.strip_edges()
+	_detail_file_dialog.popup_centered_ratio(0.6)
+
+func _on_detail_download_path_selected(path: String) -> void:
+	_detail_download_path_line_edit.text = path
+
+func _on_detail_download_pressed() -> void:
+	await _download_selected_mod()
+
+func _download_selected_mod() -> void:
+	if _state.selected_mod_id <= 0:
+		_detail_status_label.text = "Open a workout detail before attempting a download."
+		return
+	var requested_path := _detail_download_path_line_edit.text.strip_edges()
+	if requested_path.is_empty():
+		_detail_status_label.text = "Choose a destination ZIP path before downloading."
+		return
+	_detail_download_button.disabled = true
+	_detail_status_label.text = "Resolving a fresh modfile URL from mod.io…"
+	var detail_entry := _fetch_fresh_detail_entry(str(_state.selected_mod_id))
+	if detail_entry.is_empty():
+		_detail_download_button.disabled = false
+		if _detail_status_label.text.is_empty():
+			_detail_status_label.text = "Failed to refresh workout detail before downloading."
+		return
+	var modfile: Dictionary = detail_entry.get("modfile", {})
+	if modfile.is_empty():
+		_detail_download_button.disabled = false
+		_detail_status_label.text = "mod.io did not expose a latest modfile for this workout, so Download cannot continue yet."
+		return
+	var download_request_obj = _manager.get_adapter().resolve_download_request_from_modfile(str(_state.selected_mod_id), modfile)
+	if download_request_obj == null or not download_request_obj.is_valid():
+		_detail_download_button.disabled = false
+		_detail_status_label.text = "This workout does not currently expose a valid expiring download URL."
+		return
+	var download_metadata: Dictionary = _manager.get_adapter().build_download_request(download_request_obj)
+	var save_path := _normalize_download_target_path(requested_path, str(download_metadata.get("filename", "workout.zip")))
+	var result := await _download_binary_to_path(download_metadata, save_path)
+	_detail_download_button.disabled = false
+	if bool(result.get("ok", false)):
+		_detail_download_path_line_edit.text = save_path
+		var md5_message := ""
+		if bool(result.get("checked_md5", false)):
+			md5_message = " MD5 %s." % ("matched" if bool(result.get("md5_matches", false)) else "did not match")
+		_detail_status_label.text = "Saved %s to %s.%s" % [str(download_metadata.get("filename", "workout.zip")), save_path, md5_message]
+		return
+	_detail_status_label.text = str(result.get("message", "Download failed."))
+
+func _fetch_fresh_detail_entry(mod_id: String) -> Dictionary:
+	_rebuild_manager()
+	var response := _manager.execute_adapter_request("build_mod_detail_request", [mod_id])
+	if not bool(response.get("ok", false)):
+		_detail_status_label.text = _response_error_message(response, "Failed to refresh workout detail before downloading.")
+		return {}
+	var normalized = _manager.normalize_with_adapter("normalize_mod_detail_response", [response.get("payload", {})])
+	if normalized is Dictionary:
+		return normalized
+	_detail_status_label.text = "Failed to normalize the refreshed workout detail response."
+	return {}
+
+func _normalize_download_target_path(path: String, filename: String) -> String:
+	var cleaned := path.strip_edges()
+	if cleaned.is_empty():
+		return _default_download_path(filename)
+	if cleaned.ends_with("/") or cleaned.ends_with("\\"):
+		return cleaned.path_join(filename)
+	if cleaned.get_extension().is_empty():
+		return "%s.zip" % cleaned
+	return cleaned
+
+func _download_binary_to_path(download_metadata: Dictionary, save_path: String) -> Dictionary:
+	var http := HTTPRequest.new()
+	add_child(http)
+	var request_error := http.request(str(download_metadata.get("binary_url", "")))
+	if request_error != OK:
+		http.queue_free()
+		return {"ok": false, "message": "Failed to start the download request (%s)." % request_error}
+	var completed: Array = await http.request_completed
+	var response_code := int(completed[1])
+	var body: PackedByteArray = completed[3]
+	if response_code < 200 or response_code >= 300:
+		http.queue_free()
+		return {"ok": false, "message": "Download request failed with HTTP %s." % response_code}
+	var absolute_path := _absolute_filesystem_path(save_path)
+	var parent_dir := absolute_path.get_base_dir()
+	if not parent_dir.is_empty() and not DirAccess.dir_exists_absolute(parent_dir):
+		DirAccess.make_dir_recursive_absolute(parent_dir)
+	var file := FileAccess.open(absolute_path, FileAccess.WRITE)
+	if file == null:
+		http.queue_free()
+		return {"ok": false, "message": "Failed to open %s for writing." % absolute_path}
+	file.store_buffer(body)
+	file.close()
+	var expected_md5 := str(download_metadata.get("md5", "")).strip_edges().to_lower()
+	var actual_md5 := _compute_md5(body)
+	http.queue_free()
+	if not expected_md5.is_empty() and actual_md5 != expected_md5:
+		return {
+			"ok": false,
+			"message": "Saved the ZIP, but the md5 check failed. Expected %s, got %s." % [expected_md5, actual_md5],
+			"checked_md5": true,
+			"md5_matches": false,
+			"actual_md5": actual_md5
+		}
+	return {
+		"ok": true,
+		"path": save_path,
+		"checked_md5": not expected_md5.is_empty(),
+		"md5_matches": true,
+		"actual_md5": actual_md5
+	}
+
+func _absolute_filesystem_path(path: String) -> String:
+	if path.begins_with("user://") or path.begins_with("res://"):
+		return ProjectSettings.globalize_path(path)
+	return path
+
+func _compute_md5(bytes: PackedByteArray) -> String:
+	var hashing := HashingContext.new()
+	hashing.start(HashingContext.HASH_MD5)
+	hashing.update(bytes)
+	return hashing.finish().hex_encode()
 
 func _on_request_code_pressed() -> void:
 	var email := _email_line_edit.text.strip_edges()
@@ -1142,7 +1417,8 @@ func _on_exchange_code_pressed(_submitted_text: String = "") -> void:
 		_set_status("Paste the emailed security code before exchanging it.")
 		return
 	_rebuild_manager()
-	var response := _manager.execute_adapter_request("build_auth_exchange_request", [code, 0])
+	var requested_expiry := Time.get_unix_time_from_system() + AUTH_TOKEN_REQUEST_MAX_SECONDS
+	var response := _manager.execute_adapter_request("build_auth_exchange_request", [code, requested_expiry])
 	if not bool(response.get("ok", false)):
 		_set_status(_response_error_message(response, "Failed to exchange the security code."))
 		return
@@ -1150,7 +1426,7 @@ func _on_exchange_code_pressed(_submitted_text: String = "") -> void:
 	_state.access_token = str(payload.get("access_token", "")).strip_edges()
 	_state.last_security_code = code
 	_state.raw_debug_sections["auth_exchange"] = payload
-	_state.raw_debug_sections["saved_token_restore_note"] = "Access token exchanged. Refreshing /me + wallet + purchases now."
+	_state.raw_debug_sections["saved_token_restore_note"] = "Access token exchanged with the longest direct in-game expiry we can truthfully request (~1 year max). Refreshing /me + wallet + purchases now."
 	_rebuild_manager()
 	var persisted := _persist_session_state()
 	if not bool(persisted.get("ok", false)):

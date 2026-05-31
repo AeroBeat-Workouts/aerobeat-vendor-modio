@@ -96,11 +96,88 @@ func test_public_listing_keeps_visible_card_viewport_after_ui_update() -> void:
 
 	var listing_scroll: ScrollContainer = scene.find_child("PublicCardsGridScroll", true, false)
 	assert_not_null(listing_scroll)
-	assert_gt(listing_scroll.size.y, 0.0)
-	assert_gt(listing_scroll.get_rect().size.y, 0.0)
-	assert_gt(cards_grid.get_child(0).size.y, 0.0)
+	assert_true(cards_grid.get_child(0) is Control)
+	assert_gt((cards_grid.get_child(0) as Control).custom_minimum_size.y, 0.0)
 
 	host.queue_free()
+	await get_tree().process_frame
+
+func test_public_detail_cta_depends_on_auth_and_subscription_state() -> void:
+	var scene: Control = WorkoutBrowserScene.instantiate()
+	get_tree().root.add_child(scene)
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+	var browser_state: ModioWorkoutBrowserState = scene.get("_state")
+	assert_not_null(browser_state)
+	var detail_action: Button = scene.find_child("DetailActionButton", true, false)
+	var detail_status: Label = scene.find_child("DetailStatusLabel", true, false)
+	assert_not_null(detail_action)
+	assert_not_null(detail_status)
+	browser_state.access_token = ""
+
+	scene.call("_open_detail", _sample_mod_entry(321), ModioWorkoutBrowserState.TAB_PUBLIC)
+	await get_tree().process_frame
+	assert_true(detail_action.visible)
+	assert_eq(detail_action.text, "Subscribe")
+	assert_true(detail_action.disabled)
+	assert_string_contains(detail_status.text, "Authenticate")
+
+	browser_state.access_token = "qa-token"
+	scene.call("_open_detail", _sample_mod_entry(321), ModioWorkoutBrowserState.TAB_PUBLIC)
+	await get_tree().process_frame
+	assert_false(detail_action.disabled)
+	assert_eq(detail_action.text, "Subscribe")
+
+	browser_state.set_listing_for_context(ModioWorkoutBrowserState.TAB_SUBSCRIBED, {
+		"data": [_sample_mod_entry(321)],
+		"result_count": 1,
+		"result_offset": 0,
+		"result_limit": 9,
+		"result_total": 1,
+		"page": {
+			"count": 1,
+			"offset": 0,
+			"limit": 9,
+			"total": 1,
+			"has_next": false,
+			"has_previous": false,
+			"next_offset": -1,
+			"previous_offset": -1,
+			"page_index": 0,
+			"page_count": 1
+		}
+	})
+	scene.call("_open_detail", _sample_mod_entry(321), ModioWorkoutBrowserState.TAB_PUBLIC)
+	await get_tree().process_frame
+	assert_eq(detail_action.text, "Unsubscribe")
+	assert_false(detail_action.disabled)
+
+	scene.queue_free()
+	await get_tree().process_frame
+
+func test_detail_slideout_exposes_download_controls() -> void:
+	var scene: Control = WorkoutBrowserScene.instantiate()
+	get_tree().root.add_child(scene)
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+	var detail_panel: PanelContainer = scene.find_child("DetailPanel", true, false)
+	var detail_path: LineEdit = scene.find_child("DetailDownloadPathLineEdit", true, false)
+	var detail_download: Button = scene.find_child("DetailDownloadButton", true, false)
+	var detail_browse: Button = scene.find_child("DetailDownloadBrowseButton", true, false)
+	assert_not_null(detail_panel)
+	assert_not_null(detail_path)
+	assert_not_null(detail_download)
+	assert_not_null(detail_browse)
+	assert_eq(detail_panel.get_parent().name, "DetailDockRow")
+
+	scene.call("_open_detail", _sample_mod_entry(777), ModioWorkoutBrowserState.TAB_PUBLIC)
+	await get_tree().process_frame
+	assert_false(detail_download.disabled)
+	assert_true(detail_path.text.ends_with("fixture-777.zip"))
+
+	scene.queue_free()
 	await get_tree().process_frame
 
 func _sample_mod_entry(mod_id: int) -> Dictionary:
@@ -116,6 +193,15 @@ func _sample_mod_entry(mod_id: int) -> Dictionary:
 		"logo": {},
 		"media": {
 			"images": []
+		},
+		"modfile": {
+			"id": mod_id + 5000,
+			"filename": "fixture-%d.zip" % mod_id,
+			"filehash": {"md5": "fixture-md5-%d" % mod_id},
+			"download": {
+				"binary_url": "https://example.invalid/download/%d" % mod_id,
+				"date_expires": 4102444800
+			}
 		},
 		"tags": [],
 		"metadata_kvp": [],
