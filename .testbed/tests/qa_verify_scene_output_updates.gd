@@ -52,7 +52,8 @@ func _verify_main_scene(failures: PackedStringArray) -> void:
 	var connection_panel := instance.get_node_or_null("MarginContainer/VBoxContainer/ConnectionPanel")
 	var auth_panel := instance.get_node_or_null("MarginContainer/VBoxContainer/AuthPanel")
 	var tab_container: TabContainer = instance.get_node_or_null("MarginContainer/VBoxContainer/TabContainer")
-	var detail_overlay := instance.get_node_or_null("DetailOverlay")
+	var detail_overlay := instance.find_child("DetailOverlay", true, false)
+	var detail_action: Button = instance.find_child("DetailActionButton", true, false)
 	if connection_panel == null:
 		failures.append("Main scene missing ConnectionPanel")
 	if auth_panel == null:
@@ -66,8 +67,45 @@ func _verify_main_scene(failures: PackedStringArray) -> void:
 			failures.append("Unexpected tab 2 title: %s" % tab_container.get_tab_title(2))
 	if detail_overlay == null:
 		failures.append("Main scene missing DetailOverlay")
+	elif detail_action == null:
+		failures.append("Main scene missing DetailActionButton")
+	else:
+		var sample_entries: Array = _fixture("mods.json").get("data", [])
+		if sample_entries.is_empty():
+			failures.append("Fixture mods.json did not contain any sample entries for detail QA")
+		else:
+			var sample_entry: Dictionary = sample_entries[0]
+			instance.call("_open_detail", sample_entry, "public")
+			await process_frame
+			if not detail_overlay.visible:
+				failures.append("Detail overlay did not open for public context")
+			if detail_action.visible:
+				failures.append("Public detail should not expose a subscribe/unsubscribe CTA")
+			instance.call("_close_detail_overlay")
+			await process_frame
+
+			instance.call("_open_detail", sample_entry, "workout")
+			await process_frame
+			if not detail_action.visible or detail_action.text != "Subscribe":
+				failures.append("Workout detail did not expose the Subscribe CTA")
+			instance.call("_close_detail_overlay")
+			await process_frame
+
+			instance.call("_open_detail", sample_entry, "subscribed")
+			await process_frame
+			if not detail_action.visible or detail_action.text != "Unsubscribe":
+				failures.append("Subscribed detail did not expose the Unsubscribe CTA")
+			instance.call("_close_detail_overlay")
+			await process_frame
 	instance.queue_free()
 	await process_frame
+
+func _fixture(path: String) -> Dictionary:
+	var file := FileAccess.open("res://tests/fixtures/%s" % path, FileAccess.READ)
+	if file == null:
+		return {}
+	var parsed = JSON.parse_string(file.get_as_text())
+	return parsed if parsed is Dictionary else {}
 
 func _verify_smoke_scenes(failures: PackedStringArray) -> void:
 	for scene_config in SMOKE_SCENES:

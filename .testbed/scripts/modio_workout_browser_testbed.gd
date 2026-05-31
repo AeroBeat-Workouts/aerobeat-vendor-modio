@@ -984,9 +984,20 @@ func _detail_bbcode(entry: Dictionary) -> String:
 		else:
 			tags.append(str(tag))
 	var metadata_pairs := PackedStringArray()
-	var metadata: Dictionary = entry.get("metadata_kvp", {})
-	for key in metadata.keys():
-		metadata_pairs.append("%s=%s" % [str(key), JSON.stringify(metadata[key])])
+	var metadata = entry.get("metadata_kvp", [])
+	if metadata is Dictionary:
+		for key in metadata.keys():
+			metadata_pairs.append("%s=%s" % [str(key), JSON.stringify(metadata[key])])
+	elif metadata is Array:
+		for item in metadata:
+			if item is Dictionary:
+				var key := str(item.get("metakey", item.get("key", "")))
+				var value = item.get("metavalue", item.get("value", ""))
+				if key.is_empty() and item.has("name"):
+					key = str(item.get("name", ""))
+				metadata_pairs.append("%s=%s" % [key, JSON.stringify(value)])
+			else:
+				metadata_pairs.append(str(item))
 	return "\n".join([
 		"[b]Summary[/b]\n%s" % str(entry.get("summary", "")),
 		"[b]Description[/b]\n%s" % str(entry.get("description_plaintext", entry.get("description", ""))),

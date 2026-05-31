@@ -2,7 +2,7 @@
 
 **Date:** 2026-05-31  
 **Status:** In Progress  
-**Last Updated:** 2026-05-31 12:16 EDT  
+**Last Updated:** 2026-05-31 13:02 EDT  
 **Blocked Reason:** None  
 **Agent:** `main`
 
@@ -145,9 +145,9 @@ Derrick has now clarified the intended direction for this scene. The auth flow s
 **Files Created/Deleted/Modified:**
 - `.plans/2026-05-31-aerobeat-vendor-modio-workout-browser-testbed.md`
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Not started.
+**Results:** QA exercised the real `.testbed` project plus repo-local validation. Confirmed `.testbed/project.godot` now defaults to `res://scenes/workout_browser.tscn`; the runtime scene exposes editable `Test|Live`, Game ID, and API Key controls; the auth panel truthfully describes the real `emailrequest → emailexchange` flow; athlete-only Profile / Workout Browser / Subscribed tabs hard-disable when no access token is present and show clear unauthenticated copy (`Athlete-only tabs require an access token from the email-code auth flow.` / `Authenticate to inspect the athlete profile, wallet, and purchase history.`); the UI discloses stable vs session config storage paths; public browsing loaded successfully from local test-server config without athlete auth; authenticated runtime checks loaded profile + wallet + purchase history, including `payment_method_id`; workout browse loaded and exposed Subscribe CTA; subscribed-workout fetches returned a clear empty state for the current local account. QA found one real runtime defect: opening the detail popup for entries whose normalized `metadata_kvp` was an Array caused a GDScript type error because `_detail_bbcode()` incorrectly typed that field as `Dictionary`. Fixed by teaching the detail renderer to accept both dictionary- and array-shaped metadata entries and by expanding `qa_verify_scene_output_updates.gd` to open detail popups for public / workout / subscribed contexts using fixture-backed data so this regression is now covered. Post-fix validation passed: `godot --headless --path .testbed --import`, `res://tests/validate_scaffold.gd`, `res://tests/validate_modio_testbed_scenes.gd`, `res://tests/qa_verify_scene_output_updates.gd`, and the full GUT suite (`102/102` passing). Coder baseline remained `aee74a2`; QA fix commit added after this pass.
 
 ---
 
