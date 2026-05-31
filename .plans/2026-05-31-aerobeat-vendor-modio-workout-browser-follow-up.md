@@ -132,34 +132,36 @@ The third seam is athlete naming. Derrick wants a fast yes/no answer on whether 
 - `.plans/`
 
 **Files Created/Deleted/Modified:**
-- `README.md`
 - `.plans/2026-05-31-aerobeat-vendor-modio-workout-browser-follow-up.md`
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Not started.
+**Results:** Independent audit passed with no further code changes required. Truth-check evidence: (1) a live headless scene-open audit using the real local test-server config confirmed the public catalog now auto-loads on startup and surfaces exactly the two expected workouts `oc-meid collection seed 1 1778103465` and `oc-4wr sandbox pagination sample 1778082871` without any manual refresh; (2) scene structure and QA smoke validation confirm the top-level `Connection` / `Auth` / `Browser` redesign is present, with the existing inner browser sub-tabs preserved; (3) the startup persistence fix from `ef37c2b` is real, and the regression test `.testbed/tests/test_modio_workout_browser_testbed.gd` proves saved `email` / `access_token` / `browser_tab` values survive reopen; (4) a live stale-token reopen audit with a seeded bogus token shows the auth panel now truthfully reports automatic `/me` restore failure and tells the operator to re-run email-code auth if the session is stale, while still restoring the saved email and correctly reflecting that a token was loaded from session config; and (5) athlete-name editing was not invented. The auth panel and profile summary both explicitly say username/display-name edits are unsupported/deferred through the current public REST seam, which matches the adapter/README surface that exposes authenticated-user reads but no current-user profile-mutation route. Public vs athlete-only boundaries remain honest: public browse still auto-loads with only `game_id + api_key`, subscribed/profile refreshes still require bearer auth, and even in the stale-token nuance the UI warns explicitly instead of pretending the athlete session rehydrated successfully. Audit validation rerun passed via `godot --headless --path .testbed --script res://tests/validate_modio_testbed_scenes.gd`, `godot --headless --path .testbed --script res://tests/qa_verify_scene_output_updates.gd`, and `godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -ginclude_subdirs -gdir=res://tests -gexit` (`103/103` passing, 2656 asserts).
 
 ---
 
 ## Resolved Research Notes
 
 1. **Why the two workouts are missing:** resolved. The public REST query already returns both expected test-server workouts on page 1 with the current env/config. The gap is that the scene does not auto-run the public fetch on open/reload, so the catalog stays empty until the operator presses an explicit fetch action.
-2. **Auth persistence gap:** resolved. Persistence is partial by design today: `access_token` and later `user_id` are written/read, but athlete email is never stored, and reopen does not auto-hydrate `/me`/wallet/purchases from the stored token.
-3. **Athlete name-change capability:** resolved. No supported public REST route was found in the local mod.io docs mirror or current adapter coverage for changing the authenticated athlete’s username/public display name.
-4. **Browser sub-tab layout inside the new top-level Browser tab:** still an implementation choice for the coder pass, but it is now bounded: keep the existing profile/workout/subscribed separation while avoiding any invented profile-edit capability.
+2. **Auth persistence gap:** resolved. Athlete email plus reusable auth/browser session values are now persisted and restored, startup no longer wipes them, and reopen now attempts a truthful `/me` + wallet + purchase-history rehydration from a stored token. If that stored token is stale, the UI says so explicitly instead of implying a fully restored athlete session.
+3. **Athlete name-change capability:** resolved. No supported public REST route was found in the local mod.io docs mirror or current adapter coverage for changing the authenticated athlete’s username/public display name, and the shipped UI stays explicitly read-only/deferred on that point.
+4. **Browser sub-tab layout inside the new top-level Browser tab:** resolved. The scene now uses top-level `Connection` / `Auth` / `Browser` tabs while preserving the inner `Public Catalog` / `Profile` / `Workout Browser` / `Subscribed Workouts` separation and avoiding any invented profile-edit capability.
 
 ---
 
 ## Final Results
 
-**Status:** ⚠️ Partial
+**Status:** ✅ Complete
 
-**What We Built:** Research, coder implementation, and QA are now complete for the follow-up slice. The Workout Browser scene now auto-loads the public catalog when saved public config is already present, reorganizes the top-level UI into `Connection` / `Auth` / `Browser`, persists/restores athlete email with the reusable auth/browser session values, and attempts a truthful reopen rehydration of `/me` + wallet + purchase history from a stored token while explicitly warning when that restore fails. QA also fixed a startup regression where the scene wiped saved session values before initial-state restore, which was the reason athlete email/token reopen behavior still looked broken despite the earlier coder pass. Unsupported athlete username/display-name editing remains out of scope and is presented only as deferred/read-only.
+**What We Built:** The follow-up slice is fully done. The Workout Browser scene now auto-loads the public catalog when saved public config is already present, reorganizes the top-level UI into `Connection` / `Auth` / `Browser`, persists/restores athlete email with the reusable auth/browser session values, and attempts a truthful reopen rehydration of `/me` + wallet + purchase history from a stored token while explicitly warning when that restore fails. QA also fixed the startup regression where the scene could wipe saved session values before initial-state restore. Unsupported athlete username/display-name editing remains out of scope and is presented only as deferred/read-only.
 
-**Reference Check:** `REF-03`, `REF-04`, `REF-05`, `REF-07`, and `REF-08` were checked during implementation and QA. The final behavior matches the research findings: the fix is controller UX + persistence/layout work, not a provider browse change, and no unsupported profile-edit mutation was invented.
+**Reference Check:** `REF-03`, `REF-04`, `REF-05`, `REF-07`, and `REF-08` were rechecked during final audit. Live startup audit confirmed the exact two expected public workouts appear without manual refresh; scene/test validation confirmed the `Connection` / `Auth` / `Browser` redesign; live stale-token audit confirmed the auth/session restore messaging is truthful; and adapter/README/UI review confirmed no unsupported profile-edit mutation was invented.
 
 **Commits:**
-- Pending QA commit/push in this bead handoff.
+- `aee74a2` - Add default mod.io workout browser testbed
+- `61bc44a` - Fix workout browser reopen UX and layout
+- `ef37c2b` - Fix workout browser startup session restore
+- current HEAD - Record workout browser follow-up audit verdict
 
 **Lessons Learned:** The biggest win here was treating reopen behavior as a truthfulness problem, not just a storage problem: persisting a token is not enough if the scene implies a richer restored athlete session than it actually rehydrates. The QA regression also showed that startup-time UI signals can quietly invalidate persistence features even when the underlying storage layer is correct.
 
