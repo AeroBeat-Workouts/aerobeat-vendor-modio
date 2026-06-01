@@ -12,6 +12,7 @@ var environment: String = "test"
 var game_id: String = ""
 var api_key: String = ""
 var access_token: String = ""
+var access_token_expires_at: int = 0
 var user_id: String = ""
 var email: String = ""
 var last_requested_email: String = ""
@@ -41,8 +42,16 @@ func can_browse_public() -> bool:
 func is_authenticated() -> bool:
 	return not access_token.is_empty()
 
+func has_access_token_expiry() -> bool:
+	return access_token_expires_at > 0
+
+func is_access_token_expired(reference_time: int = 0) -> bool:
+	var resolved_reference_time := reference_time if reference_time > 0 else int(Time.get_unix_time_from_system())
+	return access_token_expires_at > 0 and access_token_expires_at <= resolved_reference_time
+
 func clear_session() -> void:
 	access_token = ""
+	access_token_expires_at = 0
 	user_id = ""
 	profile = {}
 	wallet = {}

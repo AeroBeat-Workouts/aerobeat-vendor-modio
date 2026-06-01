@@ -59,9 +59,40 @@ func test_ready_restores_saved_email_without_wiping_session_values() -> void:
 		"[modio.test]\n",
 		"\n",
 		"access_token=\"qa-stale-token\"\n",
+		"access_token_expires_at=\"4102444800\"\n",
 		"user_id=\"qa-user-id\"\n",
 		"email=\"qa-athlete@example.com\"\n",
 		"last_requested_email=\"qa-athlete@example.com\"\n",
+		"browser_tab=\"profile\"\n"
+	]))
+
+	var scene: Control = _instantiate_scene()
+	scene.call("_load_initial_state")
+
+	var browser_state: ModioWorkoutBrowserState = scene.get("_state")
+	assert_not_null(browser_state)
+	assert_eq(browser_state.email, "qa-athlete@example.com")
+	assert_eq(browser_state.access_token, "qa-stale-token")
+	assert_eq(browser_state.access_token_expires_at, 4102444800)
+	assert_eq(browser_state.active_tab, "profile")
+
+	scene.free()
+
+func test_ready_clears_saved_auth_when_known_expiry_is_already_past() -> void:
+	var expired_at := int(Time.get_unix_time_from_system()) - 60
+	_write_text(SESSION_PATH, "".join([
+		"[modio]\n",
+		"\n",
+		"environment=\"test\"\n",
+		"host_kind=\"\"\n",
+		"\n",
+		"[modio.test]\n",
+		"\n",
+		"access_token=\"expired-token\"\n",
+		"access_token_expires_at=\"%s\"\n" % str(expired_at),
+		"user_id=\"expired-user\"\n",
+		"email=\"expired-athlete@example.com\"\n",
+		"last_requested_email=\"expired-athlete@example.com\"\n",
 		"browser_tab=\"profile\"\n"
 	]))
 
@@ -70,14 +101,59 @@ func test_ready_restores_saved_email_without_wiping_session_values() -> void:
 	await get_tree().process_frame
 	await get_tree().process_frame
 
-	var email_edit: LineEdit = scene.find_child("EmailLineEdit", true, false)
 	var browser_state: ModioWorkoutBrowserState = scene.get("_state")
-	assert_not_null(email_edit)
+	var auth_state: Label = scene.find_child("AuthStateLabel", true, false)
 	assert_not_null(browser_state)
-	assert_eq(email_edit.text, "qa-athlete@example.com")
-	assert_eq(browser_state.email, "qa-athlete@example.com")
-	assert_eq(browser_state.access_token, "qa-stale-token")
-	assert_eq(browser_state.active_tab, "profile")
+	assert_not_null(auth_state)
+	assert_eq(browser_state.access_token, "")
+	assert_eq(browser_state.access_token_expires_at, 0)
+	assert_string_contains(auth_state.text, "Stored token expired at")
+	assert_eq(_read_session_value("modio.test", "access_token"), "")
+	assert_eq(_read_session_value("modio.test", "access_token_expires_at"), "")
+
+	scene.queue_free()
+	await get_tree().process_frame
+
+func test_restore_time_token_failure_clears_saved_auth_and_preserves_email() -> void:
+	var scene: Control = _instantiate_scene()
+	get_tree().root.add_child(scene)
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+	var browser_state: ModioWorkoutBrowserState = scene.get("_state")
+	assert_not_null(browser_state)
+	browser_state.access_token = "reject-me"
+	browser_state.access_token_expires_at = int(Time.get_unix_time_from_system()) + 3600
+	browser_state.user_id = "cached-user"
+	browser_state.email = "athlete@example.com"
+	browser_state.last_requested_email = "athlete@example.com"
+	scene.call("_persist_session_state")
+	var token_failure := {
+		"ok": false,
+		"status_code": 401,
+		"error": {
+			"category": "auth",
+			"message": "Bearer token expired",
+			"should_clear_session": true
+		}
+	}
+	assert_true(scene.call("_is_clearly_token_related_failure", token_failure))
+	scene.call("_invalidate_saved_auth", "Stored token restore failed because mod.io rejected the saved bearer token.", true)
+	scene.call("_refresh_all_ui")
+	await get_tree().process_frame
+
+	var auth_state: Label = scene.find_child("AuthStateLabel", true, false)
+	assert_not_null(auth_state)
+	assert_eq(browser_state.access_token, "")
+	assert_eq(browser_state.access_token_expires_at, 0)
+	assert_eq(browser_state.user_id, "")
+	assert_eq(browser_state.email, "athlete@example.com")
+	assert_eq(browser_state.last_requested_email, "athlete@example.com")
+	assert_string_contains(auth_state.text, "mod.io rejected the saved bearer token")
+	assert_eq(_read_session_value("modio.test", "access_token"), "")
+	assert_eq(_read_session_value("modio.test", "access_token_expires_at"), "")
+	assert_eq(_read_session_value("modio.test", "user_id"), "")
+	assert_eq(_read_session_value("modio.test", "email"), "athlete@example.com")
 
 	scene.queue_free()
 	await get_tree().process_frame
@@ -344,6 +420,14 @@ func _sample_mod_entry(mod_id: int) -> Dictionary:
 		"metadata_kvp": [],
 		"profile_url": "https://example.invalid/mod/%d" % mod_id
 	}
+
+func _read_session_value(section: String, key: String) -> String:
+	var config := ConfigFile.new()
+	if config.load(SESSION_PATH) != OK:
+		return ""
+	if not config.has_section_key(section, key):
+		return ""
+	return str(config.get_value(section, key, "")).strip_edges()
 
 func _write_text(path: String, content: String) -> void:
 	var global_path := ProjectSettings.globalize_path(path)

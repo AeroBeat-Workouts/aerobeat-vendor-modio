@@ -997,12 +997,13 @@ func _load_initial_state() -> void:
 	_state.game_id = _base_config.game_id
 	_state.api_key = _base_config.api_key
 	_state.access_token = _base_config.access_token
+	_state.access_token_expires_at = _read_saved_access_token_expiry(resolved_env, session_config_path)
 	_state.user_id = _base_config.user_id
 	_state.email = _store.read_env_value(resolved_env, "email", session_config_path)
 	_state.last_requested_email = _store.read_env_value(resolved_env, "last_requested_email", session_config_path, _state.email)
 	_state.active_tab = _store.read_env_value(resolved_env, "browser_tab", session_config_path, ModioWorkoutBrowserState.TAB_PUBLIC)
 	_seed_upload_draft_defaults()
-	_state.raw_debug_sections["saved_token_restore_note"] = "Stored token detected. Rehydrating /me + wallet + purchases on reopen." if _state.is_authenticated() else ""
+	_state.raw_debug_sections["saved_token_restore_note"] = _build_saved_token_restore_note()
 	_state.status_text = "Public browsing auto-loads when valid Game ID + API Key are already configured. Athlete-only tabs unlock after email-code auth."
 	_rebuild_manager()
 
@@ -1078,6 +1079,10 @@ func _build_auth_state_text() -> String:
 	if _state.is_authenticated():
 		lines.append("Access token loaded: yes")
 		lines.append("User ID: %s" % (_state.user_id if not _state.user_id.is_empty() else "(will refresh from /me)"))
+		if _state.has_access_token_expiry():
+			lines.append("Saved token expiry: %s%s" % [_format_unix_timestamp(_state.access_token_expires_at), " (expired)" if _state.is_access_token_expired() else ""])
+		else:
+			lines.append("Saved token expiry: unknown (provider did not return date_expires)")
 	else:
 		lines.append("Access token loaded: no")
 	var restore_note := str(_state.raw_debug_sections.get("saved_token_restore_note", "")).strip_edges()
@@ -1085,18 +1090,65 @@ func _build_auth_state_text() -> String:
 		lines.append(restore_note)
 	return "\n".join(lines)
 
+func _read_saved_access_token_expiry(environment: String, session_config_path: String) -> int:
+	var raw_expiry := _store.read_env_value(environment, "access_token_expires_at", session_config_path)
+	if raw_expiry.is_empty() or not raw_expiry.is_valid_int():
+		return 0
+	return maxi(0, int(raw_expiry))
+
+func _format_unix_timestamp(value: int) -> String:
+	if value <= 0:
+		return "(unknown)"
+	return Time.get_datetime_string_from_unix_time(value, true)
+
+func _build_saved_token_restore_note() -> String:
+	if not _state.is_authenticated():
+		return ""
+	if _state.is_access_token_expired():
+		return "Stored token expired at %s." % _format_unix_timestamp(_state.access_token_expires_at)
+	if _state.has_access_token_expiry():
+		return "Stored token detected. Rehydrating /me + wallet + purchases on reopen before the saved expiry of %s." % _format_unix_timestamp(_state.access_token_expires_at)
+	return "Stored token detected. Rehydrating /me + wallet + purchases on reopen, but no saved expiry metadata is available."
+
+func _is_clearly_token_related_failure(response: Dictionary) -> bool:
+	var error_payload = response.get("error", {})
+	if error_payload is Dictionary:
+		if bool(error_payload.get("should_clear_session", false)):
+			return true
+		if str(error_payload.get("category", "")) == "auth" and int(response.get("status_code", 0)) in [401, 403]:
+			return true
+		var message := str(error_payload.get("message", "")).to_lower()
+		if int(response.get("status_code", 0)) in [401, 403] and (message.contains("token") or message.contains("expired") or message.contains("unauthor")):
+			return true
+	return false
+
+func _invalidate_saved_auth(reason: String, clear_persisted_state: bool) -> void:
+	var preserved_email := _state.email
+	var preserved_last_requested_email := _state.last_requested_email
+	_state.clear_session()
+	_state.email = preserved_email
+	_state.last_requested_email = preserved_last_requested_email
+	_state.raw_debug_sections["saved_token_restore_note"] = reason.strip_edges()
+	if clear_persisted_state:
+		_store.clear_session_values(_state.environment, PackedStringArray(["access_token", "access_token_expires_at", "user_id"]), _session_config_path())
+	_rebuild_manager()
 
 func _restore_saved_runtime_state() -> void:
 	if is_instance_valid(_global_tab_container):
 		_global_tab_container.current_tab = GLOBAL_TAB_BROWSER_INDEX
 	if _state.can_browse_public():
 		_fetch_listing(ModioWorkoutBrowserState.TAB_PUBLIC)
+	if _state.is_authenticated() and _state.is_access_token_expired():
+		_invalidate_saved_auth("Stored token expired at %s, so saved athlete auth was cleared before restore." % _format_unix_timestamp(_state.access_token_expires_at), true)
+		_refresh_all_ui()
+		return
 	if _state.is_authenticated():
 		_refresh_profile_data(false, true)
 
 func _persist_session_state(extra_values: Dictionary = {}) -> Dictionary:
 	var values := {
 		"access_token": _state.access_token,
+		"access_token_expires_at": str(_state.access_token_expires_at),
 		"user_id": _state.user_id,
 		"email": _state.email,
 		"last_requested_email": _state.last_requested_email,
@@ -1814,10 +1866,12 @@ func _on_exchange_code_pressed(_submitted_text: String = "") -> void:
 		_set_status(_response_error_message(response, "Failed to exchange the security code."))
 		return
 	var payload: Dictionary = response.get("payload", {})
-	_state.access_token = str(payload.get("access_token", "")).strip_edges()
+	var normalized_token = _manager.normalize_with_adapter("normalize_access_token_response", [payload])
+	_state.access_token = str(normalized_token.get("access_token", payload.get("access_token", ""))).strip_edges() if normalized_token is Dictionary else str(payload.get("access_token", "")).strip_edges()
+	_state.access_token_expires_at = int(normalized_token.get("expires_at", payload.get("date_expires", 0))) if normalized_token is Dictionary else int(payload.get("date_expires", 0))
 	_state.last_security_code = code
 	_state.raw_debug_sections["auth_exchange"] = payload
-	_state.raw_debug_sections["saved_token_restore_note"] = "Access token exchanged with the longest direct in-game expiry we can truthfully request (~1 year max). Refreshing /me + wallet + purchases now."
+	_state.raw_debug_sections["saved_token_restore_note"] = "Access token exchanged with the longest direct in-game expiry we can truthfully request (~1 year max). Saved expiry: %s. Refreshing /me + wallet + purchases now." % _format_unix_timestamp(_state.access_token_expires_at)
 	_rebuild_manager()
 	var persisted := _persist_session_state()
 	if not bool(persisted.get("ok", false)):
@@ -1834,9 +1888,9 @@ func _on_clear_session_pressed() -> void:
 	_state.upload_status_text = ""
 	_state.upload_result = {}
 	_state.raw_debug_sections["saved_token_restore_note"] = ""
-	_store.clear_session_values(_state.environment, PackedStringArray(["access_token", "user_id", "email", "last_requested_email", "browser_tab"]), _session_config_path())
+	_store.clear_session_values(_state.environment, PackedStringArray(["access_token", "access_token_expires_at", "user_id", "email", "last_requested_email", "browser_tab"]), _session_config_path())
 	_rebuild_manager()
-	_set_status("Cleared saved athlete email, access_token, user_id, and browser restore state from %s." % _store.get_storage_path(_session_config_path()))
+	_set_status("Cleared saved athlete email, access_token, access token expiry, user_id, and browser restore state from %s." % _store.get_storage_path(_session_config_path()))
 	_refresh_all_ui()
 
 func _on_profile_refresh_pressed() -> void:
@@ -1850,6 +1904,12 @@ func _refresh_profile_data(open_profile_tab: bool, restoring_saved_token: bool =
 	_rebuild_manager()
 	var me_response := _manager.execute_adapter_request("build_authenticated_user_request")
 	if not bool(me_response.get("ok", false)):
+		if restoring_saved_token and _is_clearly_token_related_failure(me_response):
+			var invalid_reason := "Stored token restore failed because mod.io rejected the saved bearer token%s. Saved athlete auth was cleared." % (" (it had expired at %s)" % _format_unix_timestamp(_state.access_token_expires_at) if _state.has_access_token_expiry() else "")
+			_invalidate_saved_auth(invalid_reason, true)
+			_set_status(_response_error_message(me_response, "Failed to load /me."))
+			_refresh_all_ui()
+			return
 		_state.raw_debug_sections["saved_token_restore_note"] = "Stored token loaded from session config, but automatic /me refresh failed. Re-run email-code auth if this session is stale." if restoring_saved_token else ""
 		_set_status(_response_error_message(me_response, "Failed to load /me."))
 		_refresh_all_ui()
@@ -1871,7 +1931,7 @@ func _refresh_profile_data(open_profile_tab: bool, restoring_saved_token: bool =
 		_state.raw_debug_sections["purchased"] = purchased_response.get("payload", {})
 	else:
 		_state.purchased = {"error": _response_error_message(purchased_response, "Failed to load purchase history."), "data": []}
-	_state.raw_debug_sections["saved_token_restore_note"] = "Stored token successfully rehydrated athlete profile, wallet, and purchase history on reopen." if restoring_saved_token else ""
+	_state.raw_debug_sections["saved_token_restore_note"] = "Stored token successfully rehydrated athlete profile, wallet, and purchase history on reopen. Saved expiry: %s." % _format_unix_timestamp(_state.access_token_expires_at) if restoring_saved_token else ""
 	_set_status("Loaded athlete profile, wallet, and purchase history. Session values are stored in %s." % _store.get_storage_path(_session_config_path()))
 	if open_profile_tab:
 		_state.active_tab = ModioWorkoutBrowserState.TAB_PROFILE

@@ -383,11 +383,114 @@ Validation evidence supports the final claim across both repos. I reran `godot -
 
 ---
 
-## Final Results
+### Task 12: Audit auth token lifetime configuration and regeneration behavior
+
+**Bead ID:** `oc-f07m`  
+**SubAgent:** `primary` (for `research`)  
+**Role:** `research`  
+**References:** `REF-02`, `REF-03`, `REF-04`, `REF-05`, `REF-06`, `REF-07`  
+**Prompt:** Pending final execution approval. In `aerobeat-vendor-modio`, audit the current auth/session token configuration and runtime behavior to determine why athlete sign-in appears to require a fresh token on each test run despite the intended one-year max duration. Inspect the testbed controller/state persistence, any token-expiry request parameters, local session persistence files, and relevant provider/adapter seams. Determine whether the issue is request TTL configuration, auth-code/token exchange behavior, state persistence not restoring the token, or some other expiration/reset bug. Update this plan with concrete findings and recommended fix slices before any implementation.
+
+**Folders Created/Deleted/Modified:**
+- `.plans/`
+- `.testbed/`
+- `src/`
+
+**Files Created/Deleted/Modified:**
+- `.plans/2026-06-01-aerobeat-vendor-modio-workout-upload-tab-audit.md`
 
 **Status:** ✅ Complete
 
-**What We Built:** The default mod.io browser testbed still uses the reusable helper-driven `Upload Workout` tab and now also seeds truthful metadata for vendor-seam testing instead of guessed taxonomy examples. The new cross-repo seam is in place: `aerobeat-tool-device-detection` now exposes a dedicated helper that normalizes detected-device JSON into stable mod.io metadata KVP pairs, and `aerobeat-vendor-modio` consumes that helper in the upload testbed to prefill deterministic device-derived metadata alongside explicit seeded fields like `aerobeat_version=1.0.0`. Public AeroBeat taxonomy stays in Tags, with the seeded/default tag example set to `boxing, easy, edm` instead of the prior misleading metadata-first examples.
+**Results:** Research audit completed without code changes. The current email-code request path is already asking mod.io for the longest direct bearer lifetime this seam can truthfully request: `_on_exchange_code_pressed()` computes `requested_expiry = Time.get_unix_time_from_system() + AUTH_TOKEN_REQUEST_MAX_SECONDS`, where `AUTH_TOKEN_REQUEST_MAX_SECONDS = 31536000`, and `src/modio_vendor_adapter.gd` clamps `build_auth_exchange_request(..., date_expires)` through `_sanitize_requested_expiry(..., COMMON_YEAR_SECONDS)` before sending `POST /oauth/emailexchange`. That means the local request-TTL configuration is not the bug; the code is already requesting roughly one common year and the adapter test coverage asserts the clamp behavior.
+
+Session persistence/restoration is also working, but it is intentionally thin and currently blind to real expiry. `_persist_session_state()` writes only `access_token`, `user_id`, `email`, `last_requested_email`, and `browser_tab` into `.testbed/configs/modio.session.local.cfg`, `ModioEnvLoader.build_client_config()` restores `access_token` + `user_id` from that file on startup, and `_restore_saved_runtime_state()` immediately attempts `/me` rehydration when a stored token exists. The current local session file proves the token is being persisted between runs, and neither startup nor refresh code auto-clears it. The real gap is observability + stale-token handling: `_on_exchange_code_pressed()` stores only `payload.access_token` and ignores `payload.date_expires`; `ModioWorkoutBrowserState` has no expiry field; `ModioSessionConfigStore` / `ModioEnvLoader` never persist or restore expiry metadata; and `_refresh_profile_data(..., restoring_saved_token=true)` treats a failed `/me` as “re-run email-code auth if this session is stale” without clearing/marking the token as expired. So the current behavior can feel like “needs a fresh token every run,” but the code audit says that is not caused by per-run local reset. It is more likely either (a) mod.io is returning/revoking a shorter-lived token than requested, or (b) an older token was minted before the one-year request path and now fails on restore, while the UI has no stored `date_expires` evidence to explain that truthfully.
+
+Recommended fix slices only: (1) normalize and persist the auth-exchange expiry (`date_expires` / `expires_at`) alongside `access_token`, then restore it into browser state on startup; (2) make startup/auth UI explicitly expiry-aware so the scene can say “stored token expired at X” instead of generic stale-session copy; (3) on restore-time authenticated-read failure that is clearly auth-related, clear the persisted bearer/session keys or mark them invalid so the next run does not present a ghost-authenticated state; and (4) add focused tests covering expiry persistence, expiry-aware restore, and stale-token failure handling. Net verdict: not a request TTL bug, not a session-file write bug, and not a startup restore omission for the token itself; the likely root problem is provider-side token lifetime/invalidity combined with missing local expiry persistence and stale-token invalidation logic.
+
+---
+
+### Task 13: Persist auth expiry and handle stale athlete tokens cleanly
+
+**Bead ID:** `oc-dwqe`  
+**SubAgent:** `primary` (for `coder`)  
+**Role:** `coder`  
+**References:** `REF-02`, `REF-03`, `REF-04`, `REF-05`, `REF-06`, `REF-07`  
+**Prompt:** In `aerobeat-vendor-modio`, claim bead `oc-dwqe` on start with `bd update oc-dwqe --status in_progress --json`. Implement the approved token-lifetime fix slice from Task 12’s findings. Persist the returned auth-exchange expiry (`date_expires` / equivalent) alongside the saved bearer/session data, restore it into browser state on startup, surface expiry-aware auth UI, and explicitly clear or invalidate stale saved auth when restore-time authenticated-read failure is clearly token-related. Add focused tests for expiry persistence, expiry-aware restore, and stale-token failure handling; run relevant validation; update this plan with what actually changed; commit and push by default; and close the bead with a clear reason.
+
+**Folders Created/Deleted/Modified:**
+- `.plans/`
+- `.testbed/`
+
+**Files Created/Deleted/Modified:**
+- `.plans/2026-06-01-aerobeat-vendor-modio-workout-upload-tab-audit.md`
+- `.testbed/scripts/modio_workout_browser_state.gd`
+- `.testbed/scripts/modio_workout_browser_testbed.gd`
+- `.testbed/tests/test_modio_session_config_store.gd`
+- `.testbed/tests/test_modio_workout_browser_testbed.gd`
+
+**Status:** ✅ Complete
+
+**Results:** Implemented the approved token-lifetime fix slice in the browser testbed without changing the provider seam. `ModioWorkoutBrowserState` now tracks `access_token_expires_at`, `_persist_session_state()` writes that expiry into the session config, `_load_initial_state()` restores it on startup, and the auth-state copy now reports either the saved expiry timestamp, the fact that expiry is unknown, or a truthful restore/invalidation note. The auth exchange path now normalizes the provider response through `normalize_access_token_response(...)` so the saved bearer token keeps the returned `date_expires` / `expires_at` metadata instead of dropping it on the floor.
+
+Stale saved auth is now cleaned up explicitly in the two cases approved by Task 12. On startup, `_restore_saved_runtime_state()` clears persisted bearer data immediately when the saved expiry is already in the past, so the scene no longer presents a ghost-authenticated state for obviously expired tokens. During restore-time `/me` rehydration, `_refresh_profile_data(..., restoring_saved_token=true)` now detects clearly token-related auth failures (401/403 auth errors or provider-directed `should_clear_session`) and clears the persisted bearer token, expiry, and cached user ID while preserving saved email context for a clean re-auth flow. The clear-session button now also removes the saved expiry field.
+
+Focused regression coverage was added for all requested seams: session-config persistence now asserts `access_token_expires_at` is saved, the browser scene test suite verifies startup restore of saved expiry metadata, startup invalidation of already-expired saved auth, and token-related stale-auth invalidation that preserves email while clearing bearer/session keys. Validation passed with `godot --headless --path .testbed --script res://tests/validate_modio_testbed_scenes.gd` plus `godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit` (113/113 passing; one pre-existing non-failing Float/Int comparison warning remains in `test_modio_vendor_adapter.gd`).
+
+---
+
+### Task 14: QA auth expiry persistence and stale-token handling
+
+**Bead ID:** `oc-tyxx`  
+**SubAgent:** `primary` (for `qa`)  
+**Role:** `qa`  
+**References:** `REF-02`, `REF-03`, `REF-04`, `REF-05`, `REF-06`  
+**Prompt:** In `aerobeat-vendor-modio`, claim bead `oc-tyxx` on start with `bd update oc-tyxx --status in_progress --json`. Verify expiry metadata persistence, expiry-aware restore behavior, and clean invalidation of stale athlete auth without regressions. Run relevant validation/tests, update this plan with QA findings, commit/push by default only if QA-sized fixes are needed, and close the bead with a clear reason.
+
+**Folders Created/Deleted/Modified:**
+- `.plans/`
+- `.testbed/`
+- `src/`
+
+**Files Created/Deleted/Modified:**
+- `.plans/2026-06-01-aerobeat-vendor-modio-workout-upload-tab-audit.md`
+- `.testbed/`
+- `src/`
+
+**Status:** ⏳ Pending
+
+**Results:** Pending.
+
+---
+
+### Task 15: Audit auth expiry persistence and stale-token handling
+
+**Bead ID:** `oc-n32x`  
+**SubAgent:** `primary` (for `auditor`)  
+**Role:** `auditor`  
+**References:** `REF-02`, `REF-03`, `REF-04`, `REF-05`, `REF-06`  
+**Prompt:** In `aerobeat-vendor-modio`, claim bead `oc-n32x` on start with `bd update oc-n32x --status in_progress --json`. Independently audit the auth expiry persistence and stale-token invalidation behavior against Task 12’s approved findings. Verify returned expiry is persisted/restored, invalid saved auth is cleared truthfully on restore failure, and validation evidence supports the claim. Update this plan with the final audit verdict, commit/push by default only if an audit-sized fix is needed, and close the bead with a clear reason.
+
+**Folders Created/Deleted/Modified:**
+- `.plans/`
+- `.testbed/`
+- `src/`
+
+**Files Created/Deleted/Modified:**
+- `.plans/2026-06-01-aerobeat-vendor-modio-workout-upload-tab-audit.md`
+- `.testbed/`
+- `src/`
+
+**Status:** ⏳ Pending
+
+**Results:** Pending.
+
+---
+
+## Final Results
+
+**Status:** ⚠️ In Progress
+
+**What We Built:** The default mod.io browser testbed still uses the reusable helper-driven `Upload Workout` tab and now also seeds truthful metadata for vendor-seam testing instead of guessed taxonomy examples. The new cross-repo seam is in place: `aerobeat-tool-device-detection` now exposes a dedicated helper that normalizes detected-device JSON into stable mod.io metadata KVP pairs, and `aerobeat-vendor-modio` consumes that helper in the upload testbed to prefill deterministic device-derived metadata alongside explicit seeded fields like `aerobeat_version=1.0.0`. Public AeroBeat taxonomy stays in Tags, with the seeded/default tag example set to `boxing, easy, edm` instead of the prior misleading metadata-first examples. A focused token-lifetime implementation loop is now active to persist auth expiry and cleanly invalidate stale saved tokens.
 
 **Reference Check:** `REF-01` through `REF-07` remain the active source-of-truth set, now supplemented by the current online mod.io REST/docs pages for Add Mod Tags, Add/Get Mod KVP Metadata, Game Object `tag_options`, Mod Object, Edit Mod, and Filtering. This coder slice follows that guidance directly: `feature` / `difficulty` / `genre` remain tag-space concerns per `REF-07`, while `metadata_kvp` is kept for structured provider/tool metadata. The new device helper only emits stable/useful hardware fields and intentionally excludes privacy-heavy or noisy fields, matching the approved slice requirements.
 
