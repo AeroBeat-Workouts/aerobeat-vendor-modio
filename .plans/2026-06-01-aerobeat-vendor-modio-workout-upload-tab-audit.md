@@ -1,8 +1,8 @@
 # AeroBeat Vendor mod.io Workout Upload Tab Audit
 
 **Date:** 2026-06-01
-**Status:** Complete
-**Last Updated:** 2026-06-01 08:32 EDT
+**Status:** In Progress
+**Last Updated:** 2026-06-01 08:36 EDT
 **Blocked Reason:** None
 **Agent:** `chip`
 
@@ -211,9 +211,13 @@ The helper-driven staged upload contract is unchanged: the controller still gath
 - `.testbed/tests/qa_verify_scene_output_updates.gd`
 - `.testbed/tests/test_modio_workout_browser_testbed.gd`
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** QA passed without needing a fix. The requested paired rows are present in the Upload Workout tab surface and verified by both code inspection and automation: `UploadWorkoutSummaryDescriptionRow` contains `Summary | Description`, `UploadWorkoutMetadataTagsRow` contains `Metadata | Tags`, and `UploadWorkoutFileRow` contains `Workout Logo | Workout ZIP`. The controller also now wraps the tab body in a real vertical `UploadWorkoutScroll` container, and the scene validators/QA checks assert that scroll container plus the three paired rows exist.
+
+Viewport behavior is truthful rather than cosmetic. Focused Godot QA in a constrained `960x540` host confirmed the submit action is not always initially visible, but the `UploadWorkoutScroll` container exposes an active vertical scrollbar (`max=791`, `page=352` in the probe) and scrolling to the bottom brings `UploadWorkoutSubmitButton` fully into view. That satisfies Derrick’s requirement that the action remain reachable inside the viewport and that scrolling only exist when it is genuinely needed.
+
+Regression coverage stayed green for the auth/helper seam. Signed-out state still disables the `Upload Workout` tab and submit button, the intro/status copy still describes athlete sign-in and the staged draft → ZIP upload → optional publish contract truthfully, and the controller still delegates through the reusable upload helper instead of rebuilding the backend flow locally. QA reran: `godot --headless --path .testbed --import`, `godot --headless --path .testbed --script res://tests/validate_modio_testbed_scenes.gd`, `godot --headless --path .testbed --script res://tests/qa_verify_scene_output_updates.gd`, and the targeted GUT pass for `res://tests/test_modio_workout_upload_flow.gd` plus `res://tests/test_modio_workout_browser_testbed.gd`. All passed. One existing non-failing GUT leak/resources-at-exit warning remains in the test environment, but it did not affect results and no upload-tab defect was found in this QA slice.
 
 ---
 
@@ -233,23 +237,32 @@ The helper-driven staged upload contract is unchanged: the controller still gath
 - `.plans/2026-06-01-aerobeat-vendor-modio-workout-upload-tab-audit.md`
 - `.testbed/`
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** Independent audit passed without needing an audit-sized fix. The requested side-by-side rows are present in the real controller-built UI: `UploadWorkoutSummaryDescriptionRow` contains the `Summary` line edit and `Description` text box, `UploadWorkoutMetadataTagsRow` contains `Metadata KVP` and `Tags`, and `UploadWorkoutFileRow` contains the `Workout Logo` and `Workout ZIP` file controls. The controller also wraps the Upload Workout body in a dedicated `UploadWorkoutScroll` `ScrollContainer`, so the primary action is not stranded below the viewport when the host window is short.
+
+I independently rechecked the viewport usability claim with a constrained `960x540` headless probe against the live scene. In that state, the upload scroll region reports `max=791`, `page=352`, and an active visible vertical scrollbar; the submit button starts below the visible region at `y=847`, then becomes visible at `y=408` after scrolling to the bottom. That confirms the refinement is truthful: compression alone does not fully keep the button in-frame at a short height, but the added vertical scrolling makes the action reachable as requested.
+
+The auth/helper seam did not regress. `.testbed/scripts/modio_workout_browser_testbed.gd` still disables the Upload Workout tab and submit button when `_state.is_authenticated()` is false, and `_on_upload_workout_pressed()` still hard-stops with an auth message if invoked while signed out. The controller remains a thin client over `src/modio_workout_upload_flow.gd`: it reads form state into `_state.upload_draft` and delegates the staged create-draft → upload-modfile → optional publish flow through `_upload_flow.submit_workout(_manager, _state.upload_draft)` instead of rebuilding request sequencing locally.
+
+Validation evidence supports the claim. I reran `godot --headless --path .testbed --import`, `godot --headless --path .testbed --script res://tests/validate_modio_testbed_scenes.gd`, `godot --headless --path .testbed --script res://tests/qa_verify_scene_output_updates.gd`, and the targeted GUT pass for `res://tests/test_modio_workout_upload_flow.gd` plus `res://tests/test_modio_workout_browser_testbed.gd`; all passed. The targeted browser test and validators assert the new scroll container, the three paired rows, auth gating, and helper delegation. The only remaining warning is the known non-failing GUT leak/resources-at-exit warning in the browser test environment, which did not fail this audit slice.
 
 ---
 
 ## Final Results
 
-**Status:** ⚠️ In Progress
+**Status:** ✅ Complete
 
-**What We Built:** The original upload-tab implementation loop is complete, and a follow-up UI refinement loop is now active to address Derrick’s viewport/layout feedback for the `Upload Workout` tab.
+**What We Built:** The default mod.io browser testbed now includes a reusable helper-driven `Upload Workout` tab plus the follow-up layout refinement Derrick requested. The upload form preserves the staged draft → ZIP upload → optional publish contract, keeps athlete auth gating intact, and uses paired side-by-side rows plus a vertical scroll container so the submit action remains reachable even in shorter viewports.
 
-**Reference Check:** `REF-01` through `REF-07` remain the active source-of-truth set. The helper-driven staged upload seam stays approved; the new active slice is limited to layout density, upload-button reachability, and scroll behavior in the testbed UI.
+**Reference Check:** `REF-01` through `REF-07` were satisfied for this slice. The controller-built upload UI now contains the requested `Summary | Description`, `Metadata | Tags`, and `Workout Logo | Workout ZIP` rows; the helper-driven staged upload seam in `/src/` remained intact; and validation/audit evidence confirmed the viewport-scroll truthfulness instead of relying on layout assumptions.
 
 **Commits:**
 - `6212010` - `Add staged workout upload helper and testbed tab`
 - `47ea25c` - `Record QA verification for workout upload tab`
 - `4613612` - `Audit workout upload tab validation seam`
+- `2bad34f` - `Refine workout upload tab layout`
 
-**Lessons Learned:** The real risk in this slice was less about missing mod.io backend coverage and more about keeping the operator-facing surface honest. The staged authoring contract needed to live in one reusable seam and the validation needed to be isolated from local machine/session state. Audit caught that second part: even when the feature implementation was sound, brittle evidence can undermine the claim. The current follow-up is a narrower operator-UX refinement: preserve the same truthful seam while making the Upload tab denser and keeping the primary action reachable within the viewport.
+**Lessons Learned:** For UI refinements like this, the risky part is not just visual parity; it is preserving behavioral truth. A denser form can still fail the real requirement if the action falls below the viewport or if the controller quietly starts owning backend orchestration again. The extra scrollbar probe was worth doing because it confirmed the design succeeds for the right reason: when compression is not enough, scrolling genuinely carries the operator to the action.
+
+*Completed on 2026-06-01*
