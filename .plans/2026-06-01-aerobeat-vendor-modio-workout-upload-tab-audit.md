@@ -339,9 +339,13 @@ Dependency refresh was performed with the canonical safe workflow Derrick reques
 - `src/`
 - `../aerobeat-tool-device-detection/`
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** QA found one real cross-repo defect and fixed it before closing the slice. The core product claims in `aerobeat-vendor-modio` are true: the Upload Workout testbed seeds truthful metadata examples including `aerobeat_version=1.0.0`, `upload_surface=modio_workout_browser_testbed`, and `upload_flow=staged_draft_then_modfile`; the default/example tags remain taxonomy values in tag space (`boxing, easy, edm`) rather than being taught through `metadata_kvp`; and the browser testbed still delegates device-derived metadata seeding through `AeroDeviceDetectionModioMetadata.build_metadata_kvp_pairs(...)` instead of hardcoding the device KVP list locally. The helper output is also truthfully scoped: only stable/useful hardware fields are emitted (`profile`, platform/OS, CPU, GPU vendor/name, rendering method, display server, screen width/height, memory), while noisy or privacy-heavy fields such as `vendor_id`, `device_name`, `model_name`, `renderer_name`, runtime `tags`, nested runtime `metadata`, and request/meta timestamps stay excluded. The taxonomy source-of-truth in `aerobeat-docs/docs/architecture/modio-tag-mapping.md` still matches the seeded tag example and does not leak into KVP metadata.
+
+The QA-sized defect was in the upstream helper packaging/validation seam, not the vendor UI. Running the full `aerobeat-tool-device-detection` GUT suite exposed that `src/AeroDeviceDetectionModioMetadata.gd` registered a global `class_name` that collided with a stale addon-class cache path in the testbed, which broke the new static helper tests even though the helper logic itself was correct. I removed the unused global class registration in `aerobeat-tool-device-detection/src/AeroDeviceDetectionModioMetadata.gd`, committed/pushed that repo (`9d13c89` - `Avoid global class collision in modio metadata helper`), then refreshed the vendor testbed dependency with the requested canonical workflow: `python3 /home/derrick/.openclaw/workspace/scripts/godotenv-sync --repo /home/derrick/.openclaw/workspace/projects/aerobeat/aerobeat-vendor-modio/.testbed`. That gives QA direct evidence that this slice used `godotenv-sync` rather than vanilla `godotenv`, and the refreshed installed addon copy in `.testbed/addons/aerobeat-tool-device-detection/` now matches the fixed upstream helper.
+
+Post-fix validation passed in both repos. In `aerobeat-tool-device-detection`, `godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit` passed all 11 tests, including the metadata helper contract checks. In `aerobeat-vendor-modio`, `godot --headless --path .testbed --script res://tests/validate_modio_testbed_scenes.gd`, `godot --headless --path .testbed --script res://tests/qa_verify_scene_output_updates.gd`, and the targeted GUT pass for `res://tests/test_modio_workout_upload_flow.gd` plus `res://tests/test_modio_workout_browser_testbed.gd` all passed after the dependency refresh. The only remaining notes are the known non-failing vendor-side ObjectDB/resources-at-exit warnings during headless QA; no upload auth, tags, helper wiring, or metadata regression remained after the fix.
 
 ---
 
@@ -387,5 +391,6 @@ Dependency refresh was performed with the canonical safe workflow Derrick reques
 - `dfa3f0f` - `Record audit verdict for upload layout refinement`
 - `007251b` (`aerobeat-tool-device-detection`) - `Add mod.io upload metadata helper`
 - `ea03fe3` (`aerobeat-vendor-modio`) - `Seed truthful upload metadata defaults`
+- `9d13c89` (`aerobeat-tool-device-detection`) - `Avoid global class collision in modio metadata helper`
 
 **Lessons Learned:** For UI refinements like this, the risky part is not just visual parity; it is preserving behavioral truth. A denser form can still fail the real requirement if the action falls below the viewport or if the controller quietly starts owning backend orchestration again. The extra scrollbar probe was worth doing because it confirmed the design succeeds for the right reason: when compression is not enough, scrolling genuinely carries the operator to the action. The next truth check is semantic rather than spatial: make sure `metadata` vs `tags` copy reflects actual mod.io authoring semantics and AeroBeat taxonomy usage instead of placeholder guesses.
