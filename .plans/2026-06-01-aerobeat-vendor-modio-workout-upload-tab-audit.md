@@ -385,5 +385,7 @@ Dependency refresh was performed with the canonical safe workflow Derrick reques
 - `4613612` - `Audit workout upload tab validation seam`
 - `2bad34f` - `Refine workout upload tab layout`
 - `dfa3f0f` - `Record audit verdict for upload layout refinement`
+- `007251b` (`aerobeat-tool-device-detection`) - `Add mod.io upload metadata helper`
+- `ea03fe3` (`aerobeat-vendor-modio`) - `Seed truthful upload metadata defaults`
 
 **Lessons Learned:** For UI refinements like this, the risky part is not just visual parity; it is preserving behavioral truth. A denser form can still fail the real requirement if the action falls below the viewport or if the controller quietly starts owning backend orchestration again. The extra scrollbar probe was worth doing because it confirmed the design succeeds for the right reason: when compression is not enough, scrolling genuinely carries the operator to the action. The next truth check is semantic rather than spatial: make sure `metadata` vs `tags` copy reflects actual mod.io authoring semantics and AeroBeat taxonomy usage instead of placeholder guesses.
