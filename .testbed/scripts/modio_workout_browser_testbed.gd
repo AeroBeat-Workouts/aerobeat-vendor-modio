@@ -1109,11 +1109,7 @@ func _refresh_all_ui() -> void:
 	_update_listing_ui(ModioWorkoutBrowserState.TAB_WORKOUT)
 	_update_listing_ui(ModioWorkoutBrowserState.TAB_SUBSCRIBED)
 	_sync_upload_controls()
-	_tab_container.set_tab_disabled(BROWSER_TAB_PROFILE_INDEX, not _state.is_authenticated())
-	_tab_container.set_tab_disabled(BROWSER_TAB_WORKOUT_INDEX, not _state.is_authenticated())
-	_tab_container.set_tab_disabled(BROWSER_TAB_SUBSCRIBED_INDEX, not _state.is_authenticated())
-	_tab_container.set_tab_disabled(BROWSER_TAB_UPLOAD_INDEX, not _state.is_authenticated())
-	_sync_browser_tab_selection()
+	_refresh_auth_gated_browser_state()
 
 func _build_auth_state_text() -> String:
 	var lines := PackedStringArray()
@@ -1188,6 +1184,7 @@ func _restore_saved_runtime_state() -> void:
 		return
 	if _state.is_authenticated():
 		_refresh_profile_data(false, true)
+		_refresh_auth_gated_browser_state()
 
 func _persist_session_state(extra_values: Dictionary = {}) -> Dictionary:
 	_sync_environment_from_selector(false, false)
@@ -1201,6 +1198,18 @@ func _persist_session_state(extra_values: Dictionary = {}) -> Dictionary:
 	}
 	values.merge(extra_values, true)
 	return _store.save_session_values(_state.environment, values, _session_config_path())
+
+func _refresh_auth_gated_browser_state() -> void:
+	if not is_instance_valid(_tab_container):
+		return
+	var is_authenticated := _state.is_authenticated()
+	_tab_container.set_tab_disabled(BROWSER_TAB_PROFILE_INDEX, not is_authenticated)
+	_tab_container.set_tab_disabled(BROWSER_TAB_WORKOUT_INDEX, not is_authenticated)
+	_tab_container.set_tab_disabled(BROWSER_TAB_SUBSCRIBED_INDEX, not is_authenticated)
+	_tab_container.set_tab_disabled(BROWSER_TAB_UPLOAD_INDEX, not is_authenticated)
+	if is_instance_valid(_upload_submit_button):
+		_upload_submit_button.disabled = not is_authenticated
+	_sync_browser_tab_selection()
 
 func _sync_browser_tab_selection() -> void:
 	if not is_instance_valid(_tab_container):
@@ -1226,7 +1235,6 @@ func _sync_upload_controls() -> void:
 	_upload_version_line_edit.text = str(draft.get("version", ""))
 	_upload_changelog_text_edit.text = str(draft.get("changelog", ""))
 	_upload_publish_checkbox.button_pressed = bool(draft.get("publish_after_upload", false))
-	_upload_submit_button.disabled = not _state.is_authenticated()
 	var auth_truth := "Athlete sign-in is required. This tab stays disabled until the email-code flow resolves a bearer token."
 	if _state.is_authenticated():
 		auth_truth = "This staged authoring flow uses the signed-in athlete bearer. It creates a draft mod first, uploads the workout ZIP as the latest modfile second, and only publishes if you opt in below. mod.io currently expects a summary, a readable logo image at least 512x288, and string metadata before draft creation will pass."

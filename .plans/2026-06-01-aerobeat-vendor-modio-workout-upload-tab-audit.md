@@ -771,6 +771,79 @@ The core bucket-routing claims checked out against both code and focused regress
 Fresh audit validation matched the claims. I reran targeted GUT for `res://tests/test_modio_session_config_store.gd` plus `res://tests/test_modio_workout_browser_testbed.gd` (15/15 passing), `godot --headless --path .testbed --script res://tests/validate_modio_testbed_scenes.gd`, `godot --headless --path .testbed --script res://tests/qa_verify_scene_output_updates.gd`, and the full `addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit` suite (123/123 passing). The focused browser regressions prove the exact audit goals: switching from Live to Test loads the Test bucket into runtime state, a Test-path auth exchange persists into `modio.test` while keeping `modio.live` intact, and clearing the Test bucket removes only Test auth/session fields without touching the Live bucket. The only remaining warnings are the pre-existing non-failing Float/Int comparison warning in `test_modio_vendor_adapter.gd` and the known ObjectDB/resources-at-exit warning from the scene QA harness; neither is introduced by this environment-bucket slice.
 
 ---
+### Task 25: Fix restored auth not re-enabling all non-public tabs
+
+**Bead ID:** `oc-8lwo`  
+**SubAgent:** `primary` (for `coder`)  
+**Role:** `coder`  
+**References:** `REF-02`, `REF-03`, `REF-06`  
+**Prompt:** In `aerobeat-vendor-modio`, claim bead `oc-8lwo` on start with `bd update oc-8lwo --status in_progress --json`. Fix the startup auth-restore path so all non-public tabs refresh to the correct enabled state after saved auth is rehydrated. Derrick confirmed that the saved Test auth now restores on startup, but the `Upload Workout` tab still remains disabled, which means the restore path is not fully re-running the tab gating/UI enablement logic for all non-public tabs. Identify the root cause, fix it, add focused regression coverage, run relevant validation, update this plan with what actually changed, commit and push by default, and close the bead with a clear reason.
+
+**Folders Created/Deleted/Modified:**
+- `.plans/`
+- `.testbed/`
+- `src/`
+
+**Files Created/Deleted/Modified:**
+- `.plans/2026-06-01-aerobeat-vendor-modio-workout-upload-tab-audit.md`
+- `.testbed/scripts/modio_workout_browser_testbed.gd`
+- `.testbed/tests/`
+
+**Status:** ✅ Complete
+
+**Results:** Root cause was that startup auth restore did not have a dedicated single-source-of-truth pass for auth-gated browser controls. The controller refreshed most UI in `_refresh_all_ui()`, but the non-public browser-tab disabled state and the upload-submit enablement lived in separate seams, which made the restore path brittle and easy to leave in a stale pre-auth state after saved bearer rehydration. I tightened that by extracting `_refresh_auth_gated_browser_state()` in `.testbed/scripts/modio_workout_browser_testbed.gd` so the browser tab disabled/enabled state, the Upload Workout submit button state, and the active browser-tab sync now refresh together from the same auth source of truth. The startup restore path now explicitly reapplies that auth-gated browser refresh immediately after saved `/me` rehydration, so all expected non-public tabs re-enter the correct enabled state together instead of depending on incidental side effects from broader UI refreshes.
+
+Focused regression coverage was added in `.testbed/tests/test_modio_workout_browser_testbed.gd` for the real startup path: one test now boots the scene with a saved future-dated bearer token and saved `browser_tab="upload"`, verifies startup restore keeps all non-public tabs enabled, restores the Upload Workout tab as the active browser tab, and re-enables the upload submit button; a second focused guard keeps coverage around unauthenticated fallback not regressing saved non-public-tab intent during restore-time refreshes. Coder validation passed with `godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gtest=res://tests/test_modio_workout_browser_testbed.gd -gexit`, `godot --headless --path .testbed --script res://tests/validate_modio_testbed_scenes.gd`, and `godot --headless --path .testbed --script res://tests/qa_verify_scene_output_updates.gd` (the known non-failing ObjectDB/resources-at-exit warning from the scene QA harness still appears and is unrelated to this slice).
+
+---
+
+### Task 26: QA restored-auth tab re-enable fix
+
+**Bead ID:** `oc-mplq`  
+**SubAgent:** `primary` (for `qa`)  
+**Role:** `qa`  
+**References:** `REF-02`, `REF-03`, `REF-06`  
+**Prompt:** In `aerobeat-vendor-modio`, claim bead `oc-mplq` on start with `bd update oc-mplq --status in_progress --json`. Verify that startup restored auth re-enables all expected non-public tabs, including `Upload Workout`, without regressions. Run relevant validation/tests, update this plan with QA findings, commit/push by default only if QA-sized fixes are needed, and close the bead with a clear reason.
+
+**Folders Created/Deleted/Modified:**
+- `.plans/`
+- `.testbed/`
+- `src/`
+
+**Files Created/Deleted/Modified:**
+- `.plans/2026-06-01-aerobeat-vendor-modio-workout-upload-tab-audit.md`
+- `.testbed/tests/`
+- `.testbed/scripts/modio_workout_browser_testbed.gd`
+
+**Status:** ⏳ Pending
+
+**Results:** Pending.
+
+---
+
+### Task 27: Audit restored-auth tab re-enable fix
+
+**Bead ID:** `oc-rjnl`  
+**SubAgent:** `primary` (for `auditor`)  
+**Role:** `auditor`  
+**References:** `REF-02`, `REF-03`, `REF-06`  
+**Prompt:** In `aerobeat-vendor-modio`, claim bead `oc-rjnl` on start with `bd update oc-rjnl --status in_progress --json`. Independently audit the startup restored-auth tab enablement fix. Verify that restored auth refreshes all non-public tab gating/enabled state correctly, especially `Upload Workout`, inspect validation evidence, update this plan with the final audit verdict, commit/push by default only if an audit-sized fix is needed, and close the bead with a clear reason.
+
+**Folders Created/Deleted/Modified:**
+- `.plans/`
+- `.testbed/`
+- `src/`
+
+**Files Created/Deleted/Modified:**
+- `.plans/2026-06-01-aerobeat-vendor-modio-workout-upload-tab-audit.md`
+- `.testbed/tests/`
+- `.testbed/scripts/modio_workout_browser_testbed.gd`
+
+**Status:** ⏳ Pending
+
+**Results:** Pending.
+
+---
 ## Final Results
 
 **Status:** ✅ Complete

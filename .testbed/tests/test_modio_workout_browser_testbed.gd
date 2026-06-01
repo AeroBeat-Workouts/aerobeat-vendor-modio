@@ -235,6 +235,49 @@ func test_ready_restores_saved_email_without_wiping_session_values() -> void:
 
 	scene.free()
 
+func test_ready_restores_saved_auth_and_re_enables_all_non_public_tabs() -> void:
+	var future_expiry := int(Time.get_unix_time_from_system()) + 3600
+	_write_text(SESSION_PATH, "".join([
+		"[modio]\n",
+		"\n",
+		"environment=\"test\"\n",
+		"host_kind=\"\"\n",
+		"\n",
+		"[modio.test]\n",
+		"\n",
+		"access_token=\"qa-restored-token\"\n",
+		"access_token_expires_at=\"%s\"\n" % str(future_expiry),
+		"user_id=\"qa-user-id\"\n",
+		"email=\"qa-athlete@example.com\"\n",
+		"last_requested_email=\"qa-athlete@example.com\"\n",
+		"browser_tab=\"upload\"\n"
+	]))
+
+	var scene: Control = _instantiate_scene()
+	var manager_factory := ExchangeSuccessManagerFactory.new()
+	scene.call("set_manager_factory_for_testing", Callable(manager_factory, "build_manager"))
+	get_tree().root.add_child(scene)
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+	var browser_state: ModioWorkoutBrowserState = scene.get("_state")
+	var tab_container: TabContainer = scene.find_child("BrowserTabContainer", true, false)
+	var upload_button: Button = scene.find_child("UploadWorkoutSubmitButton", true, false)
+	assert_not_null(browser_state)
+	assert_not_null(tab_container)
+	assert_not_null(upload_button)
+	assert_eq(browser_state.access_token, "qa-restored-token")
+	assert_eq(browser_state.active_tab, ModioWorkoutBrowserState.TAB_UPLOAD)
+	assert_false(tab_container.is_tab_disabled(1))
+	assert_false(tab_container.is_tab_disabled(2))
+	assert_false(tab_container.is_tab_disabled(3))
+	assert_false(tab_container.is_tab_disabled(4))
+	assert_eq(tab_container.current_tab, 4)
+	assert_false(upload_button.disabled)
+
+	scene.queue_free()
+	await get_tree().process_frame
+
 func test_ready_clears_saved_auth_when_known_expiry_is_already_past() -> void:
 	var expired_at := int(Time.get_unix_time_from_system()) - 60
 	_write_text(SESSION_PATH, "".join([
@@ -530,6 +573,36 @@ func test_upload_tab_is_auth_gated_and_exposes_required_path_controls() -> void:
 	assert_string_contains(upload_metadata.text, "upload_surface=modio_workout_browser_testbed")
 	assert_string_contains(upload_metadata.text, "device_gpu_name=Intel Iris Xe Graphics")
 	assert_eq(upload_tags.text, "boxing, easy, edm")
+
+	scene.queue_free()
+	await get_tree().process_frame
+
+func test_unauthenticated_ui_fallback_does_not_clobber_saved_non_public_tab_during_restore() -> void:
+	var scene: Control = _instantiate_scene()
+	get_tree().root.add_child(scene)
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+	var browser_state: ModioWorkoutBrowserState = scene.get("_state")
+	var tab_container: TabContainer = scene.find_child("BrowserTabContainer", true, false)
+	assert_not_null(browser_state)
+	assert_not_null(tab_container)
+
+	browser_state.active_tab = ModioWorkoutBrowserState.TAB_UPLOAD
+	browser_state.access_token = ""
+	scene.call("_refresh_all_ui")
+	await get_tree().process_frame
+
+	assert_eq(tab_container.current_tab, 0)
+	assert_eq(browser_state.active_tab, ModioWorkoutBrowserState.TAB_UPLOAD)
+
+	browser_state.access_token = "qa-token"
+	scene.call("_refresh_all_ui")
+	await get_tree().process_frame
+
+	assert_false(tab_container.is_tab_disabled(4))
+	assert_eq(tab_container.current_tab, 4)
+	assert_eq(browser_state.active_tab, ModioWorkoutBrowserState.TAB_UPLOAD)
 
 	scene.queue_free()
 	await get_tree().process_frame
