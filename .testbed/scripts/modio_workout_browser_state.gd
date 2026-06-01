@@ -6,6 +6,7 @@ const TAB_PUBLIC := "public"
 const TAB_PROFILE := "profile"
 const TAB_WORKOUT := "workout"
 const TAB_SUBSCRIBED := "subscribed"
+const TAB_UPLOAD := "upload"
 
 var environment: String = "test"
 var game_id: String = ""
@@ -26,6 +27,9 @@ var subscribed_listing: Dictionary = _empty_listing()
 var profile: Dictionary = {}
 var wallet: Dictionary = {}
 var purchased: Dictionary = _empty_listing()
+var upload_draft: Dictionary = _default_upload_draft()
+var upload_result: Dictionary = {}
+var upload_status_text: String = ""
 var raw_debug_sections: Dictionary = {}
 var public_query: Dictionary = _default_query()
 var workout_query: Dictionary = _default_query()
@@ -119,6 +123,21 @@ static func _default_query(subscribed: bool = false) -> Dictionary:
 		"offset": 0,
 		"limit": DEFAULT_PAGE_LIMIT,
 		"subscribed": subscribed
+	}
+
+static func _default_upload_draft() -> Dictionary:
+	return {
+		"name": "",
+		"name_id": "",
+		"summary": "",
+		"description": "",
+		"metadata_kvp": "",
+		"tags": "",
+		"logo_path": "",
+		"zip_path": "",
+		"version": "",
+		"changelog": "",
+		"publish_after_upload": false
 	}
 
 static func _empty_listing() -> Dictionary:

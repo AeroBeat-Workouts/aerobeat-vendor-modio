@@ -51,6 +51,8 @@ func _validate_main_scene(failures: PackedStringArray) -> void:
 			failures.append("Main scene is missing the global tab container.")
 		if not bool(summary.get("has_tab_container", false)):
 			failures.append("Main scene is missing the browser tab container.")
+		if not bool(summary.get("has_upload_controls", false)):
+			failures.append("Main scene is missing upload controls.")
 		if not bool(summary.get("has_detail_overlay", false)):
 			failures.append("Main scene is missing the detail overlay.")
 	instance.queue_free()

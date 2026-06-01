@@ -7,6 +7,30 @@ const SESSION_PATH := "res://configs/modio.session.local.cfg"
 var _session_backup_exists := false
 var _session_backup_text := ""
 
+class MockUploadFlow:
+	extends RefCounted
+
+	var calls: Array[Dictionary] = []
+	var response: Dictionary = {
+		"ok": true,
+		"mod_id": 987,
+		"file_id": 654,
+		"publish_requested": true,
+		"steps": [
+			{"stage": "create_draft", "ok": true},
+			{"stage": "upload_modfile", "ok": true},
+			{"stage": "publish_mod", "ok": true}
+		],
+		"message": "Created draft mod 987 and uploaded modfile 654. Published the workout to the public catalog."
+	}
+
+	func submit_workout(manager, payload: Dictionary) -> Dictionary:
+		calls.append({
+			"manager": manager,
+			"payload": payload.duplicate(true)
+		})
+		return response.duplicate(true)
+
 func before_each() -> void:
 	_session_backup_exists = FileAccess.file_exists(SESSION_PATH)
 	if _session_backup_exists:
@@ -176,6 +200,95 @@ func test_detail_slideout_exposes_download_controls() -> void:
 	await get_tree().process_frame
 	assert_false(detail_download.disabled)
 	assert_true(detail_path.text.ends_with("fixture-777.zip"))
+
+	scene.queue_free()
+	await get_tree().process_frame
+
+func test_upload_tab_is_auth_gated_and_exposes_required_path_controls() -> void:
+	var scene: Control = WorkoutBrowserScene.instantiate()
+	get_tree().root.add_child(scene)
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+	var browser_state: ModioWorkoutBrowserState = scene.get("_state")
+	assert_not_null(browser_state)
+	browser_state.access_token = ""
+	scene.call("_refresh_all_ui")
+	await get_tree().process_frame
+
+	var tab_container: TabContainer = scene.find_child("BrowserTabContainer", true, false)
+	var upload_name: LineEdit = scene.find_child("UploadWorkoutNameLineEdit", true, false)
+	var upload_logo: LineEdit = scene.find_child("UploadWorkoutLogoPathLineEdit", true, false)
+	var upload_zip: LineEdit = scene.find_child("UploadWorkoutZipPathLineEdit", true, false)
+	var upload_button: Button = scene.find_child("UploadWorkoutSubmitButton", true, false)
+	assert_not_null(tab_container)
+	assert_eq(tab_container.get_tab_title(4), "Upload Workout")
+	assert_true(tab_container.is_tab_disabled(4))
+	assert_not_null(upload_name)
+	assert_not_null(upload_logo)
+	assert_not_null(upload_zip)
+	assert_not_null(upload_button)
+	assert_true(upload_button.disabled)
+
+	scene.queue_free()
+	await get_tree().process_frame
+
+func test_upload_submit_invokes_reusable_flow_and_reports_result() -> void:
+	var scene: Control = WorkoutBrowserScene.instantiate()
+	get_tree().root.add_child(scene)
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+	var browser_state: ModioWorkoutBrowserState = scene.get("_state")
+	assert_not_null(browser_state)
+	browser_state.game_id = "777"
+	browser_state.api_key = "demo-key"
+	browser_state.access_token = "qa-token"
+	browser_state.active_tab = ModioWorkoutBrowserState.TAB_UPLOAD
+	var mock_flow := MockUploadFlow.new()
+	scene.set("_upload_flow", mock_flow)
+	scene.call("_refresh_all_ui")
+	await get_tree().process_frame
+
+	var upload_name: LineEdit = scene.find_child("UploadWorkoutNameLineEdit", true, false)
+	var upload_summary: LineEdit = scene.find_child("UploadWorkoutSummaryLineEdit", true, false)
+	var upload_metadata: TextEdit = scene.find_child("UploadWorkoutMetadataTextEdit", true, false)
+	var upload_logo: LineEdit = scene.find_child("UploadWorkoutLogoPathLineEdit", true, false)
+	var upload_zip: LineEdit = scene.find_child("UploadWorkoutZipPathLineEdit", true, false)
+	var upload_publish: CheckBox = scene.find_child("UploadWorkoutPublishCheckBox", true, false)
+	var upload_button: Button = scene.find_child("UploadWorkoutSubmitButton", true, false)
+	var upload_status: Label = scene.find_child("UploadWorkoutStatusLabel", true, false)
+	var upload_result: RichTextLabel = scene.find_child("UploadWorkoutResultLabel", true, false)
+	assert_not_null(upload_name)
+	assert_not_null(upload_summary)
+	assert_not_null(upload_metadata)
+	assert_not_null(upload_logo)
+	assert_not_null(upload_zip)
+	assert_not_null(upload_publish)
+	assert_not_null(upload_button)
+	assert_not_null(upload_status)
+	assert_not_null(upload_result)
+	assert_false(upload_button.disabled)
+
+	upload_name.text = "Tempo Ladder"
+	upload_summary.text = "Climb intervals"
+	upload_metadata.text = "difficulty=hard\ncoach=chip"
+	upload_logo.text = "/tmp/tempo-ladder-logo.png"
+	upload_zip.text = "/tmp/tempo-ladder.zip"
+	upload_publish.button_pressed = true
+	upload_button.emit_signal("pressed")
+	await get_tree().process_frame
+
+	assert_eq(mock_flow.calls.size(), 1)
+	assert_eq(mock_flow.calls[0].payload.name, "Tempo Ladder")
+	assert_eq(mock_flow.calls[0].payload.summary, "Climb intervals")
+	assert_eq(mock_flow.calls[0].payload.metadata_kvp, "difficulty=hard\ncoach=chip")
+	assert_eq(mock_flow.calls[0].payload.logo_path, "/tmp/tempo-ladder-logo.png")
+	assert_eq(mock_flow.calls[0].payload.zip_path, "/tmp/tempo-ladder.zip")
+	assert_true(mock_flow.calls[0].payload.publish_after_upload)
+	assert_string_contains(upload_status.text, "Created draft mod 987")
+	assert_string_contains(upload_result.text, "Mod ID: 987")
+	assert_string_contains(upload_result.text, "publish_mod=ok")
 
 	scene.queue_free()
 	await get_tree().process_frame

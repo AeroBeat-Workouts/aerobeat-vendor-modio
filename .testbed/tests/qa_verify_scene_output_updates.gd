@@ -58,6 +58,10 @@ func _verify_main_scene(failures: PackedStringArray) -> void:
 	var detail_download: Button = instance.find_child("DetailDownloadButton", true, false)
 	var detail_path: LineEdit = instance.find_child("DetailDownloadPathLineEdit", true, false)
 	var detail_panel: PanelContainer = instance.find_child("DetailPanel", true, false)
+	var upload_name: LineEdit = instance.find_child("UploadWorkoutNameLineEdit", true, false)
+	var upload_logo: LineEdit = instance.find_child("UploadWorkoutLogoPathLineEdit", true, false)
+	var upload_zip: LineEdit = instance.find_child("UploadWorkoutZipPathLineEdit", true, false)
+	var upload_button: Button = instance.find_child("UploadWorkoutSubmitButton", true, false)
 	if global_tab_container == null:
 		failures.append("Main scene missing GlobalTabContainer")
 	else:
@@ -78,6 +82,14 @@ func _verify_main_scene(failures: PackedStringArray) -> void:
 			failures.append("Unexpected browser tab 0 title: %s" % tab_container.get_tab_title(0))
 		if tab_container.get_tab_title(2) != "Workout Browser":
 			failures.append("Unexpected browser tab 2 title: %s" % tab_container.get_tab_title(2))
+		if tab_container.get_tab_title(4) != "Upload Workout":
+			failures.append("Unexpected browser tab 4 title: %s" % tab_container.get_tab_title(4))
+		if not tab_container.is_tab_disabled(4):
+			failures.append("Upload Workout tab should start disabled until athlete auth exists")
+	if upload_name == null or upload_logo == null or upload_zip == null or upload_button == null:
+		failures.append("Main scene missing staged upload controls")
+	elif not upload_button.disabled:
+		failures.append("Upload submit button should start disabled until athlete auth exists")
 	if detail_overlay == null:
 		failures.append("Main scene missing DetailOverlay")
 	elif detail_action == null:

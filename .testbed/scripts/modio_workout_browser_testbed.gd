@@ -1,5 +1,7 @@
 extends Control
 
+const ModioWorkoutUploadFlow = preload("res://addons/aerobeat-vendor-modio/src/modio_workout_upload_flow.gd")
+
 const GLOBAL_TAB_CONNECTION_INDEX := 0
 const GLOBAL_TAB_AUTH_INDEX := 1
 const GLOBAL_TAB_BROWSER_INDEX := 2
@@ -7,6 +9,7 @@ const BROWSER_TAB_PUBLIC_INDEX := 0
 const BROWSER_TAB_PROFILE_INDEX := 1
 const BROWSER_TAB_WORKOUT_INDEX := 2
 const BROWSER_TAB_SUBSCRIBED_INDEX := 3
+const BROWSER_TAB_UPLOAD_INDEX := 4
 const CARD_PREVIEW_SIZE := Vector2i(320, 180)
 const IMAGE_CACHE_DIR := "user://modio_workout_browser_images"
 const DOWNLOAD_CACHE_DIR := "user://modio_workout_browser_downloads"
@@ -26,6 +29,7 @@ var _store := ModioSessionConfigStore.new()
 var _state := ModioWorkoutBrowserState.new()
 var _manager: AeroModIOManager
 var _base_config: ModioClientConfig
+var _upload_flow = ModioWorkoutUploadFlow.new()
 var _image_cache: Dictionary = {}
 var _ui_built: bool = false
 var _suspend_session_persistence: bool = false
@@ -77,6 +81,25 @@ var _subscribed_next_button: Button
 var _subscribed_page_label: Label
 var _subscribed_cards_grid: GridContainer
 var _subscribed_empty_label: Label
+var _upload_intro_label: Label
+var _upload_name_line_edit: LineEdit
+var _upload_name_id_line_edit: LineEdit
+var _upload_summary_line_edit: LineEdit
+var _upload_description_text_edit: TextEdit
+var _upload_metadata_text_edit: TextEdit
+var _upload_tags_line_edit: LineEdit
+var _upload_logo_path_line_edit: LineEdit
+var _upload_logo_browse_button: Button
+var _upload_zip_path_line_edit: LineEdit
+var _upload_zip_browse_button: Button
+var _upload_version_line_edit: LineEdit
+var _upload_changelog_text_edit: TextEdit
+var _upload_publish_checkbox: CheckBox
+var _upload_submit_button: Button
+var _upload_status_label: Label
+var _upload_result_label: RichTextLabel
+var _upload_logo_file_dialog: FileDialog
+var _upload_zip_file_dialog: FileDialog
 var _detail_overlay: ColorRect
 var _detail_panel: PanelContainer
 var _detail_title_label: Label
@@ -106,12 +129,13 @@ func describe_scene_surface() -> Dictionary:
 	_ensure_ui_built()
 	return {
 		"group_id": "workout_browser",
-		"description": "Default operator-facing mod.io workout browser scene with editable server credentials, email-code auth, profile summary, public browsing, athlete browsing, and subscribed workout management.",
+		"description": "Default operator-facing mod.io workout browser scene with editable server credentials, email-code auth, profile summary, public browsing, athlete browsing, subscribed workout management, and staged workout uploads.",
 		"main_scene": ProjectSettings.get_setting("application/run/main_scene", ""),
 		"has_connection_controls": is_instance_valid(_server_option_button) and is_instance_valid(_game_id_line_edit) and is_instance_valid(_api_key_line_edit),
 		"has_auth_controls": is_instance_valid(_email_line_edit) and is_instance_valid(_security_code_line_edit),
 		"has_global_tabs": is_instance_valid(_global_tab_container),
 		"has_tab_container": is_instance_valid(_tab_container),
+		"has_upload_controls": is_instance_valid(_upload_name_line_edit) and is_instance_valid(_upload_logo_path_line_edit) and is_instance_valid(_upload_zip_path_line_edit) and is_instance_valid(_upload_submit_button),
 		"has_detail_overlay": is_instance_valid(_detail_overlay),
 		"has_output": true,
 		"has_run_button": false
@@ -190,6 +214,8 @@ func _build_ui() -> void:
 	_tab_container.set_tab_title(BROWSER_TAB_WORKOUT_INDEX, "Workout Browser")
 	_tab_container.add_child(_build_subscribed_tab())
 	_tab_container.set_tab_title(BROWSER_TAB_SUBSCRIBED_INDEX, "Subscribed Workouts")
+	_tab_container.add_child(_build_upload_tab())
+	_tab_container.set_tab_title(BROWSER_TAB_UPLOAD_INDEX, "Upload Workout")
 
 	_detail_overlay = _build_detail_overlay()
 	add_child(_detail_overlay)
@@ -449,6 +475,204 @@ func _build_subscribed_tab() -> Control:
 	_subscribed_empty_label = browser.empty_label
 	tab.add_child(browser.root)
 	return tab
+
+func _build_upload_tab() -> Control:
+	var tab := VBoxContainer.new()
+	tab.name = "UploadWorkoutTab"
+	tab.add_theme_constant_override("separation", 8)
+
+	var intro_panel := PanelContainer.new()
+	intro_panel.name = "UploadWorkoutIntroPanel"
+	tab.add_child(intro_panel)
+
+	var intro_margin := MarginContainer.new()
+	intro_margin.add_theme_constant_override("margin_left", 12)
+	intro_margin.add_theme_constant_override("margin_top", 12)
+	intro_margin.add_theme_constant_override("margin_right", 12)
+	intro_margin.add_theme_constant_override("margin_bottom", 12)
+	intro_panel.add_child(intro_margin)
+
+	var intro_root := VBoxContainer.new()
+	intro_root.add_theme_constant_override("separation", 8)
+	intro_margin.add_child(intro_root)
+
+	var heading := Label.new()
+	heading.text = "Upload Workout"
+	heading.add_theme_font_size_override("font_size", 18)
+	intro_root.add_child(heading)
+
+	_upload_intro_label = Label.new()
+	_upload_intro_label.name = "UploadWorkoutIntroLabel"
+	_upload_intro_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	intro_root.add_child(_upload_intro_label)
+
+	var form_panel := PanelContainer.new()
+	form_panel.name = "UploadWorkoutFormPanel"
+	tab.add_child(form_panel)
+
+	var form_margin := MarginContainer.new()
+	form_margin.add_theme_constant_override("margin_left", 12)
+	form_margin.add_theme_constant_override("margin_top", 12)
+	form_margin.add_theme_constant_override("margin_right", 12)
+	form_margin.add_theme_constant_override("margin_bottom", 12)
+	form_panel.add_child(form_margin)
+
+	var form_root := VBoxContainer.new()
+	form_root.add_theme_constant_override("separation", 10)
+	form_margin.add_child(form_root)
+
+	var name_row := HBoxContainer.new()
+	name_row.add_theme_constant_override("separation", 8)
+	form_root.add_child(name_row)
+
+	var name_box := VBoxContainer.new()
+	name_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	name_row.add_child(name_box)
+	name_box.add_child(_field_label("Workout Name"))
+	_upload_name_line_edit = LineEdit.new()
+	_upload_name_line_edit.name = "UploadWorkoutNameLineEdit"
+	_upload_name_line_edit.placeholder_text = "Cardio Blast 30"
+	name_box.add_child(_upload_name_line_edit)
+
+	var slug_box := VBoxContainer.new()
+	slug_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	name_row.add_child(slug_box)
+	slug_box.add_child(_field_label("Name ID / Slug (optional)"))
+	_upload_name_id_line_edit = LineEdit.new()
+	_upload_name_id_line_edit.name = "UploadWorkoutNameIdLineEdit"
+	_upload_name_id_line_edit.placeholder_text = "cardio-blast-30"
+	slug_box.add_child(_upload_name_id_line_edit)
+
+	form_root.add_child(_build_upload_text_line("Summary", "UploadWorkoutSummaryLineEdit", "Short operator-visible summary", func(control: LineEdit) -> void:
+		_upload_summary_line_edit = control
+	))
+
+	var description_box := VBoxContainer.new()
+	description_box.add_child(_field_label("Description"))
+	_upload_description_text_edit = TextEdit.new()
+	_upload_description_text_edit.name = "UploadWorkoutDescriptionTextEdit"
+	_upload_description_text_edit.custom_minimum_size = Vector2(0, 120)
+	description_box.add_child(_upload_description_text_edit)
+	form_root.add_child(description_box)
+
+	var metadata_box := VBoxContainer.new()
+	metadata_box.add_child(_field_label("Metadata KVP (required, one entry per line)"))
+	_upload_metadata_text_edit = TextEdit.new()
+	_upload_metadata_text_edit.name = "UploadWorkoutMetadataTextEdit"
+	_upload_metadata_text_edit.custom_minimum_size = Vector2(0, 96)
+	_upload_metadata_text_edit.placeholder_text = "difficulty=intermediate\ncoach=derrick"
+	metadata_box.add_child(_upload_metadata_text_edit)
+	form_root.add_child(metadata_box)
+
+	form_root.add_child(_build_upload_text_line("Tags (optional, comma-separated)", "UploadWorkoutTagsLineEdit", "cardio, endurance", func(control: LineEdit) -> void:
+		_upload_tags_line_edit = control
+	))
+
+	form_root.add_child(_build_upload_file_row("Workout Logo", "UploadWorkoutLogoPathLineEdit", "Choose the required logo image", "UploadWorkoutLogoBrowseButton", func(path_edit: LineEdit, browse_button: Button) -> void:
+		_upload_logo_path_line_edit = path_edit
+		_upload_logo_browse_button = browse_button
+		browse_button.pressed.connect(_on_upload_logo_browse_pressed)
+	))
+
+	form_root.add_child(_build_upload_file_row("Workout ZIP", "UploadWorkoutZipPathLineEdit", "Choose the workout ZIP to upload", "UploadWorkoutZipBrowseButton", func(path_edit: LineEdit, browse_button: Button) -> void:
+		_upload_zip_path_line_edit = path_edit
+		_upload_zip_browse_button = browse_button
+		browse_button.pressed.connect(_on_upload_zip_browse_pressed)
+	))
+
+	var version_row := HBoxContainer.new()
+	version_row.add_theme_constant_override("separation", 8)
+	form_root.add_child(version_row)
+
+	var version_box := VBoxContainer.new()
+	version_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	version_row.add_child(version_box)
+	version_box.add_child(_field_label("Version (optional)"))
+	_upload_version_line_edit = LineEdit.new()
+	_upload_version_line_edit.name = "UploadWorkoutVersionLineEdit"
+	_upload_version_line_edit.placeholder_text = "1.0.0"
+	version_box.add_child(_upload_version_line_edit)
+
+	var changelog_box := VBoxContainer.new()
+	changelog_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	version_row.add_child(changelog_box)
+	changelog_box.add_child(_field_label("Changelog (optional)"))
+	_upload_changelog_text_edit = TextEdit.new()
+	_upload_changelog_text_edit.name = "UploadWorkoutChangelogTextEdit"
+	_upload_changelog_text_edit.custom_minimum_size = Vector2(0, 96)
+	changelog_box.add_child(_upload_changelog_text_edit)
+
+	_upload_publish_checkbox = CheckBox.new()
+	_upload_publish_checkbox.name = "UploadWorkoutPublishCheckBox"
+	_upload_publish_checkbox.text = "Publish immediately after the ZIP upload succeeds"
+	form_root.add_child(_upload_publish_checkbox)
+
+	_upload_submit_button = Button.new()
+	_upload_submit_button.name = "UploadWorkoutSubmitButton"
+	_upload_submit_button.text = "Create Draft + Upload ZIP"
+	_upload_submit_button.pressed.connect(_on_upload_workout_pressed)
+	form_root.add_child(_upload_submit_button)
+
+	_upload_status_label = Label.new()
+	_upload_status_label.name = "UploadWorkoutStatusLabel"
+	_upload_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	form_root.add_child(_upload_status_label)
+
+	_upload_result_label = RichTextLabel.new()
+	_upload_result_label.name = "UploadWorkoutResultLabel"
+	_upload_result_label.bbcode_enabled = true
+	_upload_result_label.fit_content = true
+	_upload_result_label.scroll_active = false
+	form_root.add_child(_upload_result_label)
+
+	_upload_logo_file_dialog = FileDialog.new()
+	_upload_logo_file_dialog.name = "UploadWorkoutLogoFileDialog"
+	_upload_logo_file_dialog.file_mode = FileDialog.FILE_MODE_OPEN_FILE
+	_upload_logo_file_dialog.access = FileDialog.ACCESS_FILESYSTEM
+	_upload_logo_file_dialog.title = "Choose Workout Logo"
+	_upload_logo_file_dialog.filters = PackedStringArray(["*.png, *.jpg, *.jpeg, *.webp ; Images"])
+	_upload_logo_file_dialog.file_selected.connect(_on_upload_logo_path_selected)
+	tab.add_child(_upload_logo_file_dialog)
+
+	_upload_zip_file_dialog = FileDialog.new()
+	_upload_zip_file_dialog.name = "UploadWorkoutZipFileDialog"
+	_upload_zip_file_dialog.file_mode = FileDialog.FILE_MODE_OPEN_FILE
+	_upload_zip_file_dialog.access = FileDialog.ACCESS_FILESYSTEM
+	_upload_zip_file_dialog.title = "Choose Workout ZIP"
+	_upload_zip_file_dialog.filters = PackedStringArray(["*.zip ; ZIP archive"])
+	_upload_zip_file_dialog.file_selected.connect(_on_upload_zip_path_selected)
+	tab.add_child(_upload_zip_file_dialog)
+
+	return tab
+
+func _build_upload_text_line(label_text: String, line_name: String, placeholder: String, assign: Callable) -> Control:
+	var box := VBoxContainer.new()
+	box.add_child(_field_label(label_text))
+	var line_edit := LineEdit.new()
+	line_edit.name = line_name
+	line_edit.placeholder_text = placeholder
+	line_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	box.add_child(line_edit)
+	assign.call(line_edit)
+	return box
+
+func _build_upload_file_row(label_text: String, line_name: String, placeholder: String, button_name: String, assign: Callable) -> Control:
+	var box := VBoxContainer.new()
+	box.add_child(_field_label(label_text))
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	box.add_child(row)
+	var line_edit := LineEdit.new()
+	line_edit.name = line_name
+	line_edit.placeholder_text = placeholder
+	line_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(line_edit)
+	var button := Button.new()
+	button.name = button_name
+	button.text = "Browse…"
+	row.add_child(button)
+	assign.call(line_edit, button)
+	return box
 
 func _listing_controls(control_name: String, on_fetch: Callable, on_page_shift: Callable, assign_fields: Callable) -> Control:
 	var panel := PanelContainer.new()
@@ -769,9 +993,11 @@ func _refresh_all_ui() -> void:
 	_update_listing_ui(ModioWorkoutBrowserState.TAB_PUBLIC)
 	_update_listing_ui(ModioWorkoutBrowserState.TAB_WORKOUT)
 	_update_listing_ui(ModioWorkoutBrowserState.TAB_SUBSCRIBED)
+	_sync_upload_controls()
 	_tab_container.set_tab_disabled(BROWSER_TAB_PROFILE_INDEX, not _state.is_authenticated())
 	_tab_container.set_tab_disabled(BROWSER_TAB_WORKOUT_INDEX, not _state.is_authenticated())
 	_tab_container.set_tab_disabled(BROWSER_TAB_SUBSCRIBED_INDEX, not _state.is_authenticated())
+	_tab_container.set_tab_disabled(BROWSER_TAB_UPLOAD_INDEX, not _state.is_authenticated())
 	_sync_browser_tab_selection()
 
 func _build_auth_state_text() -> String:
@@ -818,6 +1044,29 @@ func _sync_browser_tab_selection() -> void:
 	if _tab_container.current_tab != target_index:
 		_tab_container.current_tab = target_index
 
+func _sync_upload_controls() -> void:
+	if not is_instance_valid(_upload_name_line_edit):
+		return
+	var draft: Dictionary = _state.upload_draft
+	_upload_name_line_edit.text = str(draft.get("name", ""))
+	_upload_name_id_line_edit.text = str(draft.get("name_id", ""))
+	_upload_summary_line_edit.text = str(draft.get("summary", ""))
+	_upload_description_text_edit.text = str(draft.get("description", ""))
+	_upload_metadata_text_edit.text = str(draft.get("metadata_kvp", ""))
+	_upload_tags_line_edit.text = str(draft.get("tags", ""))
+	_upload_logo_path_line_edit.text = str(draft.get("logo_path", ""))
+	_upload_zip_path_line_edit.text = str(draft.get("zip_path", ""))
+	_upload_version_line_edit.text = str(draft.get("version", ""))
+	_upload_changelog_text_edit.text = str(draft.get("changelog", ""))
+	_upload_publish_checkbox.button_pressed = bool(draft.get("publish_after_upload", false))
+	_upload_submit_button.disabled = not _state.is_authenticated()
+	var auth_truth := "Athlete sign-in is required. This tab stays disabled until the email-code flow resolves a bearer token."
+	if _state.is_authenticated():
+		auth_truth = "This staged authoring flow uses the signed-in athlete bearer. It creates a draft mod first, uploads the workout ZIP as the latest modfile second, and only publishes if you opt in below."
+	_upload_intro_label.text = auth_truth
+	_upload_status_label.text = _state.upload_status_text if not _state.upload_status_text.is_empty() else "Provide a workout name, required metadata entries, a required logo file, and a required workout ZIP before running the staged upload."
+	_upload_result_label.text = _format_upload_result(_state.upload_result)
+
 func _browser_tab_index_for_context(context: String) -> int:
 	match context:
 		ModioWorkoutBrowserState.TAB_PROFILE:
@@ -826,6 +1075,8 @@ func _browser_tab_index_for_context(context: String) -> int:
 			return BROWSER_TAB_WORKOUT_INDEX
 		ModioWorkoutBrowserState.TAB_SUBSCRIBED:
 			return BROWSER_TAB_SUBSCRIBED_INDEX
+		ModioWorkoutBrowserState.TAB_UPLOAD:
+			return BROWSER_TAB_UPLOAD_INDEX
 		_:
 			return BROWSER_TAB_PUBLIC_INDEX
 
@@ -897,6 +1148,42 @@ func _parse_csv(value: String) -> PackedStringArray:
 		if not cleaned.is_empty():
 			result.append(cleaned)
 	return result
+
+func _read_upload_form_from_controls() -> Dictionary:
+	return {
+		"name": _upload_name_line_edit.text.strip_edges(),
+		"name_id": _upload_name_id_line_edit.text.strip_edges(),
+		"summary": _upload_summary_line_edit.text.strip_edges(),
+		"description": _upload_description_text_edit.text.strip_edges(),
+		"metadata_kvp": _upload_metadata_text_edit.text.strip_edges(),
+		"tags": _upload_tags_line_edit.text.strip_edges(),
+		"logo_path": _upload_logo_path_line_edit.text.strip_edges(),
+		"zip_path": _upload_zip_path_line_edit.text.strip_edges(),
+		"version": _upload_version_line_edit.text.strip_edges(),
+		"changelog": _upload_changelog_text_edit.text.strip_edges(),
+		"publish_after_upload": _upload_publish_checkbox.button_pressed
+	}
+
+func _format_upload_result(result: Dictionary) -> String:
+	if result.is_empty():
+		return ""
+	var lines := PackedStringArray()
+	lines.append("[b]Last Upload Attempt[/b]")
+	lines.append("Status: %s" % ("ok" if bool(result.get("ok", false)) else "failed"))
+	if not str(result.get("message", "")).is_empty():
+		lines.append("Message: %s" % str(result.get("message", "")))
+	if int(result.get("mod_id", 0)) > 0:
+		lines.append("Mod ID: %s" % str(result.get("mod_id", 0)))
+	if int(result.get("file_id", 0)) > 0:
+		lines.append("File ID: %s" % str(result.get("file_id", 0)))
+	var steps: Array = result.get("steps", [])
+	if not steps.is_empty():
+		var step_bits := PackedStringArray()
+		for step in steps:
+			if step is Dictionary:
+				step_bits.append("%s=%s" % [str(step.get("stage", "step")), "ok" if bool(step.get("ok", false)) else "failed"])
+		lines.append("Steps: %s" % ", ".join(step_bits))
+	return "\n".join(lines)
 
 func _build_listing_query(context: String) -> ModioListingQuery:
 	var query_data := _state.query_for_context(context)
@@ -1394,6 +1681,40 @@ func _compute_md5(bytes: PackedByteArray) -> String:
 	hashing.update(bytes)
 	return hashing.finish().hex_encode()
 
+func _on_upload_logo_browse_pressed() -> void:
+	if is_instance_valid(_upload_logo_file_dialog):
+		_upload_logo_file_dialog.current_path = _upload_logo_path_line_edit.text.strip_edges()
+		_upload_logo_file_dialog.popup_centered_ratio(0.6)
+
+func _on_upload_zip_browse_pressed() -> void:
+	if is_instance_valid(_upload_zip_file_dialog):
+		_upload_zip_file_dialog.current_path = _upload_zip_path_line_edit.text.strip_edges()
+		_upload_zip_file_dialog.popup_centered_ratio(0.6)
+
+func _on_upload_logo_path_selected(path: String) -> void:
+	_upload_logo_path_line_edit.text = path
+	_state.upload_draft = _read_upload_form_from_controls()
+
+func _on_upload_zip_path_selected(path: String) -> void:
+	_upload_zip_path_line_edit.text = path
+	_state.upload_draft = _read_upload_form_from_controls()
+
+func _on_upload_workout_pressed() -> void:
+	_state.upload_draft = _read_upload_form_from_controls()
+	_state.active_tab = ModioWorkoutBrowserState.TAB_UPLOAD
+	if not _state.is_authenticated():
+		_state.upload_status_text = "Athlete sign-in is required before staged workout uploads can run."
+		_state.upload_result = {"ok": false, "message": _state.upload_status_text}
+		_set_status(_state.upload_status_text)
+		_refresh_all_ui()
+		return
+	_rebuild_manager()
+	var result := _upload_flow.submit_workout(_manager, _state.upload_draft)
+	_state.upload_result = result
+	_state.upload_status_text = str(result.get("message", "Workout upload attempt finished.")).strip_edges()
+	_set_status(_state.upload_status_text)
+	_refresh_all_ui()
+
 func _on_request_code_pressed() -> void:
 	var email := _email_line_edit.text.strip_edges()
 	if email.is_empty():
@@ -1440,6 +1761,8 @@ func _on_clear_session_pressed() -> void:
 	_state.clear_session()
 	_state.email = ""
 	_state.last_requested_email = ""
+	_state.upload_status_text = ""
+	_state.upload_result = {}
 	_state.raw_debug_sections["saved_token_restore_note"] = ""
 	_store.clear_session_values(_state.environment, PackedStringArray(["access_token", "user_id", "email", "last_requested_email", "browser_tab"]))
 	_rebuild_manager()
@@ -1544,6 +1867,8 @@ func _on_tab_changed(index: int) -> void:
 			_state.active_tab = ModioWorkoutBrowserState.TAB_WORKOUT
 		BROWSER_TAB_SUBSCRIBED_INDEX:
 			_state.active_tab = ModioWorkoutBrowserState.TAB_SUBSCRIBED
+		BROWSER_TAB_UPLOAD_INDEX:
+			_state.active_tab = ModioWorkoutBrowserState.TAB_UPLOAD
 		_:
 			_state.active_tab = ModioWorkoutBrowserState.TAB_PUBLIC
 	if _suspend_session_persistence:
