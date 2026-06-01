@@ -2,7 +2,7 @@
 
 **Date:** 2026-06-01
 **Status:** Complete
-**Last Updated:** 2026-06-01 08:15 EDT
+**Last Updated:** 2026-06-01 08:32 EDT
 **Blocked Reason:** None
 **Agent:** `chip`
 
@@ -164,17 +164,92 @@ The audit-sized defect was in the evidence, not the feature seam. Re-running the
 
 ---
 
-## Final Results
+### Task 5: Refine the Upload Workout tab layout and viewport fit
+
+**Bead ID:** `oc-gu2z`  
+**SubAgent:** `primary` (for `coder`)  
+**Role:** `coder`  
+**References:** `REF-01`, `REF-02`, `REF-03`, `REF-06`  
+**Prompt:** In `aerobeat-vendor-modio`, claim bead `oc-gu2z` on start with `bd update oc-gu2z --status in_progress --json`. Refine the `Upload Workout` tab UI per Derrick's review. Reduce vertical space by placing these rows side by side, similar to the existing `Workout Name | Name ID` layout: (a) `Summary | Description`, (b) `Metadata | Tags`, and (c) `Workout Logo | Workout ZIP`. Ensure the upload action remains reachable inside the viewport; if layout compression alone is not enough, add vertical scrolling to the Upload Workout tab UI. Preserve the existing auth gating, staged upload truthfulness, and helper-driven seam. Update/add tests or validators if needed, run relevant validation, update this plan with what actually changed, commit and push by default, and close the bead with a clear reason.
+
+**Folders Created/Deleted/Modified:**
+- `.plans/`
+- `.testbed/scenes/`
+- `.testbed/scripts/`
+- `.testbed/tests/`
+
+**Files Created/Deleted/Modified:**
+- `.plans/2026-06-01-aerobeat-vendor-modio-workout-upload-tab-audit.md`
+- `.testbed/scripts/modio_workout_browser_testbed.gd`
+- `.testbed/tests/validate_modio_testbed_scenes.gd`
+- `.testbed/tests/qa_verify_scene_output_updates.gd`
+- `.testbed/tests/test_modio_workout_browser_testbed.gd`
 
 **Status:** ✅ Complete
 
-**What We Built:** The full coder → QA → auditor loop is now complete. The repo ships a reusable repo-root staged workout upload helper in `src/modio_workout_upload_flow.gd`, an auth-gated `Upload Workout` tab in the default browser testbed that consumes that helper as a thin client, and focused helper/controller/scene validation that now stays green both in targeted runs and across the full `.testbed` GUT suite.
+**Results:** Refined the Upload Workout tab layout to reduce vertical space without touching the auth or backend seams. The form now keeps the existing `Workout Name | Name ID` row and adds the requested paired rows for `Summary | Description`, `Metadata | Tags`, and `Workout Logo | Workout ZIP`, while keeping `Version | Changelog` side by side as before. To make the primary action reliably reachable in viewport-limited test runs, the tab content now lives inside a dedicated vertical `ScrollContainer` (`UploadWorkoutScroll`) so the submit button and result/status region remain accessible even when the operator window is short.
 
-**Reference Check:** `REF-01` through `REF-07` are satisfied. `REF-04`/`REF-05` remain the source of truth for the real mod.io write seam, and the audit confirmed the staged create → upload → optional publish orchestration lives in the reusable helper rather than being duplicated inside the testbed. `REF-01` through `REF-03` remain aligned with the browser-scene insertion, restored session behavior, and auth gating. `REF-06` now truthfully supports the claims after the audit fix isolated the browser testbed session-path dependency from ambient operator state.
+The helper-driven staged upload contract is unchanged: the controller still gathers form data into `_state.upload_draft` and delegates submission through `_upload_flow.submit_workout(...)`, and the auth gating remains centralized in `_refresh_all_ui()` / `_on_upload_workout_pressed()`. Validation coverage was updated to assert the new scroll container and the three paired rows in the upload tab surface. Coder-owned validation passed with `godot --headless --path .testbed --import`, `godot --headless --path .testbed --script res://tests/validate_modio_testbed_scenes.gd`, `godot --headless --path .testbed --script res://tests/qa_verify_scene_output_updates.gd`, and `godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gtest=res://tests/test_modio_workout_browser_testbed.gd -gexit`.
+
+---
+
+### Task 6: QA the Upload Workout tab layout refinement
+
+**Bead ID:** `oc-co2m`  
+**SubAgent:** `primary` (for `qa`)  
+**Role:** `qa`  
+**References:** `REF-01`, `REF-02`, `REF-06`  
+**Prompt:** In `aerobeat-vendor-modio`, claim bead `oc-co2m` on start with `bd update oc-co2m --status in_progress --json`. Verify the Upload Workout tab layout refinement: the requested side-by-side rows are present, the upload action is reachable within the viewport, vertical scrolling exists if needed, and auth gating/validation/staged upload truthfulness did not regress. Run relevant validators/tests, record QA findings in this plan, commit and push by default if QA-sized fixes are needed, and close the bead with a clear reason.
+
+**Folders Created/Deleted/Modified:**
+- `.plans/`
+- `.testbed/`
+
+**Files Created/Deleted/Modified:**
+- `.plans/2026-06-01-aerobeat-vendor-modio-workout-upload-tab-audit.md`
+- `.testbed/tests/validate_modio_testbed_scenes.gd`
+- `.testbed/tests/qa_verify_scene_output_updates.gd`
+- `.testbed/tests/test_modio_workout_browser_testbed.gd`
+
+**Status:** ⏳ Pending
+
+**Results:** Pending.
+
+---
+
+### Task 7: Audit the Upload Workout tab layout refinement
+
+**Bead ID:** `oc-ygla`  
+**SubAgent:** `primary` (for `auditor`)  
+**Role:** `auditor`  
+**References:** `REF-01`, `REF-02`, `REF-06`  
+**Prompt:** In `aerobeat-vendor-modio`, claim bead `oc-ygla` on start with `bd update oc-ygla --status in_progress --json`. Independently audit the Upload Workout tab layout refinement for truthfulness, viewport usability, and regression-free behavior. Verify the requested side-by-side row layout landed, confirm the upload action is reachable and vertical scrolling exists if needed, verify the UI still delegates through the helper-driven seam, and ensure validation evidence supports the claim. Update this plan with the final audit verdict, commit and push by default if an audit-sized fix is needed, and close the bead with a clear reason.
+
+**Folders Created/Deleted/Modified:**
+- `.plans/`
+- `.testbed/`
+
+**Files Created/Deleted/Modified:**
+- `.plans/2026-06-01-aerobeat-vendor-modio-workout-upload-tab-audit.md`
+- `.testbed/`
+
+**Status:** ⏳ Pending
+
+**Results:** Pending.
+
+---
+
+## Final Results
+
+**Status:** ⚠️ In Progress
+
+**What We Built:** The original upload-tab implementation loop is complete, and a follow-up UI refinement loop is now active to address Derrick’s viewport/layout feedback for the `Upload Workout` tab.
+
+**Reference Check:** `REF-01` through `REF-07` remain the active source-of-truth set. The helper-driven staged upload seam stays approved; the new active slice is limited to layout density, upload-button reachability, and scroll behavior in the testbed UI.
 
 **Commits:**
 - `6212010` - `Add staged workout upload helper and testbed tab`
 - `47ea25c` - `Record QA verification for workout upload tab`
-- `(pending local commit)` - Audit fix for isolated testbed session config overrides and final audit plan update
+- `4613612` - `Audit workout upload tab validation seam`
 
-**Lessons Learned:** The real risk in this slice was less about missing mod.io backend coverage and more about keeping the operator-facing surface honest. The staged authoring contract needed to live in one reusable seam and the validation needed to be isolated from local machine/session state. Audit caught that second part: even when the feature implementation was sound, brittle evidence can undermine the claim. Isolating config paths for the browser testbed made the full-suite proof as truthful as the upload helper itself.
+**Lessons Learned:** The real risk in this slice was less about missing mod.io backend coverage and more about keeping the operator-facing surface honest. The staged authoring contract needed to live in one reusable seam and the validation needed to be isolated from local machine/session state. Audit caught that second part: even when the feature implementation was sound, brittle evidence can undermine the claim. The current follow-up is a narrower operator-UX refinement: preserve the same truthful seam while making the Upload tab denser and keeping the primary action reachable within the viewport.

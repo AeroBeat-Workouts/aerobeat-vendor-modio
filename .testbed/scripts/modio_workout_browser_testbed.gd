@@ -491,11 +491,25 @@ func _build_subscribed_tab() -> Control:
 func _build_upload_tab() -> Control:
 	var tab := VBoxContainer.new()
 	tab.name = "UploadWorkoutTab"
+	tab.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	tab.add_theme_constant_override("separation", 8)
+
+	var scroll := ScrollContainer.new()
+	scroll.name = "UploadWorkoutScroll"
+	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	tab.add_child(scroll)
+
+	var scroll_root := VBoxContainer.new()
+	scroll_root.name = "UploadWorkoutScrollRoot"
+	scroll_root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll_root.add_theme_constant_override("separation", 8)
+	scroll.add_child(scroll_root)
 
 	var intro_panel := PanelContainer.new()
 	intro_panel.name = "UploadWorkoutIntroPanel"
-	tab.add_child(intro_panel)
+	scroll_root.add_child(intro_panel)
 
 	var intro_margin := MarginContainer.new()
 	intro_margin.add_theme_constant_override("margin_left", 12)
@@ -520,7 +534,7 @@ func _build_upload_tab() -> Control:
 
 	var form_panel := PanelContainer.new()
 	form_panel.name = "UploadWorkoutFormPanel"
-	tab.add_child(form_panel)
+	scroll_root.add_child(form_panel)
 
 	var form_margin := MarginContainer.new()
 	form_margin.add_theme_constant_override("margin_left", 12)
@@ -530,89 +544,72 @@ func _build_upload_tab() -> Control:
 	form_panel.add_child(form_margin)
 
 	var form_root := VBoxContainer.new()
+	form_root.name = "UploadWorkoutFormRoot"
 	form_root.add_theme_constant_override("separation", 10)
 	form_margin.add_child(form_root)
 
 	var name_row := HBoxContainer.new()
+	name_row.name = "UploadWorkoutNameRow"
 	name_row.add_theme_constant_override("separation", 8)
 	form_root.add_child(name_row)
 
-	var name_box := VBoxContainer.new()
-	name_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	name_row.add_child(name_box)
-	name_box.add_child(_field_label("Workout Name"))
-	_upload_name_line_edit = LineEdit.new()
-	_upload_name_line_edit.name = "UploadWorkoutNameLineEdit"
-	_upload_name_line_edit.placeholder_text = "Cardio Blast 30"
-	name_box.add_child(_upload_name_line_edit)
-
-	var slug_box := VBoxContainer.new()
-	slug_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	name_row.add_child(slug_box)
-	slug_box.add_child(_field_label("Name ID / Slug (optional)"))
-	_upload_name_id_line_edit = LineEdit.new()
-	_upload_name_id_line_edit.name = "UploadWorkoutNameIdLineEdit"
-	_upload_name_id_line_edit.placeholder_text = "cardio-blast-30"
-	slug_box.add_child(_upload_name_id_line_edit)
-
-	form_root.add_child(_build_upload_text_line("Summary", "UploadWorkoutSummaryLineEdit", "Short operator-visible summary", func(control: LineEdit) -> void:
-		_upload_summary_line_edit = control
+	name_row.add_child(_build_upload_text_line("Workout Name", "UploadWorkoutNameLineEdit", "Cardio Blast 30", func(control: LineEdit) -> void:
+		_upload_name_line_edit = control
+	))
+	name_row.add_child(_build_upload_text_line("Name ID / Slug (optional)", "UploadWorkoutNameIdLineEdit", "cardio-blast-30", func(control: LineEdit) -> void:
+		_upload_name_id_line_edit = control
 	))
 
-	var description_box := VBoxContainer.new()
-	description_box.add_child(_field_label("Description"))
-	_upload_description_text_edit = TextEdit.new()
-	_upload_description_text_edit.name = "UploadWorkoutDescriptionTextEdit"
-	_upload_description_text_edit.custom_minimum_size = Vector2(0, 120)
-	description_box.add_child(_upload_description_text_edit)
-	form_root.add_child(description_box)
+	var summary_description_row := HBoxContainer.new()
+	summary_description_row.name = "UploadWorkoutSummaryDescriptionRow"
+	summary_description_row.add_theme_constant_override("separation", 8)
+	form_root.add_child(summary_description_row)
+	summary_description_row.add_child(_build_upload_text_line("Summary", "UploadWorkoutSummaryLineEdit", "Short operator-visible summary", func(control: LineEdit) -> void:
+		_upload_summary_line_edit = control
+	))
+	var description_box := _build_upload_multiline_box("Description", "UploadWorkoutDescriptionTextEdit", Vector2(0, 88), "", func(control: TextEdit) -> void:
+		_upload_description_text_edit = control
+	)
+	summary_description_row.add_child(description_box)
 
-	var metadata_box := VBoxContainer.new()
-	metadata_box.add_child(_field_label("Metadata KVP (required, one entry per line)"))
-	_upload_metadata_text_edit = TextEdit.new()
-	_upload_metadata_text_edit.name = "UploadWorkoutMetadataTextEdit"
-	_upload_metadata_text_edit.custom_minimum_size = Vector2(0, 96)
-	_upload_metadata_text_edit.placeholder_text = "difficulty=intermediate\ncoach=derrick"
-	metadata_box.add_child(_upload_metadata_text_edit)
-	form_root.add_child(metadata_box)
-
-	form_root.add_child(_build_upload_text_line("Tags (optional, comma-separated)", "UploadWorkoutTagsLineEdit", "cardio, endurance", func(control: LineEdit) -> void:
+	var metadata_tags_row := HBoxContainer.new()
+	metadata_tags_row.name = "UploadWorkoutMetadataTagsRow"
+	metadata_tags_row.add_theme_constant_override("separation", 8)
+	form_root.add_child(metadata_tags_row)
+	var metadata_box := _build_upload_multiline_box("Metadata KVP (required, one entry per line)", "UploadWorkoutMetadataTextEdit", Vector2(0, 88), "difficulty=intermediate\ncoach=derrick", func(control: TextEdit) -> void:
+		_upload_metadata_text_edit = control
+	)
+	metadata_tags_row.add_child(metadata_box)
+	metadata_tags_row.add_child(_build_upload_text_line("Tags (optional, comma-separated)", "UploadWorkoutTagsLineEdit", "cardio, endurance", func(control: LineEdit) -> void:
 		_upload_tags_line_edit = control
 	))
 
-	form_root.add_child(_build_upload_file_row("Workout Logo", "UploadWorkoutLogoPathLineEdit", "Choose the required logo image", "UploadWorkoutLogoBrowseButton", func(path_edit: LineEdit, browse_button: Button) -> void:
+	var file_row := HBoxContainer.new()
+	file_row.name = "UploadWorkoutFileRow"
+	file_row.add_theme_constant_override("separation", 8)
+	form_root.add_child(file_row)
+	file_row.add_child(_build_upload_file_row("Workout Logo", "UploadWorkoutLogoPathLineEdit", "Choose the required logo image", "UploadWorkoutLogoBrowseButton", func(path_edit: LineEdit, browse_button: Button) -> void:
 		_upload_logo_path_line_edit = path_edit
 		_upload_logo_browse_button = browse_button
 		browse_button.pressed.connect(_on_upload_logo_browse_pressed)
 	))
-
-	form_root.add_child(_build_upload_file_row("Workout ZIP", "UploadWorkoutZipPathLineEdit", "Choose the workout ZIP to upload", "UploadWorkoutZipBrowseButton", func(path_edit: LineEdit, browse_button: Button) -> void:
+	file_row.add_child(_build_upload_file_row("Workout ZIP", "UploadWorkoutZipPathLineEdit", "Choose the workout ZIP to upload", "UploadWorkoutZipBrowseButton", func(path_edit: LineEdit, browse_button: Button) -> void:
 		_upload_zip_path_line_edit = path_edit
 		_upload_zip_browse_button = browse_button
 		browse_button.pressed.connect(_on_upload_zip_browse_pressed)
 	))
 
 	var version_row := HBoxContainer.new()
+	version_row.name = "UploadWorkoutVersionRow"
 	version_row.add_theme_constant_override("separation", 8)
 	form_root.add_child(version_row)
-
-	var version_box := VBoxContainer.new()
-	version_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	version_row.add_child(version_box)
-	version_box.add_child(_field_label("Version (optional)"))
-	_upload_version_line_edit = LineEdit.new()
-	_upload_version_line_edit.name = "UploadWorkoutVersionLineEdit"
-	_upload_version_line_edit.placeholder_text = "1.0.0"
-	version_box.add_child(_upload_version_line_edit)
-
-	var changelog_box := VBoxContainer.new()
-	changelog_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	version_row.add_child(_build_upload_text_line("Version (optional)", "UploadWorkoutVersionLineEdit", "1.0.0", func(control: LineEdit) -> void:
+		_upload_version_line_edit = control
+	))
+	var changelog_box := _build_upload_multiline_box("Changelog (optional)", "UploadWorkoutChangelogTextEdit", Vector2(0, 88), "", func(control: TextEdit) -> void:
+		_upload_changelog_text_edit = control
+	)
 	version_row.add_child(changelog_box)
-	changelog_box.add_child(_field_label("Changelog (optional)"))
-	_upload_changelog_text_edit = TextEdit.new()
-	_upload_changelog_text_edit.name = "UploadWorkoutChangelogTextEdit"
-	_upload_changelog_text_edit.custom_minimum_size = Vector2(0, 96)
-	changelog_box.add_child(_upload_changelog_text_edit)
 
 	_upload_publish_checkbox = CheckBox.new()
 	_upload_publish_checkbox.name = "UploadWorkoutPublishCheckBox"
@@ -659,6 +656,7 @@ func _build_upload_tab() -> Control:
 
 func _build_upload_text_line(label_text: String, line_name: String, placeholder: String, assign: Callable) -> Control:
 	var box := VBoxContainer.new()
+	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	box.add_child(_field_label(label_text))
 	var line_edit := LineEdit.new()
 	line_edit.name = line_name
@@ -668,8 +666,22 @@ func _build_upload_text_line(label_text: String, line_name: String, placeholder:
 	assign.call(line_edit)
 	return box
 
+func _build_upload_multiline_box(label_text: String, control_name: String, minimum_size: Vector2, placeholder: String, assign: Callable) -> Control:
+	var box := VBoxContainer.new()
+	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	box.add_child(_field_label(label_text))
+	var text_edit := TextEdit.new()
+	text_edit.name = control_name
+	text_edit.custom_minimum_size = minimum_size
+	text_edit.placeholder_text = placeholder
+	text_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	box.add_child(text_edit)
+	assign.call(text_edit)
+	return box
+
 func _build_upload_file_row(label_text: String, line_name: String, placeholder: String, button_name: String, assign: Callable) -> Control:
 	var box := VBoxContainer.new()
+	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	box.add_child(_field_label(label_text))
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 8)

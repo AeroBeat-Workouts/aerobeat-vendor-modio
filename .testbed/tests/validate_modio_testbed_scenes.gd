@@ -55,6 +55,18 @@ func _validate_main_scene(failures: PackedStringArray) -> void:
 			failures.append("Main scene is missing upload controls.")
 		if not bool(summary.get("has_detail_overlay", false)):
 			failures.append("Main scene is missing the detail overlay.")
+	var upload_scroll := instance.find_child("UploadWorkoutScroll", true, false)
+	var upload_summary_description_row := instance.find_child("UploadWorkoutSummaryDescriptionRow", true, false)
+	var upload_metadata_tags_row := instance.find_child("UploadWorkoutMetadataTagsRow", true, false)
+	var upload_file_row := instance.find_child("UploadWorkoutFileRow", true, false)
+	if upload_scroll == null:
+		failures.append("Main scene is missing UploadWorkoutScroll.")
+	if upload_summary_description_row == null:
+		failures.append("Main scene is missing UploadWorkoutSummaryDescriptionRow.")
+	if upload_metadata_tags_row == null:
+		failures.append("Main scene is missing UploadWorkoutMetadataTagsRow.")
+	if upload_file_row == null:
+		failures.append("Main scene is missing UploadWorkoutFileRow.")
 	instance.queue_free()
 
 func _validate_smoke_scenes(failures: PackedStringArray) -> void:

@@ -58,6 +58,10 @@ func _verify_main_scene(failures: PackedStringArray) -> void:
 	var detail_download: Button = instance.find_child("DetailDownloadButton", true, false)
 	var detail_path: LineEdit = instance.find_child("DetailDownloadPathLineEdit", true, false)
 	var detail_panel: PanelContainer = instance.find_child("DetailPanel", true, false)
+	var upload_scroll: ScrollContainer = instance.find_child("UploadWorkoutScroll", true, false)
+	var upload_summary_description_row: HBoxContainer = instance.find_child("UploadWorkoutSummaryDescriptionRow", true, false)
+	var upload_metadata_tags_row: HBoxContainer = instance.find_child("UploadWorkoutMetadataTagsRow", true, false)
+	var upload_file_row: HBoxContainer = instance.find_child("UploadWorkoutFileRow", true, false)
 	var upload_name: LineEdit = instance.find_child("UploadWorkoutNameLineEdit", true, false)
 	var upload_logo: LineEdit = instance.find_child("UploadWorkoutLogoPathLineEdit", true, false)
 	var upload_zip: LineEdit = instance.find_child("UploadWorkoutZipPathLineEdit", true, false)
@@ -86,6 +90,14 @@ func _verify_main_scene(failures: PackedStringArray) -> void:
 			failures.append("Unexpected browser tab 4 title: %s" % tab_container.get_tab_title(4))
 		if not tab_container.is_tab_disabled(4):
 			failures.append("Upload Workout tab should start disabled until athlete auth exists")
+	if upload_scroll == null:
+		failures.append("Main scene missing UploadWorkoutScroll for viewport-safe upload access")
+	if upload_summary_description_row == null or upload_summary_description_row.get_child_count() != 2:
+		failures.append("Upload Workout tab is missing the paired Summary/Description row")
+	if upload_metadata_tags_row == null or upload_metadata_tags_row.get_child_count() != 2:
+		failures.append("Upload Workout tab is missing the paired Metadata/Tags row")
+	if upload_file_row == null or upload_file_row.get_child_count() != 2:
+		failures.append("Upload Workout tab is missing the paired Workout Logo/Workout ZIP row")
 	if upload_name == null or upload_logo == null or upload_zip == null or upload_button == null:
 		failures.append("Main scene missing staged upload controls")
 	elif not upload_button.disabled:
