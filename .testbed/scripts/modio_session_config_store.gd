@@ -26,11 +26,15 @@ func read_env_value(environment: String, key: String, path: String = ModioEnvLoa
 		return str(config.get_value(section, key, fallback)).strip_edges()
 	return fallback
 
+func save_environment(environment: String, path: String = ModioEnvLoader.CONFIG_SESSION_PATH) -> Dictionary:
+	var config := load_config(path)
+	var normalized_env := _normalize_environment(environment)
+	config.set_value("modio", "environment", normalized_env)
+	return _save_config(config, path)
+
 func save_session_values(environment: String, values: Dictionary, path: String = ModioEnvLoader.CONFIG_SESSION_PATH) -> Dictionary:
 	var config := load_config(path)
-	var normalized_env := environment.strip_edges().to_lower()
-	if normalized_env.is_empty():
-		normalized_env = ModioEnvLoader.DEFAULT_ENVIRONMENT
+	var normalized_env := _normalize_environment(environment)
 	config.set_value("modio", "environment", normalized_env)
 	var section := _section_name(normalized_env)
 	for key in values.keys():
@@ -39,6 +43,28 @@ func save_session_values(environment: String, values: Dictionary, path: String =
 			continue
 		var value_text := str(values[key]).strip_edges()
 		config.set_value(section, key_name, value_text)
+	return _save_config(config, path)
+
+func clear_session_values(environment: String, keys: PackedStringArray, path: String = ModioEnvLoader.CONFIG_SESSION_PATH) -> Dictionary:
+	var config := load_config(path)
+	var normalized_env := _normalize_environment(environment)
+	config.set_value("modio", "environment", normalized_env)
+	var section := _section_name(normalized_env)
+	for key in keys:
+		if config.has_section_key(section, key):
+			config.erase_section_key(section, key)
+	return _save_config(config, path)
+
+func _section_name(environment: String) -> String:
+	return "modio.%s" % _normalize_environment(environment)
+
+func _normalize_environment(environment: String) -> String:
+	var normalized_env := environment.strip_edges().to_lower()
+	if normalized_env.is_empty():
+		return ModioEnvLoader.DEFAULT_ENVIRONMENT
+	return normalized_env if normalized_env in ModioEnvLoader.VALID_ENVIRONMENTS else ModioEnvLoader.DEFAULT_ENVIRONMENT
+
+func _save_config(config: ConfigFile, path: String) -> Dictionary:
 	var global_path := get_global_storage_path(path)
 	var parent_dir := global_path.get_base_dir()
 	if not DirAccess.dir_exists_absolute(parent_dir):
@@ -50,25 +76,3 @@ func save_session_values(environment: String, values: Dictionary, path: String =
 		"global_path": global_path,
 		"error_code": save_error
 	}
-
-func clear_session_values(environment: String, keys: PackedStringArray, path: String = ModioEnvLoader.CONFIG_SESSION_PATH) -> Dictionary:
-	var config := load_config(path)
-	var normalized_env := environment.strip_edges().to_lower()
-	if normalized_env.is_empty():
-		normalized_env = ModioEnvLoader.DEFAULT_ENVIRONMENT
-	config.set_value("modio", "environment", normalized_env)
-	var section := _section_name(normalized_env)
-	for key in keys:
-		if config.has_section_key(section, key):
-			config.erase_section_key(section, key)
-	var global_path := get_global_storage_path(path)
-	var save_error := config.save(global_path)
-	return {
-		"ok": save_error == OK,
-		"path": path,
-		"global_path": global_path,
-		"error_code": save_error
-	}
-
-func _section_name(environment: String) -> String:
-	return "modio.%s" % environment.strip_edges().to_lower()

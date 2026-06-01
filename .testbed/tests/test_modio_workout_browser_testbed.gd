@@ -85,6 +85,93 @@ class RestoreAuthRejectManagerFactory:
 	func build_manager(_config, _state):
 		return RestoreAuthRejectManager.new()
 
+class ExchangeSuccessManager:
+	extends RefCounted
+
+	func execute_adapter_request(builder_method: StringName, builder_args: Array = []) -> Dictionary:
+		var method_name := String(builder_method)
+		if method_name == "build_auth_exchange_request":
+			return {
+				"ok": true,
+				"status_code": 200,
+				"payload": {
+					"access_token": "test-token-fresh",
+					"date_expires": 4102444800
+				}
+			}
+		if method_name == "build_authenticated_user_request":
+			return {
+				"ok": true,
+				"status_code": 200,
+				"payload": {
+					"id": 5555,
+					"username": "test-athlete",
+					"name_id": "test-athlete"
+				}
+			}
+		if method_name in ["build_user_wallet_request", "build_user_purchased_request", "build_listing_request"]:
+			return {
+				"ok": true,
+				"status_code": 200,
+				"payload": {
+					"data": [],
+					"result_total": 0,
+					"result_count": 0,
+					"result_limit": 9,
+					"result_offset": 0
+				}
+			}
+		return {"ok": true, "status_code": 200, "payload": {}}
+
+	func normalize_with_adapter(normalizer_method: StringName, normalizer_args: Array = []):
+		var method_name := String(normalizer_method)
+		if method_name == "normalize_access_token_response":
+			return {
+				"access_token": "test-token-fresh",
+				"expires_at": 4102444800
+			}
+		if method_name == "normalize_authenticated_user_response":
+			return normalizer_args[0] if normalizer_args.size() > 0 else {}
+		if method_name == "normalize_user_wallet_response":
+			return {
+				"type": "virtual",
+				"currency": "USD",
+				"balance": 0,
+				"pending_balance": 0,
+				"deficit": 0,
+				"monetization_status": 0
+			}
+		if method_name == "normalize_user_purchased_response":
+			return {"data": [], "result_total": 0}
+		if method_name == "normalize_mod_list_response":
+			return {
+				"data": [],
+				"result_total": 0,
+				"result_count": 0,
+				"result_limit": 9,
+				"result_offset": 0,
+				"page": {
+					"count": 0,
+					"offset": 0,
+					"limit": 9,
+					"total": 0,
+					"has_next": false,
+					"has_previous": false,
+					"next_offset": -1,
+					"previous_offset": -1,
+					"page_index": 0,
+					"page_count": 0
+				}
+			}
+		return normalizer_args[0] if normalizer_args.size() > 0 else {}
+
+class ExchangeSuccessManagerFactory:
+	extends RefCounted
+
+	func build_manager(_config, _state):
+		return ExchangeSuccessManager.new()
+
+
 func before_each() -> void:
 	_session_backup_exists = FileAccess.file_exists(SESSION_PATH)
 	if _session_backup_exists:
@@ -534,6 +621,134 @@ func test_upload_submit_surfaces_failed_step_reason_in_result_panel() -> void:
 	assert_string_contains(upload_result.text, "metadata_blob: The \"metadata_blob\" must be a string.")
 	assert_string_contains(upload_result.text, "error_ref=13009")
 	assert_true(browser_state.raw_debug_sections.has("upload_attempt"))
+
+	scene.queue_free()
+	await get_tree().process_frame
+
+func test_switching_to_test_environment_loads_test_bucket_and_keeps_live_bucket_intact_on_exchange() -> void:
+	_write_text(SESSION_PATH, "".join([
+		"[modio]\n",
+		"\n",
+		"environment=\"live\"\n",
+		"host_kind=\"\"\n",
+		"\n",
+		"[modio.test]\n",
+		"\n",
+		"access_token=\"\"\n",
+		"email=\"test-athlete@example.com\"\n",
+		"last_requested_email=\"test-athlete@example.com\"\n",
+		"browser_tab=\"public\"\n",
+		"\n",
+		"[modio.live]\n",
+		"\n",
+		"access_token=\"live-existing-token\"\n",
+		"access_token_expires_at=\"4102444700\"\n",
+		"user_id=\"live-user\"\n",
+		"email=\"live-athlete@example.com\"\n",
+		"last_requested_email=\"live-athlete@example.com\"\n",
+		"browser_tab=\"profile\"\n"
+	]))
+
+	var scene: Control = _instantiate_scene()
+	var manager_factory := ExchangeSuccessManagerFactory.new()
+	scene.call("set_manager_factory_for_testing", Callable(manager_factory, "build_manager"))
+	get_tree().root.add_child(scene)
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+	var browser_state: ModioWorkoutBrowserState = scene.get("_state")
+	var server_option: OptionButton = scene.find_child("ServerOptionButton", true, false)
+	var email_line: LineEdit = scene.find_child("EmailLineEdit", true, false)
+	var code_line: LineEdit = scene.find_child("SecurityCodeLineEdit", true, false)
+	assert_not_null(browser_state)
+	assert_not_null(server_option)
+	assert_not_null(email_line)
+	assert_not_null(code_line)
+	assert_eq(browser_state.environment, "live")
+	assert_eq(browser_state.access_token, "live-existing-token")
+
+	server_option.select(0)
+	scene.call("_on_connection_field_changed", 0)
+	await get_tree().process_frame
+
+	assert_eq(browser_state.environment, "test")
+	assert_eq(browser_state.access_token, "")
+	assert_eq(email_line.text, "test-athlete@example.com")
+
+	code_line.text = "123456"
+	scene.call("_on_exchange_code_pressed")
+	await get_tree().process_frame
+
+	assert_eq(browser_state.environment, "test")
+	assert_eq(browser_state.access_token, "test-token-fresh")
+	assert_eq(browser_state.access_token_expires_at, 4102444800)
+	assert_eq(_read_session_value("modio", "environment"), "test")
+	assert_eq(_read_session_value("modio.test", "access_token"), "test-token-fresh")
+	assert_eq(_read_session_value("modio.test", "access_token_expires_at"), "4102444800")
+	assert_eq(_read_session_value("modio.test", "user_id"), "5555")
+	assert_eq(_read_session_value("modio.test", "email"), "test-athlete@example.com")
+	assert_eq(_read_session_value("modio.live", "access_token"), "live-existing-token")
+	assert_eq(_read_session_value("modio.live", "user_id"), "live-user")
+	assert_eq(_read_session_value("modio.live", "email"), "live-athlete@example.com")
+
+	scene.queue_free()
+	await get_tree().process_frame
+
+func test_clear_session_uses_active_environment_bucket_without_touching_other_bucket() -> void:
+	_write_text(SESSION_PATH, "".join([
+		"[modio]\n",
+		"\n",
+		"environment=\"live\"\n",
+		"host_kind=\"\"\n",
+		"\n",
+		"[modio.test]\n",
+		"\n",
+		"access_token=\"test-token\"\n",
+		"access_token_expires_at=\"4102444800\"\n",
+		"user_id=\"test-user\"\n",
+		"email=\"test-athlete@example.com\"\n",
+		"last_requested_email=\"test-athlete@example.com\"\n",
+		"browser_tab=\"profile\"\n",
+		"\n",
+		"[modio.live]\n",
+		"\n",
+		"access_token="live-token"\n",
+		"access_token_expires_at=\"4102444700\"\n",
+		"user_id=\"live-user\"\n",
+		"email=\"live-athlete@example.com\"\n",
+		"last_requested_email=\"live-athlete@example.com\"\n",
+		"browser_tab=\"profile\"\n"
+	]))
+
+	var scene: Control = _instantiate_scene()
+	get_tree().root.add_child(scene)
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+	var browser_state: ModioWorkoutBrowserState = scene.get("_state")
+	var server_option: OptionButton = scene.find_child("ServerOptionButton", true, false)
+	assert_not_null(browser_state)
+	assert_not_null(server_option)
+	assert_eq(browser_state.environment, "live")
+
+	server_option.select(0)
+	scene.call("_on_connection_field_changed", 0)
+	await get_tree().process_frame
+
+	assert_eq(browser_state.environment, "test")
+	assert_eq(browser_state.access_token, "test-token")
+	scene.call("_on_clear_session_pressed")
+	await get_tree().process_frame
+
+	assert_eq(_read_session_value("modio", "environment"), "test")
+	assert_eq(_read_session_value("modio.test", "access_token"), "")
+	assert_eq(_read_session_value("modio.test", "access_token_expires_at"), "")
+	assert_eq(_read_session_value("modio.test", "user_id"), "")
+	assert_eq(_read_session_value("modio.test", "email"), "")
+	assert_eq(_read_session_value("modio.live", "access_token"), "live-token")
+	assert_eq(_read_session_value("modio.live", "access_token_expires_at"), "4102444700")
+	assert_eq(_read_session_value("modio.live", "user_id"), "live-user")
+	assert_eq(_read_session_value("modio.live", "email"), "live-athlete@example.com")
 
 	scene.queue_free()
 	await get_tree().process_frame

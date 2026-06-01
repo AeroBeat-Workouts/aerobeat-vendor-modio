@@ -26,6 +26,21 @@ func test_save_session_values_persists_environment_token_and_email() -> void:
 	assert_eq(store.read_env_value("live", "email", SESSION_PATH), "athlete@example.com")
 	assert_eq(store.read_env_value("live", "browser_tab", SESSION_PATH), "profile")
 
+func test_save_environment_updates_selector_without_overwriting_existing_bucket_values() -> void:
+	var store := ModioSessionConfigStore.new()
+	store.save_session_values("live", {
+		"access_token": "live-token",
+		"email": "live-athlete@example.com"
+	}, SESSION_PATH)
+
+	var result := store.save_environment("test", SESSION_PATH)
+
+	assert_true(result.ok)
+	assert_eq(store.read_environment(SESSION_PATH), "test")
+	assert_eq(store.read_env_value("live", "access_token", SESSION_PATH), "live-token")
+	assert_eq(store.read_env_value("live", "email", SESSION_PATH), "live-athlete@example.com")
+	assert_eq(store.read_env_value("test", "access_token", SESSION_PATH), "")
+
 func test_clear_session_values_removes_only_requested_keys() -> void:
 	var store := ModioSessionConfigStore.new()
 	store.save_session_values("test", {

@@ -1000,16 +1000,50 @@ func _load_initial_state() -> void:
 	_state.environment = resolved_env
 	_state.game_id = _base_config.game_id
 	_state.api_key = _base_config.api_key
-	_state.access_token = _base_config.access_token
-	_state.access_token_expires_at = _read_saved_access_token_expiry(resolved_env, session_config_path)
-	_state.user_id = _base_config.user_id
-	_state.email = _store.read_env_value(resolved_env, "email", session_config_path)
-	_state.last_requested_email = _store.read_env_value(resolved_env, "last_requested_email", session_config_path, _state.email)
-	_state.active_tab = _store.read_env_value(resolved_env, "browser_tab", session_config_path, ModioWorkoutBrowserState.TAB_PUBLIC)
+	_load_session_bucket_into_state(resolved_env)
 	_seed_upload_draft_defaults()
-	_state.raw_debug_sections["saved_token_restore_note"] = _build_saved_token_restore_note()
 	_state.status_text = "Public browsing auto-loads when valid Game ID + API Key are already configured. Athlete-only tabs unlock after email-code auth."
 	_rebuild_manager()
+
+func _normalize_environment(environment: String) -> String:
+	var candidate := environment.strip_edges().to_lower()
+	return candidate if candidate in ModioEnvLoader.VALID_ENVIRONMENTS else ModioEnvLoader.DEFAULT_ENVIRONMENT
+
+func _selected_environment_from_server_option() -> String:
+	if is_instance_valid(_server_option_button):
+		return ModioEnvLoader.ENV_TEST if _server_option_button.selected == 0 else ModioEnvLoader.ENV_LIVE
+	return _normalize_environment(_state.environment)
+
+func _load_session_bucket_into_state(environment: String) -> void:
+	var normalized_env := _normalize_environment(environment)
+	var session_config_path := _session_config_path()
+	_state.environment = normalized_env
+	_state.access_token = _store.read_env_value(normalized_env, "access_token", session_config_path)
+	_state.access_token_expires_at = _read_saved_access_token_expiry(normalized_env, session_config_path)
+	_state.user_id = _store.read_env_value(normalized_env, "user_id", session_config_path)
+	_state.email = _store.read_env_value(normalized_env, "email", session_config_path)
+	_state.last_requested_email = _store.read_env_value(normalized_env, "last_requested_email", session_config_path, _state.email)
+	_state.active_tab = _store.read_env_value(normalized_env, "browser_tab", session_config_path, ModioWorkoutBrowserState.TAB_PUBLIC)
+	_state.profile = {}
+	_state.wallet = {}
+	_state.purchased = {"data": [], "result_total": 0}
+	_state.raw_debug_sections["profile"] = {}
+	_state.raw_debug_sections["wallet"] = {}
+	_state.raw_debug_sections["purchased"] = {}
+	_state.raw_debug_sections["saved_token_restore_note"] = _build_saved_token_restore_note()
+
+func _sync_environment_from_selector(load_session_bucket: bool = false, persist_selection: bool = false) -> String:
+	var selected_environment := _selected_environment_from_server_option()
+	var environment_changed := selected_environment != _state.environment
+	if load_session_bucket and (environment_changed or _state.access_token.is_empty()):
+		_load_session_bucket_into_state(selected_environment)
+	else:
+		_state.environment = selected_environment
+	if persist_selection:
+		_store.save_environment(selected_environment, _session_config_path())
+	if environment_changed or load_session_bucket:
+		_rebuild_manager()
+	return selected_environment
 
 func _seed_upload_draft_defaults() -> void:
 	var seeded_metadata := _default_upload_metadata_text()
@@ -1156,6 +1190,7 @@ func _restore_saved_runtime_state() -> void:
 		_refresh_profile_data(false, true)
 
 func _persist_session_state(extra_values: Dictionary = {}) -> Dictionary:
+	_sync_environment_from_selector(false, false)
 	var values := {
 		"access_token": _state.access_token,
 		"access_token_expires_at": str(_state.access_token_expires_at),
@@ -1855,6 +1890,7 @@ func _on_upload_workout_pressed() -> void:
 	_refresh_all_ui()
 
 func _on_request_code_pressed() -> void:
+	_sync_environment_from_selector(false, true)
 	var email := _email_line_edit.text.strip_edges()
 	if email.is_empty():
 		_set_status("Enter an email before requesting a security code.")
@@ -1872,6 +1908,7 @@ func _on_request_code_pressed() -> void:
 	_set_status(_response_error_message(response, "Failed to request a security code."))
 
 func _on_exchange_code_pressed(_submitted_text: String = "") -> void:
+	_sync_environment_from_selector(false, true)
 	var code := _security_code_line_edit.text.strip_edges()
 	if code.is_empty():
 		_set_status("Paste the emailed security code before exchanging it.")
@@ -1899,6 +1936,7 @@ func _on_exchange_code_pressed(_submitted_text: String = "") -> void:
 	_refresh_profile_data(true)
 
 func _on_clear_session_pressed() -> void:
+	_sync_environment_from_selector(true, true)
 	_state.clear_session()
 	_state.email = ""
 	_state.last_requested_email = ""
@@ -2023,14 +2061,15 @@ func _on_tab_changed(index: int) -> void:
 	_persist_session_state()
 
 func _on_connection_field_changed(_index: int) -> void:
-	_state.environment = ModioEnvLoader.ENV_TEST if _server_option_button.selected == 0 else ModioEnvLoader.ENV_LIVE
+	_sync_environment_from_selector(true, true)
+	_refresh_all_ui()
 
 func _on_connection_text_changed(_new_text: String) -> void:
 	_state.game_id = _game_id_line_edit.text.strip_edges()
 	_state.api_key = _api_key_line_edit.text.strip_edges()
 
 func _on_apply_connection_pressed(_submitted_text: String = "") -> void:
-	_state.environment = ModioEnvLoader.ENV_TEST if _server_option_button.selected == 0 else ModioEnvLoader.ENV_LIVE
+	_sync_environment_from_selector(false, true)
 	_state.game_id = _game_id_line_edit.text.strip_edges()
 	_state.api_key = _api_key_line_edit.text.strip_edges()
 	_rebuild_manager()
