@@ -2,7 +2,7 @@
 
 **Date:** 2026-06-01
 **Status:** In Progress
-**Last Updated:** 2026-06-01 09:25 EDT
+**Last Updated:** 2026-06-01 10:31 EDT
 **Blocked Reason:** None
 **Agent:** `chip`
 
@@ -456,9 +456,13 @@ Focused regression coverage was added for all requested seams: session-config pe
 - `.testbed/`
 - `src/`
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** QA passed without needing a fix. The token-lifetime slice now behaves truthfully across the seams called out in Task 12. Expiry metadata is persisted alongside saved bearer/session data: `_persist_session_state()` writes `access_token_expires_at`, `ModioSessionConfigStore` preserves it in the session config, and focused session-store coverage asserts the value is saved and readable. On startup, `_load_initial_state()` restores that saved expiry into `ModioWorkoutBrowserState.access_token_expires_at`, and the auth UI now reports either the saved expiry timestamp, an explicit expired state, or the truthful fallback that the provider did not return expiry metadata.
+
+The stale-auth handling claims are also true. If a saved token is already obviously expired, `_restore_saved_runtime_state()` clears the persisted bearer/session keys before attempting profile rehydration, preventing ghost-authenticated startup state; the browser test suite verifies both the in-memory state reset and the cleared config entries. For restore-time token-related failures, `_refresh_profile_data(..., restoring_saved_token=true)` identifies clear auth rejection cases and invalidates only the saved bearer/session keys (`access_token`, `access_token_expires_at`, `user_id`) while preserving `email` and `last_requested_email` so the athlete can re-run email-code auth cleanly. The UI/copy stays truthful about the max requested lifetime and the actual saved expiry.
+
+Regression coverage stayed green. QA reran `godot --headless --path .testbed --import`, `godot --headless --path .testbed --script res://tests/validate_modio_testbed_scenes.gd`, `godot --headless --path .testbed --script res://tests/qa_verify_scene_output_updates.gd`, the focused GUT pass for `res://tests/test_modio_session_config_store.gd` + `res://tests/test_modio_workout_browser_testbed.gd`, and the full `addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit` suite. All passed. The only remaining note is the pre-existing non-failing Float/Int comparison warning in `test_modio_vendor_adapter.gd`, plus the known non-failing ObjectDB/resources-at-exit warning from the scene QA harness; neither is introduced by this auth-expiry slice.
 
 ---
 
@@ -477,20 +481,22 @@ Focused regression coverage was added for all requested seams: session-config pe
 
 **Files Created/Deleted/Modified:**
 - `.plans/2026-06-01-aerobeat-vendor-modio-workout-upload-tab-audit.md`
-- `.testbed/`
-- `src/`
+- `.testbed/scripts/modio_workout_browser_testbed.gd`
+- `.testbed/tests/test_modio_workout_browser_testbed.gd`
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** Independent audit passed after one audit-sized validation-seam fix. The implementation itself was already correct against Task 12’s findings: `_on_exchange_code_pressed()` now normalizes/stores the returned auth expiry, `_persist_session_state()` writes `access_token_expires_at`, `_load_initial_state()` restores it into `ModioWorkoutBrowserState`, and the auth-state copy truthfully distinguishes known expiry, already-expired saved auth, and the provider-did-not-return-expiry case. The stale-auth behavior is also correct in code: `_restore_saved_runtime_state()` pre-clears obviously expired saved auth before any `/me` restore attempt, and `_refresh_profile_data(..., restoring_saved_token=true)` invalidates only `access_token`, `access_token_expires_at`, and `user_id` on clearly token-related restore failure while preserving `email` and `last_requested_email` for clean re-auth.
+
+The audit-sized gap was in evidence, not behavior: the browser tests covered helper-level invalidation but did not execute the real restore-time `/me` rejection path end to end. I fixed that by adding a narrow test-only manager-factory seam in `.testbed/scripts/modio_workout_browser_testbed.gd` and a new regression test that boots the scene with a saved future-dated token, forces `build_authenticated_user_request` to fail with a token-auth rejection during startup restore, and verifies that the scene clears persisted bearer/session keys while preserving email context and truthful auth copy. After the fix, audit validation passed with `godot --headless --path .testbed --script res://tests/validate_modio_testbed_scenes.gd`, `godot --headless --path .testbed --script res://tests/qa_verify_scene_output_updates.gd`, the focused GUT pass for `res://tests/test_modio_session_config_store.gd` + `res://tests/test_modio_workout_browser_testbed.gd`, and the full `addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit` suite (`114/114` passing, with the same pre-existing non-failing Float/Int warning in `test_modio_vendor_adapter.gd` and the known browser-test ObjectDB/resources-at-exit warning).
 
 ---
 
 ## Final Results
 
-**Status:** ⚠️ In Progress
+**Status:** ✅ Complete
 
-**What We Built:** The default mod.io browser testbed still uses the reusable helper-driven `Upload Workout` tab and now also seeds truthful metadata for vendor-seam testing instead of guessed taxonomy examples. The new cross-repo seam is in place: `aerobeat-tool-device-detection` now exposes a dedicated helper that normalizes detected-device JSON into stable mod.io metadata KVP pairs, and `aerobeat-vendor-modio` consumes that helper in the upload testbed to prefill deterministic device-derived metadata alongside explicit seeded fields like `aerobeat_version=1.0.0`. Public AeroBeat taxonomy stays in Tags, with the seeded/default tag example set to `boxing, easy, edm` instead of the prior misleading metadata-first examples. A focused token-lifetime implementation loop is now active to persist auth expiry and cleanly invalidate stale saved tokens.
+**What We Built:** The default mod.io browser testbed still uses the reusable helper-driven `Upload Workout` tab and now also seeds truthful metadata for vendor-seam testing instead of guessed taxonomy examples. The new cross-repo seam is in place: `aerobeat-tool-device-detection` now exposes a dedicated helper that normalizes detected-device JSON into stable mod.io metadata KVP pairs, and `aerobeat-vendor-modio` consumes that helper in the upload testbed to prefill deterministic device-derived metadata alongside explicit seeded fields like `aerobeat_version=1.0.0`. Public AeroBeat taxonomy stays in Tags, with the seeded/default tag example set to `boxing, easy, edm` instead of the prior misleading metadata-first examples. The token-lifetime slice is now implemented, QA-verified, and audit-verified: saved auth expiry is persisted/restored, obviously expired auth is pre-cleared on startup, and restore-time token rejection clears invalid saved bearer state while preserving email context for re-auth.
 
 **Reference Check:** `REF-01` through `REF-07` remain the active source-of-truth set, now supplemented by the current online mod.io REST/docs pages for Add Mod Tags, Add/Get Mod KVP Metadata, Game Object `tag_options`, Mod Object, Edit Mod, and Filtering. This coder slice follows that guidance directly: `feature` / `difficulty` / `genre` remain tag-space concerns per `REF-07`, while `metadata_kvp` is kept for structured provider/tool metadata. The new device helper only emits stable/useful hardware fields and intentionally excludes privacy-heavy or noisy fields, matching the approved slice requirements.
 

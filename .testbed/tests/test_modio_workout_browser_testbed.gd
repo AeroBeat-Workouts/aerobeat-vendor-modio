@@ -30,6 +30,61 @@ class MockUploadFlow:
 		})
 		return response.duplicate(true)
 
+class RestoreAuthRejectManager:
+	extends RefCounted
+
+	func execute_adapter_request(builder_method: StringName, _builder_args: Array = []) -> Dictionary:
+		if String(builder_method) == "build_authenticated_user_request":
+			return {
+				"ok": false,
+				"status_code": 401,
+				"error": {
+					"category": "auth",
+					"message": "Bearer token expired",
+					"should_clear_session": true
+				}
+			}
+		return {
+			"ok": true,
+			"status_code": 200,
+			"payload": {
+				"data": [],
+				"result_total": 0,
+				"result_count": 0,
+				"result_limit": 9,
+				"result_offset": 0
+			}
+		}
+
+	func normalize_with_adapter(normalizer_method: StringName, normalizer_args: Array = []):
+		if String(normalizer_method) == "normalize_mod_list_response":
+			return {
+				"data": [],
+				"result_total": 0,
+				"result_count": 0,
+				"result_limit": 9,
+				"result_offset": 0,
+				"page": {
+					"count": 0,
+					"offset": 0,
+					"limit": 9,
+					"total": 0,
+					"has_next": false,
+					"has_previous": false,
+					"next_offset": -1,
+					"previous_offset": -1,
+					"page_index": 0,
+					"page_count": 0
+				}
+			}
+		return normalizer_args[0] if normalizer_args.size() > 0 else {}
+
+class RestoreAuthRejectManagerFactory:
+	extends RefCounted
+
+	func build_manager(_config, _state):
+		return RestoreAuthRejectManager.new()
+
 func before_each() -> void:
 	_session_backup_exists = FileAccess.file_exists(SESSION_PATH)
 	if _session_backup_exists:
@@ -110,6 +165,50 @@ func test_ready_clears_saved_auth_when_known_expiry_is_already_past() -> void:
 	assert_string_contains(auth_state.text, "Stored token expired at")
 	assert_eq(_read_session_value("modio.test", "access_token"), "")
 	assert_eq(_read_session_value("modio.test", "access_token_expires_at"), "")
+
+	scene.queue_free()
+	await get_tree().process_frame
+
+func test_restore_saved_token_rejection_path_clears_saved_auth_and_preserves_email() -> void:
+	var future_expiry := int(Time.get_unix_time_from_system()) + 3600
+	_write_text(SESSION_PATH, "".join([
+		"[modio]\n",
+		"\n",
+		"environment=\"test\"\n",
+		"host_kind=\"\"\n",
+		"\n",
+		"[modio.test]\n",
+		"\n",
+		"access_token=\"reject-me\"\n",
+		"access_token_expires_at=\"%s\"\n" % str(future_expiry),
+		"user_id=\"cached-user\"\n",
+		"email=\"athlete@example.com\"\n",
+		"last_requested_email=\"athlete@example.com\"\n",
+		"browser_tab=\"profile\"\n"
+	]))
+
+	var scene: Control = _instantiate_scene()
+	var manager_factory := RestoreAuthRejectManagerFactory.new()
+	scene.call("set_manager_factory_for_testing", Callable(manager_factory, "build_manager"))
+	get_tree().root.add_child(scene)
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+	var browser_state: ModioWorkoutBrowserState = scene.get("_state")
+	var auth_state: Label = scene.find_child("AuthStateLabel", true, false)
+	assert_not_null(browser_state)
+	assert_not_null(auth_state)
+	assert_eq(browser_state.access_token, "")
+	assert_eq(browser_state.access_token_expires_at, 0)
+	assert_eq(browser_state.user_id, "")
+	assert_eq(browser_state.email, "athlete@example.com")
+	assert_eq(browser_state.last_requested_email, "athlete@example.com")
+	assert_string_contains(auth_state.text, "mod.io rejected the saved bearer token")
+	assert_eq(_read_session_value("modio.test", "access_token"), "")
+	assert_eq(_read_session_value("modio.test", "access_token_expires_at"), "")
+	assert_eq(_read_session_value("modio.test", "user_id"), "")
+	assert_eq(_read_session_value("modio.test", "email"), "athlete@example.com")
+	assert_eq(_read_session_value("modio.test", "last_requested_email"), "athlete@example.com")
 
 	scene.queue_free()
 	await get_tree().process_frame

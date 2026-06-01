@@ -54,7 +54,7 @@ const UPLOAD_METADATA_DEVICE_SEED := {
 var _loader := ModioEnvLoader.new()
 var _store := ModioSessionConfigStore.new()
 var _state := ModioWorkoutBrowserState.new()
-var _manager: AeroModIOManager
+var _manager = null
 var _base_config: ModioClientConfig
 var _upload_flow = ModioWorkoutUploadFlow.new()
 var _image_cache: Dictionary = {}
@@ -144,6 +144,7 @@ var _detail_status_label: Label
 var _detail_file_dialog: FileDialog
 var _detail_entry: Dictionary = {}
 var _detail_action_mode: String = ""
+var _manager_factory: Callable = Callable()
 
 func _ready() -> void:
 	name = "WorkoutBrowserTestbed"
@@ -157,6 +158,9 @@ func _ready() -> void:
 func set_config_paths_for_testing(stable_path: String = "", session_path: String = "") -> void:
 	_stable_config_path_override = stable_path.strip_edges()
 	_session_config_path_override = session_path.strip_edges()
+
+func set_manager_factory_for_testing(factory: Callable) -> void:
+	_manager_factory = factory
 
 func _stable_config_path() -> String:
 	return _stable_config_path_override if not _stable_config_path_override.is_empty() else ModioEnvLoader.CONFIG_STABLE_PATH
@@ -1031,7 +1035,7 @@ func _rebuild_manager() -> void:
 	var owned_mod_id := _base_config.owned_mod_id if _base_config != null else ""
 	var paid_mod_id := _base_config.paid_mod_id if _base_config != null else ""
 	var accept_language := _base_config.accept_language if _base_config != null else ModioClientConfig.DEFAULT_ACCEPT_LANGUAGE
-	_manager = AeroModIOManager.new(ModioClientConfig.new(
+	var config := ModioClientConfig.new(
 		_state.game_id,
 		_state.api_key,
 		"",
@@ -1046,7 +1050,13 @@ func _rebuild_manager() -> void:
 		monetization_team_id,
 		owned_mod_id,
 		paid_mod_id
-	))
+	)
+	if _manager_factory.is_valid():
+		var built_manager = _manager_factory.call(config, _state)
+		if built_manager != null:
+			_manager = built_manager
+			return
+	_manager = AeroModIOManager.new(config)
 
 func _refresh_all_ui() -> void:
 	_server_option_button.select(0 if _state.environment == ModioEnvLoader.ENV_TEST else 1)
@@ -1730,7 +1740,7 @@ func _download_selected_mod() -> void:
 
 func _fetch_fresh_detail_entry(mod_id: String) -> Dictionary:
 	_rebuild_manager()
-	var response := _manager.execute_adapter_request("build_mod_detail_request", [mod_id])
+	var response: Dictionary = _manager.execute_adapter_request("build_mod_detail_request", [mod_id])
 	if not bool(response.get("ok", false)):
 		_detail_status_label.text = _response_error_message(response, "Failed to refresh workout detail before downloading.")
 		return {}
@@ -1831,7 +1841,7 @@ func _on_upload_workout_pressed() -> void:
 		_refresh_all_ui()
 		return
 	_rebuild_manager()
-	var result := _upload_flow.submit_workout(_manager, _state.upload_draft)
+	var result: Dictionary = _upload_flow.submit_workout(_manager, _state.upload_draft)
 	_state.upload_result = result
 	_state.upload_status_text = str(result.get("message", "Workout upload attempt finished.")).strip_edges()
 	_set_status(_state.upload_status_text)
@@ -1846,7 +1856,7 @@ func _on_request_code_pressed() -> void:
 	_state.last_requested_email = email
 	_persist_session_state()
 	_rebuild_manager()
-	var response := _manager.execute_adapter_request("build_email_security_code_request", [email])
+	var response: Dictionary = _manager.execute_adapter_request("build_email_security_code_request", [email])
 	if bool(response.get("ok", false)):
 		_state.raw_debug_sections["email_request"] = response.get("payload", {})
 		_set_status("Security code requested for %s. Check the inbox, then use emailexchange below." % email)
@@ -1861,7 +1871,7 @@ func _on_exchange_code_pressed(_submitted_text: String = "") -> void:
 		return
 	_rebuild_manager()
 	var requested_expiry := Time.get_unix_time_from_system() + AUTH_TOKEN_REQUEST_MAX_SECONDS
-	var response := _manager.execute_adapter_request("build_auth_exchange_request", [code, requested_expiry])
+	var response: Dictionary = _manager.execute_adapter_request("build_auth_exchange_request", [code, requested_expiry])
 	if not bool(response.get("ok", false)):
 		_set_status(_response_error_message(response, "Failed to exchange the security code."))
 		return
@@ -1902,7 +1912,7 @@ func _refresh_profile_data(open_profile_tab: bool, restoring_saved_token: bool =
 		_refresh_all_ui()
 		return
 	_rebuild_manager()
-	var me_response := _manager.execute_adapter_request("build_authenticated_user_request")
+	var me_response: Dictionary = _manager.execute_adapter_request("build_authenticated_user_request")
 	if not bool(me_response.get("ok", false)):
 		if restoring_saved_token and _is_clearly_token_related_failure(me_response):
 			var invalid_reason := "Stored token restore failed because mod.io rejected the saved bearer token%s. Saved athlete auth was cleared." % (" (it had expired at %s)" % _format_unix_timestamp(_state.access_token_expires_at) if _state.has_access_token_expiry() else "")
@@ -1919,13 +1929,13 @@ func _refresh_profile_data(open_profile_tab: bool, restoring_saved_token: bool =
 	_state.user_id = str(_state.profile.get("id", _state.user_id))
 	_persist_session_state()
 	_rebuild_manager()
-	var wallet_response := _manager.execute_adapter_request("build_user_wallet_request", [_state.game_id])
+	var wallet_response: Dictionary = _manager.execute_adapter_request("build_user_wallet_request", [_state.game_id])
 	if bool(wallet_response.get("ok", false)):
 		_state.wallet = _manager.normalize_with_adapter("normalize_user_wallet_response", [wallet_response.get("payload", {})])
 		_state.raw_debug_sections["wallet"] = wallet_response.get("payload", {})
 	else:
 		_state.wallet = {"error": _response_error_message(wallet_response, "Failed to load wallet.")}
-	var purchased_response := _manager.execute_adapter_request("build_user_purchased_request", [_build_listing_query(ModioWorkoutBrowserState.TAB_WORKOUT)])
+	var purchased_response: Dictionary = _manager.execute_adapter_request("build_user_purchased_request", [_build_listing_query(ModioWorkoutBrowserState.TAB_WORKOUT)])
 	if bool(purchased_response.get("ok", false)):
 		_state.purchased = _manager.normalize_with_adapter("normalize_user_purchased_response", [purchased_response.get("payload", {})])
 		_state.raw_debug_sections["purchased"] = purchased_response.get("payload", {})
