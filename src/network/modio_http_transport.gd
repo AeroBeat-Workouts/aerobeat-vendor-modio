@@ -416,7 +416,10 @@ func _append_multipart_field(body_bytes: PackedByteArray, boundary: String, key:
 	return _append_single_multipart_part(body_bytes, boundary, key, value)
 
 func _append_single_multipart_part(body_bytes: PackedByteArray, boundary: String, key: String, value: Variant) -> Dictionary:
-	var file_part := _normalize_multipart_file_part(value)
+	var file_part_result := _resolve_multipart_file_part(value)
+	if not bool(file_part_result.get("ok", false)):
+		return file_part_result
+	var file_part: Dictionary = file_part_result.get("file_part", {})
 	if not file_part.is_empty():
 		_append_multipart_bytes(body_bytes, ("--%s\r\n" % boundary).to_utf8_buffer())
 		var disposition := 'Content-Disposition: form-data; name="%s"; filename="%s"\r\n' % [_escape_multipart_header_value(key), _escape_multipart_header_value(str(file_part.filename))]
@@ -437,6 +440,16 @@ func _append_single_multipart_part(body_bytes: PackedByteArray, boundary: String
 func _append_multipart_bytes(body_bytes: PackedByteArray, bytes: PackedByteArray) -> void:
 	body_bytes.append_array(bytes)
 
+func _resolve_multipart_file_part(value: Variant) -> Dictionary:
+	var normalized := _normalize_multipart_file_part(value)
+	if not normalized.is_empty():
+		return {"ok": true, "file_part": normalized}
+	if value is String:
+		var raw_value := str(value).strip_edges()
+		if raw_value.begins_with("@"):
+			return _load_multipart_file_part_from_path(raw_value.substr(1))
+	return {"ok": true, "file_part": {}}
+
 func _normalize_multipart_file_part(value: Variant) -> Dictionary:
 	if not (value is Dictionary):
 		return {}
@@ -453,6 +466,51 @@ func _normalize_multipart_file_part(value: Variant) -> Dictionary:
 		"content_type": str(value.get("content_type", "")).strip_edges(),
 		"data": data
 	}
+
+func _load_multipart_file_part_from_path(raw_path: String) -> Dictionary:
+	var resolved_path := _resolve_multipart_file_path(raw_path)
+	if resolved_path.is_empty() or not FileAccess.file_exists(resolved_path):
+		return {
+			"ok": false,
+			"error": "Multipart @file path does not exist: %s" % raw_path.strip_edges()
+		}
+	var bytes := FileAccess.get_file_as_bytes(resolved_path)
+	if bytes.is_empty():
+		var open_error := FileAccess.get_open_error()
+		if open_error != OK:
+			return {
+				"ok": false,
+				"error": "Failed to read multipart @file path %s: %s" % [resolved_path, error_string(open_error)]
+			}
+	return {
+		"ok": true,
+		"file_part": {
+			"filename": resolved_path.get_file(),
+			"content_type": _guess_multipart_content_type(resolved_path),
+			"data": bytes
+		}
+	}
+
+func _resolve_multipart_file_path(raw_path: String) -> String:
+	var sanitized := raw_path.strip_edges()
+	if sanitized.begins_with("res://") or sanitized.begins_with("user://"):
+		return ProjectSettings.globalize_path(sanitized)
+	return sanitized
+
+func _guess_multipart_content_type(path: String) -> String:
+	match path.get_extension().to_lower():
+		"png":
+			return "image/png"
+		"jpg", "jpeg":
+			return "image/jpeg"
+		"gif":
+			return "image/gif"
+		"webp":
+			return "image/webp"
+		"zip":
+			return "application/zip"
+		_:
+			return "application/octet-stream"
 
 func _escape_multipart_header_value(value: String) -> String:
 	return value.replace('"', "\\\"")

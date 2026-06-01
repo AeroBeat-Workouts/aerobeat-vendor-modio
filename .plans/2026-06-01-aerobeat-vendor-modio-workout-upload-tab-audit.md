@@ -2,7 +2,7 @@
 
 **Date:** 2026-06-01
 **Status:** In Progress
-**Last Updated:** 2026-06-01 14:31 EDT
+**Last Updated:** 2026-06-01 15:12 EDT
 **Blocked Reason:** None
 **Agent:** `chip`
 
@@ -892,9 +892,13 @@ I also refactored listing fetches through `_fetch_listing_for_context(...)` so s
 - `.testbed/tests/`
 - `.testbed/scripts/modio_workout_browser_testbed.gd`
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** QA passed without needing a follow-up fix. The saved-auth startup hydration seam now behaves correctly against the exact regression Derrick reported. Focused browser coverage in `.testbed/tests/test_modio_workout_browser_testbed.gd` proves that a saved future-dated bearer rehydrates into an authenticated state on startup, hydrating the expected non-public views through the restore path instead of waiting for manual refresh: `Profile` loads via the startup `/me` + wallet + purchases pass, `Workout Browser` and `Subscribed Workouts` both populate through the same `_fetch_listing_for_context(...)` seam used by manual refreshes, and `Upload Workout` restores as a usable authenticated surface with the saved tab intent and authenticated intro/status copy already present.
+
+That directly satisfies the two critical truth checks for this QA slice. First, restored auth now hydrates workout and subscribed listings through the same real fetch path used by manual refresh rather than a fake post-auth UI shortcut. Second, `Upload Workout` no longer sits in a half-restored state on startup: when the saved `browser_tab` is `upload`, startup restore brings that tab back as the active browser tab and the upload surface comes up in authenticated copy/state without requiring any manual refresh affordance. The focused startup test covering `test_ready_restores_saved_auth_and_hydrates_non_public_views` stayed green, along with the adjacent auth-gating and restore-path guards.
+
+QA reran: `godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gtest=res://tests/test_modio_workout_browser_testbed.gd -gexit` (15/15 passing), `godot --headless --path .testbed --script res://tests/validate_modio_testbed_scenes.gd` (passed), `godot --headless --path .testbed --script res://tests/qa_verify_scene_output_updates.gd` (passed, with the same pre-existing non-failing `ObjectDB`/resources-at-exit warning), and the full `godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit` suite (126/126 passing, with the same pre-existing non-failing Float/Int comparison warning in `test_modio_vendor_adapter.gd`). No new regression or QA-sized defect was found in this saved-auth startup hydration slice.
 
 ---
 
@@ -915,6 +919,86 @@ I also refactored listing fetches through `_fetch_listing_for_context(...)` so s
 - `.plans/2026-06-01-aerobeat-vendor-modio-workout-upload-tab-audit.md`
 - `.testbed/tests/`
 - `.testbed/scripts/modio_workout_browser_testbed.gd`
+
+**Status:** ✅ Complete
+
+**Results:** Independent audit passed without needing an audit-sized fix. The saved-auth startup hydration seam now truthfully hydrates the expected non-public views on startup instead of only restoring bearer/session state and waiting for manual refresh. In `.testbed/scripts/modio_workout_browser_testbed.gd`, `_restore_saved_runtime_state()` now routes authenticated restore through `_hydrate_restored_authenticated_views()`, which first refreshes `/me` + wallet + purchases and then explicitly hydrates the authenticated listing views before reapplying the auth-gated browser state. That means the startup path no longer leaves `Upload Workout` in a half-restored state while `Workout Browser` / `Subscribed Workouts` wait behind separate manual fetches.
+
+The key truth check about fetch-path parity is also satisfied in code. Manual listing refresh still goes through `_fetch_listing(context)`, and that function delegates the real work to `_fetch_listing_for_context(context)`. Startup restored-auth hydration now uses that same `_fetch_listing_for_context(...)` helper for both `ModioWorkoutBrowserState.TAB_WORKOUT` and `ModioWorkoutBrowserState.TAB_SUBSCRIBED`, so startup hydration reuses the exact same request-building, auth gating, adapter normalization, listing-state update, and UI refresh seam as a manual fetch instead of duplicating or faking post-auth population. `Upload Workout` itself has no separate network refresh path, but the startup restore now brings it up through the authenticated browser-state/UI seam with the saved tab intent and authenticated intro/status copy already active.
+
+Fresh audit validation supports the claim. I reran `godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gtest=res://tests/test_modio_workout_browser_testbed.gd -gexit` (15/15 passing), `godot --headless --path .testbed --script res://tests/validate_modio_testbed_scenes.gd` (passed), and `godot --headless --path .testbed --script res://tests/qa_verify_scene_output_updates.gd` (passed, with the same pre-existing non-failing `ObjectDB`/resources-at-exit warning from the scene QA harness). The focused browser regression `test_ready_restores_saved_auth_and_hydrates_non_public_views` directly proves the restored-auth startup path now hydrates public/workout/subscribed listings, restores `Upload Workout` as the active tab, and shows authenticated upload copy without requiring a manual refresh. I did not find evidence of a regression in the non-public startup hydration seam.
+
+---
+### Task 31: Investigate and fix mod.io logo multipart upload encoding
+
+**Bead ID:** `oc-j7lr`  
+**SubAgent:** `primary` (for `coder`)  
+**Role:** `coder`  
+**References:** `REF-02`, `REF-04`, `REF-05`, `REF-06`  
+**Prompt:** In `aerobeat-vendor-modio`, claim bead `oc-j7lr` on start with `bd update oc-j7lr --status in_progress --json`. Investigate why mod.io still rejects the `logo` field as non-image even when the testbed passes local file existence/image readability/minimum-dimension validation and the operator supplies absolute image paths. Compare the multipart upload encoding for the `logo` field against the working ZIP `filedata` seam, inspect adapter and HTTP transport multipart handling, identify the real root cause, and fix it if it is local. Keep diagnostics truthful if any provider-side requirement remains. Add focused regression coverage, run relevant validation, update this plan with what actually changed, commit and push by default, and close the bead with a clear reason.
+
+**Folders Created/Deleted/Modified:**
+- `.plans/`
+- `.testbed/`
+- `src/`
+
+**Files Created/Deleted/Modified:**
+- `.plans/2026-06-01-aerobeat-vendor-modio-workout-upload-tab-audit.md`
+- `.testbed/tests/test_modio_http_transport.gd`
+- `.testbed/tests/test_modio_workout_upload_flow.gd`
+- `src/network/modio_http_transport.gd`
+
+**Status:** ✅ Complete
+
+**Results:** Root cause confirmed and fixed locally in the transport seam. The upload helper and adapter were still handing multipart file fields to the transport using the repo's older `"@/absolute/path"` convention, but `src/network/modio_http_transport.gd` was not interpreting that convention as a file upload. For multipart requests it encoded those values as ordinary text fields, so `logo` reached mod.io as the literal string path instead of an image file part (`Content-Disposition ... filename=...` plus image bytes). The ZIP `filedata` seam was using the same broken convention; it only looked more plausible in local tests because the old assertions checked for the literal `@/path` text in the body instead of proving a real file part was emitted.
+
+The fix keeps the existing adapter/helper contract but makes it truthful at the transport boundary: multipart values that begin with `@` are now resolved to local files, loaded as raw bytes, assigned a filename, and given an inferred content type (`image/png`, `image/jpeg`, `image/gif`, `image/webp`, `application/zip`, or octet-stream fallback). Missing `@file` paths now fail early with a clear transport validation error instead of silently sending bogus text to mod.io. I did not need to widen the upload helper API; its existing local preflight stays useful, and the real fix now applies consistently to both `logo` and ZIP `filedata` authoring seams across the repo.
+
+Focused regression coverage was updated to prove the real behavior instead of the old fake one. `test_modio_http_transport.gd` now writes real temp PNG/ZIP fixtures, asserts multipart requests contain `filename=` plus the correct `Content-Type`, asserts the raw request bytes include the actual file payload, and covers the missing-`@file` error path. `test_modio_workout_upload_flow.gd` now verifies the staged create/upload flow emits a real image part for `logo` and a real ZIP part for `filedata` while preserving the existing helper contract. Validation passed with `godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gtest=res://tests/test_modio_http_transport.gd -gtest=res://tests/test_modio_workout_upload_flow.gd -gexit`, `godot --headless --path .testbed --import`, `godot --headless --path .testbed --script res://tests/validate_modio_testbed_scenes.gd`, and the full `godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit` suite (all passing; the pre-existing float/int GUT warning in `test_modio_vendor_adapter.gd` remains outside this slice).
+
+---
+
+### Task 32: QA logo multipart upload encoding fix
+
+**Bead ID:** `oc-hvki`  
+**SubAgent:** `primary` (for `qa`)  
+**Role:** `qa`  
+**References:** `REF-02`, `REF-04`, `REF-05`, `REF-06`  
+**Prompt:** In `aerobeat-vendor-modio`, claim bead `oc-hvki` on start with `bd update oc-hvki --status in_progress --json`. Verify the logo multipart upload seam fix. Confirm the root cause is addressed or surfaced correctly, confirm valid logo uploads are encoded properly for mod.io, rerun relevant validation/tests, update this plan with QA findings, commit/push by default only if QA-sized fixes are needed, and close the bead with a clear reason.
+
+**Folders Created/Deleted/Modified:**
+- `.plans/`
+- `.testbed/`
+- `src/`
+
+**Files Created/Deleted/Modified:**
+- `.plans/2026-06-01-aerobeat-vendor-modio-workout-upload-tab-audit.md`
+- `.testbed/tests/`
+- `src/`
+
+**Status:** ⏳ Pending
+
+**Results:** Pending.
+
+---
+
+### Task 33: Audit logo multipart upload encoding fix
+
+**Bead ID:** `oc-l7tt`  
+**SubAgent:** `primary` (for `auditor`)  
+**Role:** `auditor`  
+**References:** `REF-02`, `REF-04`, `REF-05`, `REF-06`  
+**Prompt:** In `aerobeat-vendor-modio`, claim bead `oc-l7tt` on start with `bd update oc-l7tt --status in_progress --json`. Independently audit the multipart logo upload fix. Verify the logo field is encoded correctly for mod.io, inspect validation evidence, ensure diagnostics remain truthful, update this plan with the final audit verdict, commit/push by default only if an audit-sized fix is needed, and close the bead with a clear reason.
+
+**Folders Created/Deleted/Modified:**
+- `.plans/`
+- `.testbed/`
+- `src/`
+
+**Files Created/Deleted/Modified:**
+- `.plans/2026-06-01-aerobeat-vendor-modio-workout-upload-tab-audit.md`
+- `.testbed/tests/`
+- `src/`
 
 **Status:** ⏳ Pending
 

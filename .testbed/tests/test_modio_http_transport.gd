@@ -5,12 +5,21 @@ const ModioListingQuery = preload("res://addons/aerobeat-vendor-modio/src/models
 const ModioHttpTransport = preload("res://addons/aerobeat-vendor-modio/src/network/modio_http_transport.gd")
 const ModioVendorAdapter = preload("res://addons/aerobeat-vendor-modio/src/modio_vendor_adapter.gd")
 
+const TMP_DIR := "user://modio_http_transport_tests"
+
 var _recorded_requests: Array = []
 var _queued_responses: Array = []
 
 func before_each() -> void:
 	_recorded_requests.clear()
 	_queued_responses.clear()
+
+func after_each() -> void:
+	var absolute_dir := ProjectSettings.globalize_path(TMP_DIR)
+	if DirAccess.dir_exists_absolute(absolute_dir):
+		for entry in DirAccess.get_files_at(absolute_dir):
+			DirAccess.remove_absolute(absolute_dir.path_join(entry))
+		DirAccess.remove_absolute(absolute_dir)
 
 func test_resolves_base_urls_with_explicit_override_and_deterministic_fallbacks() -> void:
 	var default_config := ModioClientConfig.new("777", "demo-key")
@@ -140,6 +149,21 @@ func test_prefers_request_raw_for_binary_multipart_bodies() -> void:
 	assert_true(str(prepared.request.content_type).begins_with("multipart/form-data; boundary=TEST-BOUNDARY"))
 	assert_gt(prepared.request.body_bytes.size(), 0)
 	assert_true(transport._should_use_request_raw(prepared.request))
+
+func test_rejects_missing_multipart_at_file_paths_with_truthful_transport_errors() -> void:
+	var config := ModioClientConfig.new("777", "demo-key", "", "user-token", "en-US", "steam", "WINDOWS", ModioClientConfig.HOST_GAME)
+	var transport := ModioHttpTransport.new()
+	var adapter := ModioVendorAdapter.new(config, transport)
+	var response := transport.prepare_request(adapter.build_add_mod_request({
+		"name": "Broken Upload",
+		"summary": "This should fail before transport dispatch.",
+		"metadata_kvp": ["difficulty=easy"],
+		"logo": "@/tmp/does-not-exist.png"
+	}), config, {"multipart_boundary": "TEST-BOUNDARY"})
+
+	assert_false(response.ok)
+	assert_string_contains(response.error.message, "Multipart @file path does not exist")
+	assert_string_contains(response.error.message, "/tmp/does-not-exist.png")
 
 func test_executes_raw_multipart_part_uploads_with_query_headers_and_bytes() -> void:
 	var config := ModioClientConfig.new("777", "demo-key", "", "user-token", "en-US", "steam", "WINDOWS", ModioClientConfig.HOST_GAME)
@@ -460,9 +484,10 @@ func test_executes_modfile_write_requests_with_documented_multipart_form_and_del
 	assert_eq(_recorded_requests[0].method, "GET")
 	assert_eq(_recorded_requests[0].url, "https://api.mod.io/v1/games/777/mods/1001/cooks?api_key=demo-key")
 
+	var modfile_zip_path := _write_file("cardio-blaster-v1-1.zip", PackedByteArray([0x50, 0x4B, 0x03, 0x04, 0x31]))
 	_queue_json_response(201, _fixture("modfile_detail.json"), {"Location": "/games/777/mods/1001/files/5002"})
 	var add_response := transport.execute(auth_adapter.build_add_modfile_request("1001", {
-		"filedata": "@/tmp/cardio-blaster-v1-1.zip",
+		"filedata": "@%s" % modfile_zip_path,
 		"version": "1.1.0",
 		"changelog": "New cardio pass",
 		"active": true,
@@ -475,8 +500,9 @@ func test_executes_modfile_write_requests_with_documented_multipart_form_and_del
 	assert_eq(_recorded_requests[1].url, "https://g-777.modapi.io/v1/games/777/mods/1001/files")
 	assert_eq(_recorded_requests[1].headers.Authorization, "Bearer user-token")
 	assert_eq(_recorded_requests[1].headers["Content-Type"], "multipart/form-data; boundary=TEST-BOUNDARY")
-	assert_string_contains(_recorded_requests[1].body_string, 'name="filedata"')
-	assert_string_contains(_recorded_requests[1].body_string, '@/tmp/cardio-blaster-v1-1.zip')
+	assert_string_contains(_recorded_requests[1].body_string, 'name="filedata"; filename="cardio-blaster-v1-1.zip"')
+	assert_string_contains(_recorded_requests[1].body_string, 'Content-Type: application/zip')
+	assert_true(_bytes_contain(_recorded_requests[1].body_bytes, FileAccess.get_file_as_bytes(modfile_zip_path)))
 	assert_string_contains(_recorded_requests[1].body_string, 'name="platforms[]"')
 	assert_string_contains(_recorded_requests[1].body_string, 'WINDOWS')
 	assert_string_contains(_recorded_requests[1].body_string, 'SWITCH2')
@@ -1419,12 +1445,13 @@ func test_executes_mod_authoring_requests_with_documented_multipart_and_delete_s
 	var transport := ModioHttpTransport.new(Callable(self, "_transport_double"))
 	var auth_adapter := ModioVendorAdapter.new(auth_config, transport)
 
+	var mod_logo_path := _write_png("mod-logo.png", 512, 288)
 	_queue_json_response(201, _fixture("mod_detail.json"), {"Location": "/games/777/mods/1001"})
 	var create_response := transport.execute(auth_adapter.build_add_mod_request({
 		"name": "Graphics Overhaul Mod",
 		"summary": "Short descriptive summary here",
 		"description": "<h2>Getting started with..</h2>",
-		"logo": "@/tmp/mod-logo.png",
+		"logo": "@%s" % mod_logo_path,
 		"homepage_url": "https://www.example.com",
 		"visible": 1,
 		"maturity_option": 4,
@@ -1440,12 +1467,14 @@ func test_executes_mod_authoring_requests_with_documented_multipart_and_delete_s
 	assert_eq(_recorded_requests[0].url, "https://g-777.modapi.io/v1/games/777/mods")
 	assert_eq(_recorded_requests[0].headers.Authorization, "Bearer user-token")
 	assert_eq(_recorded_requests[0].headers["Content-Type"], "multipart/form-data; boundary=TEST-BOUNDARY")
-	assert_string_contains(_recorded_requests[0].body_string, 'name="name"')
-	assert_string_contains(_recorded_requests[0].body_string, "Graphics Overhaul Mod")
-	assert_string_contains(_recorded_requests[0].body_string, 'name="metadata[]"')
-	assert_string_contains(_recorded_requests[0].body_string, "pistol-dmg:800")
-	assert_string_contains(_recorded_requests[0].body_string, 'name="tags[]"')
-	assert_string_contains(_recorded_requests[0].body_string, "@/tmp/mod-logo.png")
+	assert_true(_body_contains_text(_recorded_requests[0].body_bytes, 'name="name"'))
+	assert_true(_body_contains_text(_recorded_requests[0].body_bytes, "Graphics Overhaul Mod"))
+	assert_true(_body_contains_text(_recorded_requests[0].body_bytes, 'name="metadata[]"'))
+	assert_true(_body_contains_text(_recorded_requests[0].body_bytes, "pistol-dmg:800"))
+	assert_true(_body_contains_text(_recorded_requests[0].body_bytes, 'name="tags[]"'))
+	assert_true(_body_contains_text(_recorded_requests[0].body_bytes, 'name="logo"; filename="mod-logo.png"'))
+	assert_true(_body_contains_text(_recorded_requests[0].body_bytes, 'Content-Type: image/png'))
+	assert_true(_bytes_contain(_recorded_requests[0].body_bytes, FileAccess.get_file_as_bytes(mod_logo_path)))
 
 	_queue_json_response(200, _fixture("mod_detail.json"))
 	var update_response := transport.execute(auth_adapter.build_update_mod_request("1001", {
@@ -1480,12 +1509,13 @@ func test_executes_guide_authoring_requests_with_documented_multipart_and_valida
 	var transport := ModioHttpTransport.new(Callable(self, "_transport_double"))
 	var auth_adapter := ModioVendorAdapter.new(auth_config, transport)
 
+	var guide_logo_path := _write_png("guide.png", 512, 288)
 	_queue_json_response(201, _fixture("guide_detail.json"), {"Location": "/games/777/guides/7001"})
 	var create_response := transport.execute(auth_adapter.build_add_guide_request({
 		"name": "Getting Started",
 		"summary": "A practical intro guide for your first AeroBeat routine.",
 		"description": "<h2>Warm up</h2><p>Keep moving.</p>",
-		"logo": "@/tmp/guide.png",
+		"logo": "@%s" % guide_logo_path,
 		"status": 1,
 		"community_options": 2048,
 		"tags": ["Instructions", "Beginner"]
@@ -1495,12 +1525,14 @@ func test_executes_guide_authoring_requests_with_documented_multipart_and_valida
 	assert_eq(_recorded_requests[0].url, "https://g-777.modapi.io/v1/games/777/guides")
 	assert_eq(_recorded_requests[0].headers.Authorization, "Bearer user-token")
 	assert_eq(_recorded_requests[0].headers["Content-Type"], "multipart/form-data; boundary=TEST-BOUNDARY")
-	assert_string_contains(_recorded_requests[0].body_string, 'name="name"')
-	assert_string_contains(_recorded_requests[0].body_string, "Getting Started")
-	assert_string_contains(_recorded_requests[0].body_string, 'name="tags[]"')
-	assert_string_contains(_recorded_requests[0].body_string, "Instructions")
-	assert_string_contains(_recorded_requests[0].body_string, "Beginner")
-	assert_string_contains(_recorded_requests[0].body_string, "@/tmp/guide.png")
+	assert_true(_body_contains_text(_recorded_requests[0].body_bytes, 'name="name"'))
+	assert_true(_body_contains_text(_recorded_requests[0].body_bytes, "Getting Started"))
+	assert_true(_body_contains_text(_recorded_requests[0].body_bytes, 'name="tags[]"'))
+	assert_true(_body_contains_text(_recorded_requests[0].body_bytes, "Instructions"))
+	assert_true(_body_contains_text(_recorded_requests[0].body_bytes, "Beginner"))
+	assert_true(_body_contains_text(_recorded_requests[0].body_bytes, 'name="logo"; filename="guide.png"'))
+	assert_true(_body_contains_text(_recorded_requests[0].body_bytes, 'Content-Type: image/png'))
+	assert_true(_bytes_contain(_recorded_requests[0].body_bytes, FileAccess.get_file_as_bytes(guide_logo_path)))
 
 	_queue_json_response(200, _fixture("guide_detail.json"))
 	var update_response := transport.execute(auth_adapter.build_update_guide_request("7001", {
@@ -1537,13 +1569,14 @@ func test_executes_collection_authoring_requests_with_documented_multipart_and_d
 	var transport := ModioHttpTransport.new(Callable(self, "_transport_double"))
 	var auth_adapter := ModioVendorAdapter.new(auth_config, transport)
 
+	var collection_logo_path := _write_png("collection.png", 512, 288)
 	_queue_json_response(201, _fixture("collection_detail.json"), {"Location": "/games/777/collections/3001"})
 	var create_response := transport.execute(auth_adapter.build_add_collection_request({
 		"name": "Starter Bundle",
 		"summary": "A bundle of cardio-friendly starter mods.",
 		"category": "essential",
 		"description": "All the essentials.",
-		"logo": "@/tmp/collection.png",
+		"logo": "@%s" % collection_logo_path,
 		"status": 1,
 		"visible": 1,
 		"tags": ["GAMEPLAY", "AUDIO"],
@@ -1552,11 +1585,14 @@ func test_executes_collection_authoring_requests_with_documented_multipart_and_d
 	assert_true(create_response.ok)
 	assert_eq(_recorded_requests[0].url, "https://g-777.modapi.io/v1/games/777/collections")
 	assert_eq(_recorded_requests[0].headers["Content-Type"], "multipart/form-data; boundary=TEST-BOUNDARY")
-	assert_string_contains(_recorded_requests[0].body_string, 'name="category"')
-	assert_string_contains(_recorded_requests[0].body_string, "essential")
-	assert_string_contains(_recorded_requests[0].body_string, 'name="mod_ids[]"')
-	assert_string_contains(_recorded_requests[0].body_string, "1001")
-	assert_string_contains(_recorded_requests[0].body_string, "1002")
+	assert_true(_body_contains_text(_recorded_requests[0].body_bytes, 'name="category"'))
+	assert_true(_body_contains_text(_recorded_requests[0].body_bytes, "essential"))
+	assert_true(_body_contains_text(_recorded_requests[0].body_bytes, 'name="logo"; filename="collection.png"'))
+	assert_true(_body_contains_text(_recorded_requests[0].body_bytes, 'Content-Type: image/png'))
+	assert_true(_bytes_contain(_recorded_requests[0].body_bytes, FileAccess.get_file_as_bytes(collection_logo_path)))
+	assert_true(_body_contains_text(_recorded_requests[0].body_bytes, 'name="mod_ids[]"'))
+	assert_true(_body_contains_text(_recorded_requests[0].body_bytes, "1001"))
+	assert_true(_body_contains_text(_recorded_requests[0].body_bytes, "1002"))
 
 	_queue_json_response(200, _fixture("collection_detail.json"))
 	var update_response := transport.execute(auth_adapter.build_update_collection_request("3001", {
@@ -1584,6 +1620,46 @@ func test_executes_collection_authoring_requests_with_documented_multipart_and_d
 	assert_false(invalid_response.ok)
 	assert_eq(invalid_response.error.category, "transport")
 	assert_string_contains(invalid_response.error.message, "sync must be a boolean")
+
+func _write_file(filename: String, bytes: PackedByteArray) -> String:
+	var absolute_dir := ProjectSettings.globalize_path(TMP_DIR)
+	if not DirAccess.dir_exists_absolute(absolute_dir):
+		DirAccess.make_dir_recursive_absolute(absolute_dir)
+	var absolute_path := absolute_dir.path_join(filename)
+	var file := FileAccess.open(absolute_path, FileAccess.WRITE)
+	assert_not_null(file)
+	if file != null:
+		file.store_buffer(bytes)
+		file.close()
+	return absolute_path
+
+func _write_png(filename: String, width: int, height: int) -> String:
+	var absolute_dir := ProjectSettings.globalize_path(TMP_DIR)
+	if not DirAccess.dir_exists_absolute(absolute_dir):
+		DirAccess.make_dir_recursive_absolute(absolute_dir)
+	var absolute_path := absolute_dir.path_join(filename)
+	var image := Image.create(width, height, false, Image.FORMAT_RGBA8)
+	image.fill(Color(0.15, 0.35, 0.85, 1.0))
+	assert_eq(image.save_png(absolute_path), OK)
+	return absolute_path
+
+func _bytes_contain(haystack: PackedByteArray, needle: PackedByteArray) -> bool:
+	if needle.is_empty():
+		return true
+	if haystack.size() < needle.size():
+		return false
+	for start in range(haystack.size() - needle.size() + 1):
+		var matched := true
+		for offset in range(needle.size()):
+			if haystack[start + offset] != needle[offset]:
+				matched = false
+				break
+		if matched:
+			return true
+	return false
+
+func _body_contains_text(body_bytes: PackedByteArray, text: String) -> bool:
+	return _bytes_contain(body_bytes, text.to_utf8_buffer())
 
 func _transport_double(final_request: Dictionary, _options: Dictionary) -> Dictionary:
 	_recorded_requests.append(final_request.duplicate(true))

@@ -113,8 +113,14 @@ func test_submit_workout_runs_create_upload_publish_sequence() -> void:
 	assert_eq(recorded_requests[0].body.summary, "Thirty-minute interval workout")
 	assert_eq(recorded_requests[0].body.metadata_blob, "{}")
 	assert_eq(recorded_requests[0].body["metadata[]"], ["difficulty=medium", "coach=chip"])
+	assert_string_contains(recorded_requests[0].body_string, 'name="logo"; filename="logo.png"')
+	assert_string_contains(recorded_requests[0].body_string, 'Content-Type: image/png')
+	assert_true(_bytes_contain(recorded_requests[0].body_bytes, FileAccess.get_file_as_bytes(logo_path)))
 	assert_eq(recorded_requests[1].path, "/games/777/mods/901/files")
 	assert_eq(recorded_requests[1].body.filedata, "@%s" % zip_path)
+	assert_string_contains(recorded_requests[1].body_string, 'name="filedata"; filename="workout.zip"')
+	assert_string_contains(recorded_requests[1].body_string, 'Content-Type: application/zip')
+	assert_true(_bytes_contain(recorded_requests[1].body_bytes, FileAccess.get_file_as_bytes(zip_path)))
 	assert_eq(recorded_requests[2].path, "/games/777/mods/901")
 	assert_eq(recorded_requests[2].body.status, "1")
 	assert_eq(recorded_requests[2].body.visible, "1")
@@ -272,3 +278,18 @@ func _write_png(filename: String, width: int, height: int) -> String:
 	image.fill(Color(0.15, 0.35, 0.85, 1.0))
 	assert_eq(image.save_png(absolute_path), OK)
 	return absolute_path
+
+func _bytes_contain(haystack: PackedByteArray, needle: PackedByteArray) -> bool:
+	if needle.is_empty():
+		return true
+	if haystack.size() < needle.size():
+		return false
+	for start in range(haystack.size() - needle.size() + 1):
+		var matched := true
+		for offset in range(needle.size()):
+			if haystack[start + offset] != needle[offset]:
+				matched = false
+				break
+		if matched:
+			return true
+	return false
