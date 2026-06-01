@@ -2,7 +2,7 @@
 
 **Date:** 2026-06-01
 **Status:** In Progress
-**Last Updated:** 2026-06-01 10:31 EDT
+**Last Updated:** 2026-06-01 12:08 EDT
 **Blocked Reason:** None
 **Agent:** `chip`
 
@@ -536,9 +536,15 @@ The audit-sized gap was in evidence, not behavior: the browser tests covered hel
 - `.testbed/`
 - `src/`
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** QA passed without needing a follow-up fix. The root-cause surfacing is now truthful at both seams. In `src/modio_workout_upload_flow.gd`, `prepare_submission()` blocks the locally knowable invalid create-draft cases before any network call: missing `summary`, empty `metadata_kvp`, missing/nonexistent logo or ZIP paths, unreadable logo files, non-`.zip` workout archives, and logo images smaller than `512x288`. The helper also seeds a sane default `metadata_blob` of `{}` when the field is omitted or blank. When provider-side create-draft validation still fails, `_response_error_message()` now preserves the upstream top-level message, flattens nested field details, and appends `error_ref`, so the returned failure is specific instead of collapsing to a vague `create_draft_failed` label.
+
+The browser surface reflects that truth instead of hiding it. `.testbed/scripts/modio_workout_browser_testbed.gd` now tells the operator up front that mod.io expects a summary, readable `512x288+` logo, and string metadata before draft creation will pass; failed uploads save the full result into `_state.raw_debug_sections["upload_attempt"]`; and the result panel shows the failed stage plus the concrete provider/local reason. Focused browser coverage proves that path with explicit assertions for `Failed Step: create_draft`, nested `summary` and `metadata_blob` field messages, and `error_ref=13009` in the rendered result text.
+
+The warning cleanup is also verified. The controller preload alias is now `ModioWorkoutUploadFlowScript` instead of `ModioWorkoutUploadFlow`, so it no longer collides with the helper’s `class_name ModioWorkoutUploadFlow`. Fresh headless import/validation runs did not emit the prior duplicate-name warning. Auth/token copy also remains truthful: the auth panel and saved-token restore note say we request the longest direct expiry we can ask for, but recent observed provider-returned bearer expiries in this testbed have been closer to ~90 days rather than a guaranteed year.
+
+QA reran: `godot --headless --path .testbed --import`, `godot --headless --path .testbed --script res://tests/validate_modio_testbed_scenes.gd`, `godot --headless --path .testbed --script res://tests/qa_verify_scene_output_updates.gd`, the focused GUT pass for `res://tests/test_modio_workout_upload_flow.gd` + `res://tests/test_modio_workout_browser_testbed.gd`, and the full `addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit` suite. All passed (`117/117`). The only remaining warnings were the known non-failing scene-harness ObjectDB/resources-at-exit warning and the pre-existing full-suite Float/Int comparison warning in `test_modio_vendor_adapter.gd`; neither is introduced by this upload-diagnostics slice.
 
 ---
 
@@ -560,9 +566,15 @@ The audit-sized gap was in evidence, not behavior: the browser tests covered hel
 - `.testbed/`
 - `src/`
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** Independent audit passed without needing an audit-sized fix. The reported `create_draft_failed` seam is now either prevented locally or surfaced truthfully with the real provider reason. In `src/modio_workout_upload_flow.gd`, `prepare_submission()` now blocks the locally knowable invalid draft-create cases before any network call: missing `summary`, empty `metadata_kvp`, missing/nonexistent logo or ZIP paths, unreadable logo files, non-`.zip` workout archives, and logo images smaller than `512x288`. The helper also defaults a blank/omitted `metadata_blob` to `{}`, matching the provider requirement that the field be a string when sent.
+
+When provider-side create-draft validation still fails, the failure no longer collapses into opaque `create_draft_failed` copy. The helper’s `_response_error_message()` preserves the upstream top-level message, flattens nested field details, and appends `error_ref`, while `.testbed/scripts/modio_workout_browser_testbed.gd` renders the failed step plus the concrete failure reason in the Upload Workout result panel. The focused browser/UI test locks that in by asserting `Failed Step: create_draft`, the nested `summary` message, the nested `metadata_blob` message, and `error_ref=13009` all appear in the rendered result text.
+
+The warning cleanup is also verified. The controller preload alias is `ModioWorkoutUploadFlowScript`, so it no longer collides with the helper’s global `class_name ModioWorkoutUploadFlow`, and fresh import/test runs in this audit did not emit the prior duplicate-name warning. Auth/token copy also remains truthful: the auth panel and saved-token restore note still say we request the longest direct expiry we can ask for, but recent observed provider-returned bearer expiries in this testbed have been closer to `~90 days` rather than a guaranteed year.
+
+Fresh validation evidence supports the claim. I reran `godot --headless --path .testbed --import`, `godot --headless --path .testbed --script res://tests/validate_modio_testbed_scenes.gd`, `godot --headless --path .testbed --script res://tests/qa_verify_scene_output_updates.gd`, the targeted GUT pass for `res://tests/test_modio_workout_upload_flow.gd` plus `res://tests/test_modio_workout_browser_testbed.gd`, and the full `addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit` suite. All passed (`117/117`). The only remaining warnings were the known non-failing scene-harness ObjectDB/resources-at-exit warning and the pre-existing full-suite Float/Int comparison warning in `test_modio_vendor_adapter.gd`; neither is introduced by this upload-diagnostics slice.
 
 ---
 
@@ -595,6 +607,81 @@ I fixed the local seam accordingly. `src/modio_workout_upload_flow.gd` now enfor
 The warning cleanup is also done: `.testbed/scripts/modio_workout_browser_testbed.gd` no longer defines a preload constant named `ModioWorkoutUploadFlow`, which had been shadowing the actual global class name from `src/modio_workout_upload_flow.gd`; the preload alias is now `ModioWorkoutUploadFlowScript`, removing the duplicate-global-name warning cleanly without changing the helper seam. Auth copy was tightened to match the screenshot evidence: the profile/auth explanatory text and saved-token restore note no longer promise a one-year session; they now explain that we request the longest direct expiry we can ask for, but the latest observed provider-returned bearer in this testbed was closer to **~90 days**, and the actual saved expiry shown to the operator is the source of truth.
 
 Focused coverage was updated to lock the fixes in place. `test_modio_workout_upload_flow.gd` now uses real generated PNGs for logo validation, covers summary-required validation, small-logo rejection, default `metadata_blob` seeding, and server-field-error propagation for create-draft failures. `test_modio_workout_browser_testbed.gd` now verifies that failed staged uploads surface the failed step plus the nested provider field reasons in the result panel and that the full upload attempt lands in debug state. Validation passed with `godot --headless --path .testbed --import`, targeted GUT for `res://tests/test_modio_workout_upload_flow.gd` plus `res://tests/test_modio_workout_browser_testbed.gd`, `godot --headless --path .testbed --script res://tests/validate_modio_testbed_scenes.gd`, and `godot --headless --path .testbed --script res://tests/qa_verify_scene_output_updates.gd`. The existing non-failing ObjectDB/resources-at-exit warning remains in the headless test environment and is unrelated to this slice.
+
+---
+### Task 19: Refactor upload error summarization into the manager seam
+
+**Bead ID:** `oc-avk1`  
+**SubAgent:** `primary` (for `coder`)  
+**Role:** `coder`  
+**References:** `REF-02`, `REF-04`, `REF-05`, `REF-06`  
+**Prompt:** In `aerobeat-vendor-modio`, claim bead `oc-avk1` on start with `bd update oc-avk1 --status in_progress --json`. Refactor the current upload error summarization so the reusable provider error parsing/formatting lives in `AeroModIOManager` (or the manager seam it owns) instead of being private logic in `src/modio_workout_upload_flow.gd`. Keep workflow-stage context like `create_draft` / `upload_modfile` / `publish_mod` in the upload flow helper, but route the underlying provider error summarization through the manager seam so other callers can reuse it. Add/update focused tests, run relevant validation, update this plan with what actually changed, commit and push by default, and close the bead with a clear reason.
+
+**Folders Created/Deleted/Modified:**
+- `.plans/`
+- `.testbed/`
+- `src/`
+
+**Files Created/Deleted/Modified:**
+- `.plans/2026-06-01-aerobeat-vendor-modio-workout-upload-tab-audit.md`
+- `.testbed/tests/test_aero_modio_manager.gd`
+- `.testbed/tests/test_modio_workout_upload_flow.gd`
+- `src/AeroModIOManager.gd`
+- `src/modio_workout_upload_flow.gd`
+
+**Status:** ✅ Complete
+
+**Results:** Refactored the provider-error parsing/formatting seam out of `src/modio_workout_upload_flow.gd` and into `src/AeroModIOManager.gd` so upload failures no longer depend on private helper-only formatting logic. `AeroModIOManager` now exposes `summarize_provider_error(response, fallback)`, which preserves the top-level provider message, flattens nested detail payloads from either `error.details` or `error.errors`, and appends `error_ref` when present. `src/modio_workout_upload_flow.gd` keeps ownership of workflow-stage labels like `create_draft`, `upload_modfile`, and `publish_mod`, but now routes all provider-facing error summarization through `manager.summarize_provider_error(...)` for both transport-level failures and normalized provider rejections.
+
+Focused coverage was added at both seams. `test_aero_modio_manager.gd` now verifies nested-detail and `errors`-shape summarization directly on the manager seam, while `test_modio_workout_upload_flow.gd` adds a focused regression proving the upload flow delegates provider-error summarization back through the manager instead of formatting it privately. Coder validation passed with `godot --headless --path .testbed --import`, targeted GUT for `res://tests/test_aero_modio_manager.gd` plus `res://tests/test_modio_workout_upload_flow.gd`, `godot --headless --path .testbed --script res://tests/validate_modio_testbed_scenes.gd`, and `godot --headless --path .testbed --script res://tests/qa_verify_scene_output_updates.gd`. The existing non-failing scene-harness ObjectDB/resources-at-exit warning still appears in the QA script and is unrelated to this refactor.
+
+---
+
+### Task 20: QA manager-level upload error summarization refactor
+
+**Bead ID:** `oc-ru41`  
+**SubAgent:** `primary` (for `qa`)  
+**Role:** `qa`  
+**References:** `REF-02`, `REF-04`, `REF-05`, `REF-06`  
+**Prompt:** In `aerobeat-vendor-modio`, claim bead `oc-ru41` on start with `bd update oc-ru41 --status in_progress --json`. Verify the shared provider error summarization now lives in the manager seam, confirm workflow-stage labels remain accurate in the upload flow/UI, rerun relevant validation/tests, update this plan with QA findings, commit/push by default only if QA-sized fixes are needed, and close the bead with a clear reason.
+
+**Folders Created/Deleted/Modified:**
+- `.plans/`
+- `.testbed/`
+- `src/`
+
+**Files Created/Deleted/Modified:**
+- `.plans/2026-06-01-aerobeat-vendor-modio-workout-upload-tab-audit.md`
+- `.testbed/tests/`
+- `src/`
+
+**Status:** ⏳ Pending
+
+**Results:** Pending.
+
+---
+
+### Task 21: Audit manager-level upload error summarization refactor
+
+**Bead ID:** `oc-cd7u`  
+**SubAgent:** `primary` (for `auditor`)  
+**Role:** `auditor`  
+**References:** `REF-02`, `REF-04`, `REF-05`, `REF-06`  
+**Prompt:** In `aerobeat-vendor-modio`, claim bead `oc-cd7u` on start with `bd update oc-cd7u --status in_progress --json`. Independently audit the manager-seam error summarization refactor. Verify reusable provider error summarization now lives in `AeroModIOManager` (or its owned manager seam), verify upload workflow-stage context remains in the workflow helper, rerun/inspect validation evidence, update this plan with the final audit verdict, commit/push by default only if an audit-sized fix is needed, and close the bead with a clear reason.
+
+**Folders Created/Deleted/Modified:**
+- `.plans/`
+- `.testbed/`
+- `src/`
+
+**Files Created/Deleted/Modified:**
+- `.plans/2026-06-01-aerobeat-vendor-modio-workout-upload-tab-audit.md`
+- `.testbed/tests/`
+- `src/`
+
+**Status:** ⏳ Pending
+
+**Results:** Pending.
 
 ---
 ## Final Results

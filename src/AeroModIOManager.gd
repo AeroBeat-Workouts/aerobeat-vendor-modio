@@ -91,6 +91,40 @@ func describe_runtime() -> Dictionary:
 		"use_test_environment": false if _config == null else _config.use_test_environment
 	}
 
+func summarize_provider_error(response: Dictionary, fallback: String) -> String:
+	var error_payload = response.get("error", {})
+	if error_payload is Dictionary:
+		var parts := PackedStringArray()
+		var message := str(error_payload.get("message", "")).strip_edges()
+		if not message.is_empty():
+			parts.append(message)
+		var detail_bits := _flatten_provider_error_details(error_payload.get("details", error_payload.get("errors", {})))
+		if not detail_bits.is_empty():
+			parts.append("Details: %s" % "; ".join(detail_bits))
+		var error_ref := int(error_payload.get("error_ref", 0))
+		if error_ref > 0:
+			parts.append("error_ref=%s" % error_ref)
+		if not parts.is_empty():
+			return " ".join(parts)
+	return fallback
+
+func _flatten_provider_error_details(details: Variant, prefix: String = "") -> PackedStringArray:
+	var result := PackedStringArray()
+	if details is Dictionary:
+		for key in details.keys():
+			var nested_prefix := "%s.%s" % [prefix, str(key)] if not prefix.is_empty() else str(key)
+			result.append_array(_flatten_provider_error_details(details.get(key), nested_prefix))
+		return result
+	if details is Array:
+		for entry in details:
+			result.append_array(_flatten_provider_error_details(entry, prefix))
+		return result
+	var cleaned := str(details).strip_edges()
+	if cleaned.is_empty():
+		return result
+	result.append("%s: %s" % [prefix, cleaned] if not prefix.is_empty() else cleaned)
+	return result
+
 func _invalid_manager_request(message: String) -> Dictionary:
 	return {
 		"method": "GET",

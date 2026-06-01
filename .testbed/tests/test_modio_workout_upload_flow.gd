@@ -7,6 +7,36 @@ const ModioWorkoutUploadFlow = preload("res://addons/aerobeat-vendor-modio/src/m
 
 const TMP_DIR := "user://workout_upload_flow_tests"
 
+class FakeErrorSummaryManager:
+	extends RefCounted
+
+	var summarized_responses: Array[Dictionary] = []
+	var summarized_fallbacks := PackedStringArray()
+
+	func has_public_credentials() -> bool:
+		return true
+
+	func has_access_token() -> bool:
+		return true
+
+	func execute_adapter_request(_builder_method: StringName, _builder_args: Array = []) -> Dictionary:
+		return {
+			"ok": false,
+			"error": {
+				"message": "Provider said no.",
+				"details": {"summary": "Missing summary."},
+				"error_ref": 13009
+			}
+		}
+
+	func normalize_with_adapter(_normalizer_method: StringName, _normalizer_args: Array = []):
+		return null
+
+	func summarize_provider_error(response: Dictionary, fallback: String) -> String:
+		summarized_responses.append(response)
+		summarized_fallbacks.append(fallback)
+		return "manager-summary: %s" % fallback
+
 func after_each() -> void:
 	var absolute_dir := ProjectSettings.globalize_path(TMP_DIR)
 	if DirAccess.dir_exists_absolute(absolute_dir):
@@ -200,6 +230,26 @@ func test_submit_workout_surfaces_server_field_errors_for_create_draft_failures(
 	assert_string_contains(result.message, "summary: The \"summary\" field is required.")
 	assert_string_contains(result.message, "metadata_blob: The \"metadata_blob\" must be a string.")
 	assert_string_contains(result.message, "error_ref=13009")
+
+func test_submit_workout_routes_provider_error_summarization_through_manager() -> void:
+	var logo_path := _write_png("logo.png", 512, 288)
+	var zip_path := _write_file("workout.zip", PackedByteArray([0x50, 0x4B, 0x03, 0x04]))
+	var manager := FakeErrorSummaryManager.new()
+	var flow := ModioWorkoutUploadFlow.new()
+
+	var result := flow.submit_workout(manager, {
+		"name": "Manager Error Probe",
+		"summary": "Draft summary",
+		"metadata_kvp": ["difficulty=easy"],
+		"logo_path": logo_path,
+		"zip_path": zip_path
+	})
+
+	assert_false(result.ok)
+	assert_eq(result.steps[0].stage, "create_draft")
+	assert_eq(manager.summarized_responses.size(), 1)
+	assert_eq(manager.summarized_fallbacks[0], "mod.io request failed during create_draft.")
+	assert_string_contains(result.message, "manager-summary: mod.io request failed during create_draft.")
 
 func _write_file(filename: String, bytes: PackedByteArray) -> String:
 	var absolute_dir := ProjectSettings.globalize_path(TMP_DIR)

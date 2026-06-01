@@ -40,3 +40,39 @@ func test_manager_reports_unknown_adapter_methods_as_validation_requests() -> vo
 	assert_true(request.has("meta"))
 	assert_true(request.meta.has("validation_error"))
 	assert_string_contains(str(request.meta.validation_error), "Unknown adapter build method")
+
+func test_manager_summarizes_provider_errors_with_nested_details_and_error_ref() -> void:
+	var manager := AeroModIOManager.new()
+	var summary := manager.summarize_provider_error({
+		"error": {
+			"message": "Validation Failed. Please see below to fix invalid input:",
+			"error_ref": 13009,
+			"details": {
+				"summary": ["The \"summary\" field is required."],
+				"metadata_blob": "The \"metadata_blob\" must be a string."
+			}
+		}
+	}, "fallback")
+
+	assert_string_contains(summary, "Validation Failed. Please see below to fix invalid input:")
+	assert_string_contains(summary, "summary: The \"summary\" field is required.")
+	assert_string_contains(summary, "metadata_blob: The \"metadata_blob\" must be a string.")
+	assert_string_contains(summary, "error_ref=13009")
+
+func test_manager_summarizes_provider_errors_from_errors_payload_shape() -> void:
+	var manager := AeroModIOManager.new()
+	var summary := manager.summarize_provider_error({
+		"error": {
+			"message": "Upload rejected.",
+			"errors": {
+				"filedata": ["ZIP payload was invalid."],
+				"virus_status": {
+					"scan": "Pending"
+				}
+			}
+		}
+	}, "fallback")
+
+	assert_string_contains(summary, "Upload rejected.")
+	assert_string_contains(summary, "filedata: ZIP payload was invalid.")
+	assert_string_contains(summary, "virus_status.scan: Pending")

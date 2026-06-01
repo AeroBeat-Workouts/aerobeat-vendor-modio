@@ -134,7 +134,7 @@ func _execute_step(manager, stage: String, builder_method: StringName, builder_a
 			"stage": stage,
 			"ok": false,
 			"raw": raw_response,
-			"message": _response_error_message(raw_response, "mod.io request failed during %s." % stage)
+			"message": manager.summarize_provider_error(raw_response, "mod.io request failed during %s." % stage)
 		}
 	var normalized = manager.normalize_with_adapter(normalizer_method, [int(raw_response.get("status_code", 0)), raw_response.get("headers", {}), raw_response.get("payload", {})])
 	if not (normalized is Dictionary):
@@ -150,7 +150,7 @@ func _execute_step(manager, stage: String, builder_method: StringName, builder_a
 			"ok": false,
 			"raw": raw_response,
 			"normalized": normalized,
-			"message": _response_error_message(normalized, "mod.io rejected %s." % stage)
+			"message": manager.summarize_provider_error(normalized, "mod.io rejected %s." % stage)
 		}
 	return {
 		"stage": stage,
@@ -160,23 +160,6 @@ func _execute_step(manager, stage: String, builder_method: StringName, builder_a
 		"data": normalized.get("data", {}),
 		"message": "ok"
 	}
-
-func _response_error_message(response: Dictionary, fallback: String) -> String:
-	var error_payload = response.get("error", {})
-	if error_payload is Dictionary:
-		var parts := PackedStringArray()
-		var message := str(error_payload.get("message", "")).strip_edges()
-		if not message.is_empty():
-			parts.append(message)
-		var detail_bits := _flatten_error_details(error_payload.get("details", {}))
-		if not detail_bits.is_empty():
-			parts.append("Details: %s" % "; ".join(detail_bits))
-		var error_ref := int(error_payload.get("error_ref", 0))
-		if error_ref > 0:
-			parts.append("error_ref=%s" % error_ref)
-		if not parts.is_empty():
-			return " ".join(parts)
-	return fallback
 
 func _failed_result(stage: String, message: String) -> Dictionary:
 	return {
@@ -289,19 +272,3 @@ func _validate_minimum_image_dimensions(path: String, field_name: String, errors
 	if image.get_width() < minimum_width or image.get_height() < minimum_height:
 		errors.append("%s must be at least %dx%d pixels for mod.io create-draft validation." % [field_name, minimum_width, minimum_height])
 
-func _flatten_error_details(details: Variant, prefix: String = "") -> PackedStringArray:
-	var result := PackedStringArray()
-	if details is Dictionary:
-		for key in details.keys():
-			var nested_prefix := "%s.%s" % [prefix, str(key)] if not prefix.is_empty() else str(key)
-			result.append_array(_flatten_error_details(details.get(key), nested_prefix))
-		return result
-	if details is Array:
-		for entry in details:
-			result.append_array(_flatten_error_details(entry, prefix))
-		return result
-	var cleaned := str(details).strip_edges()
-	if cleaned.is_empty():
-		return result
-	result.append("%s: %s" % [prefix, cleaned] if not prefix.is_empty() else cleaned)
-	return result
