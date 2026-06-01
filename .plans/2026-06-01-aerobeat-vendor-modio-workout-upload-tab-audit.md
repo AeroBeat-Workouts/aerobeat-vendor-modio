@@ -734,9 +734,13 @@ Validation evidence supports the claim. I reran `godot --headless --path .testbe
 - `.testbed/`
 - `src/`
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** QA found and fixed one real QA-sized regression in the environment-bucket slice before closing. The core behavior claim is now verified: switching the server selector from Live to Test reloads the Test session bucket into runtime state, a Test auth exchange persists into `modio.test` (including `access_token`, `access_token_expires_at`, `user_id`, and saved email context), and the pre-existing Live bucket remains intact rather than being overwritten by the Test-path exchange. Focused browser coverage now proves that exact seam with a manager-factory stub that preserves the Live restore identity during startup and then returns the Test identity only for the Test-path exchange, so the assertion is checking the real bucket-routing behavior instead of test-induced restore noise.
+
+QA also confirmed restore and clear flows stay aligned with the active environment bucket. While tightening that coverage, I found a small real bug: clearing the active bucket erased `access_token_expires_at`, but a later UI-driven session persist could write it back as `"0"` because `_persist_session_state()` always stringified the in-memory expiry integer. I fixed that by only persisting `access_token_expires_at` when it is a real positive timestamp, leaving it blank when the session has been cleared. After that fix, clearing the Test bucket removes its saved auth/expiry/user/email fields while leaving the Live bucket untouched, and the recent stale-token/expiry behavior still works as designed.
+
+Validation rerun passed after the QA fix: targeted GUT for `res://tests/test_modio_session_config_store.gd` + `res://tests/test_modio_workout_browser_testbed.gd`, `godot --headless --path .testbed --script res://tests/validate_modio_testbed_scenes.gd`, `godot --headless --path .testbed --script res://tests/qa_verify_scene_output_updates.gd`, and the full `addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit` suite (`123/123` passing). The only remaining warnings are the pre-existing non-failing Float/Int comparison warning in `test_modio_vendor_adapter.gd` and the known ObjectDB/resources-at-exit warning from the scene QA harness.
 
 ---
 

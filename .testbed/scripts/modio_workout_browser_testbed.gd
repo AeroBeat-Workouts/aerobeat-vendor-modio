@@ -1193,7 +1193,7 @@ func _persist_session_state(extra_values: Dictionary = {}) -> Dictionary:
 	_sync_environment_from_selector(false, false)
 	var values := {
 		"access_token": _state.access_token,
-		"access_token_expires_at": str(_state.access_token_expires_at),
+		"access_token_expires_at": str(_state.access_token_expires_at) if _state.access_token_expires_at > 0 else "",
 		"user_id": _state.user_id,
 		"email": _state.email,
 		"last_requested_email": _state.last_requested_email,

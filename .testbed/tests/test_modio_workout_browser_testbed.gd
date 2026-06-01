@@ -88,6 +88,11 @@ class RestoreAuthRejectManagerFactory:
 class ExchangeSuccessManager:
 	extends RefCounted
 
+	var _environment := "live"
+
+	func _init(environment: String = "live") -> void:
+		_environment = environment
+
 	func execute_adapter_request(builder_method: StringName, builder_args: Array = []) -> Dictionary:
 		var method_name := String(builder_method)
 		if method_name == "build_auth_exchange_request":
@@ -100,13 +105,23 @@ class ExchangeSuccessManager:
 				}
 			}
 		if method_name == "build_authenticated_user_request":
+			if _environment == "test":
+				return {
+					"ok": true,
+					"status_code": 200,
+					"payload": {
+						"id": 5555,
+						"username": "test-athlete",
+						"name_id": "test-athlete"
+					}
+				}
 			return {
 				"ok": true,
 				"status_code": 200,
 				"payload": {
-					"id": 5555,
-					"username": "test-athlete",
-					"name_id": "test-athlete"
+					"id": "live-user",
+					"username": "live-athlete",
+					"name_id": "live-athlete"
 				}
 			}
 		if method_name in ["build_user_wallet_request", "build_user_purchased_request", "build_listing_request"]:
@@ -168,8 +183,8 @@ class ExchangeSuccessManager:
 class ExchangeSuccessManagerFactory:
 	extends RefCounted
 
-	func build_manager(_config, _state):
-		return ExchangeSuccessManager.new()
+	func build_manager(_config, state):
+		return ExchangeSuccessManager.new(String(state.environment))
 
 
 func before_each() -> void:
@@ -712,7 +727,7 @@ func test_clear_session_uses_active_environment_bucket_without_touching_other_bu
 		"\n",
 		"[modio.live]\n",
 		"\n",
-		"access_token="live-token"\n",
+		"access_token=\"live-token\"\n",
 		"access_token_expires_at=\"4102444700\"\n",
 		"user_id=\"live-user\"\n",
 		"email=\"live-athlete@example.com\"\n",
@@ -721,6 +736,8 @@ func test_clear_session_uses_active_environment_bucket_without_touching_other_bu
 	]))
 
 	var scene: Control = _instantiate_scene()
+	var manager_factory := ExchangeSuccessManagerFactory.new()
+	scene.call("set_manager_factory_for_testing", Callable(manager_factory, "build_manager"))
 	get_tree().root.add_child(scene)
 	await get_tree().process_frame
 	await get_tree().process_frame
