@@ -2,6 +2,7 @@ extends GutTest
 
 const WorkoutBrowserScene := preload("res://scenes/workout_browser.tscn")
 const SESSION_PATH := "user://modio_workout_browser_testbed_session.cfg"
+const STABLE_PATH := "user://modio_workout_browser_testbed_stable.cfg"
 
 var _session_backup_exists := false
 var _session_backup_text := ""
@@ -186,6 +187,119 @@ class ExchangeSuccessManagerFactory:
 	func build_manager(_config, state):
 		return ExchangeSuccessManager.new(String(state.environment))
 
+class StartupRestoreHydrationManager:
+	extends RefCounted
+
+	var calls: Array[String] = []
+	var listing_call_count := 0
+
+	func _listing_payload(entries: Array) -> Dictionary:
+		return {
+			"data": entries,
+			"result_count": entries.size(),
+			"result_offset": 0,
+			"result_limit": 9,
+			"result_total": entries.size(),
+			"page": {
+				"count": entries.size(),
+				"offset": 0,
+				"limit": 9,
+				"total": entries.size(),
+				"has_next": false,
+				"has_previous": false,
+				"next_offset": -1,
+				"previous_offset": -1,
+				"page_index": 0,
+				"page_count": 1
+			}
+		}
+
+	func _sample_mod_entry(mod_id: int) -> Dictionary:
+		return {
+			"id": mod_id,
+			"name": "Workout %d" % mod_id,
+			"summary": "Regression fixture card %d" % mod_id,
+			"description_plaintext": "Regression fixture card %d description" % mod_id,
+			"stats": {
+				"downloads_total": mod_id,
+				"subscribers_total": mod_id + 1
+			},
+			"logo": {},
+			"media": {
+				"images": []
+			},
+			"modfile": {
+				"id": mod_id + 5000,
+				"filename": "fixture-%d.zip" % mod_id,
+				"filehash": {"md5": "fixture-md5-%d" % mod_id},
+				"download": {
+					"binary_url": "https://example.invalid/download/%d" % mod_id,
+					"date_expires": 4102444800
+				}
+			},
+			"tags": [],
+			"metadata_kvp": [],
+			"profile_url": "https://example.invalid/mod/%d" % mod_id
+		}
+
+	func execute_adapter_request(builder_method: StringName, _builder_args: Array = []) -> Dictionary:
+		var method_name := String(builder_method)
+		calls.append(method_name)
+		match method_name:
+			"build_authenticated_user_request":
+				return {
+					"ok": true,
+					"status_code": 200,
+					"payload": {
+						"id": 9001,
+						"username": "restored-athlete",
+						"name_id": "restored-athlete"
+					}
+				}
+			"build_user_wallet_request":
+				return {
+					"ok": true,
+					"status_code": 200,
+					"payload": {
+						"type": "virtual",
+						"currency": "USD",
+						"balance": 12
+					}
+				}
+			"build_user_purchased_request":
+				return {
+					"ok": true,
+					"status_code": 200,
+					"payload": _listing_payload([_sample_mod_entry(7001)])
+				}
+			"build_user_subscriptions_request":
+				return {
+					"ok": true,
+					"status_code": 200,
+					"payload": _listing_payload([_sample_mod_entry(5001)])
+				}
+			"build_listing_request":
+				listing_call_count += 1
+				var entries := [_sample_mod_entry(4001)] if listing_call_count == 1 else [_sample_mod_entry(4002)]
+				return {
+					"ok": true,
+					"status_code": 200,
+					"payload": _listing_payload(entries)
+				}
+			_:
+				return {"ok": true, "status_code": 200, "payload": {}}
+
+	func normalize_with_adapter(_normalizer_method: StringName, normalizer_args: Array = []):
+		return normalizer_args[0] if normalizer_args.size() > 0 else {}
+
+class StartupRestoreHydrationManagerFactory:
+	extends RefCounted
+
+	var manager := StartupRestoreHydrationManager.new()
+
+	func build_manager(_config, _state):
+		return manager
+
 
 func before_each() -> void:
 	_session_backup_exists = FileAccess.file_exists(SESSION_PATH)
@@ -200,10 +314,12 @@ func after_each() -> void:
 		_write_text(SESSION_PATH, _session_backup_text)
 	elif FileAccess.file_exists(SESSION_PATH):
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(SESSION_PATH))
+	if FileAccess.file_exists(STABLE_PATH):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(STABLE_PATH))
 
-func _instantiate_scene() -> Control:
+func _instantiate_scene(stable_path: String = "") -> Control:
 	var scene: Control = WorkoutBrowserScene.instantiate()
-	scene.call("set_config_paths_for_testing", "", SESSION_PATH)
+	scene.call("set_config_paths_for_testing", stable_path, SESSION_PATH)
 	return scene
 
 func test_ready_restores_saved_email_without_wiping_session_values() -> void:
@@ -254,7 +370,7 @@ func test_ready_restores_saved_auth_and_re_enables_all_non_public_tabs() -> void
 	]))
 
 	var scene: Control = _instantiate_scene()
-	var manager_factory := ExchangeSuccessManagerFactory.new()
+	var manager_factory = ExchangeSuccessManagerFactory.new()
 	scene.call("set_manager_factory_for_testing", Callable(manager_factory, "build_manager"))
 	get_tree().root.add_child(scene)
 	await get_tree().process_frame
@@ -274,6 +390,64 @@ func test_ready_restores_saved_auth_and_re_enables_all_non_public_tabs() -> void
 	assert_false(tab_container.is_tab_disabled(4))
 	assert_eq(tab_container.current_tab, 4)
 	assert_false(upload_button.disabled)
+
+	scene.queue_free()
+	await get_tree().process_frame
+
+func test_ready_restores_saved_auth_and_hydrates_non_public_views() -> void:
+	var future_expiry := int(Time.get_unix_time_from_system()) + 3600
+	_write_text(STABLE_PATH, "".join([
+		"[modio]\n",
+		"default_environment=\"test\"\n",
+		"host_kind=\"api\"\n",
+		"\n",
+		"[modio.test]\n",
+		"game_id=\"777\"\n",
+		"api_key=\"demo-key\"\n",
+		"\n",
+		"[modio.live]\n",
+		"game_id=\"2001\"\n",
+		"api_key=\"live-key\"\n"
+	]))
+	_write_text(SESSION_PATH, "".join([
+		"[modio]\n",
+		"\n",
+		"environment=\"test\"\n",
+		"host_kind=\"\"\n",
+		"\n",
+		"[modio.test]\n",
+		"\n",
+		"access_token=\"startup-restored-token\"\n",
+		"access_token_expires_at=\"%s\"\n" % str(future_expiry),
+		"user_id=\"startup-user\"\n",
+		"email=\"startup-athlete@example.com\"\n",
+		"last_requested_email=\"startup-athlete@example.com\"\n",
+		"browser_tab=\"upload\"\n"
+	]))
+
+	var scene: Control = _instantiate_scene(STABLE_PATH)
+	var manager_factory = StartupRestoreHydrationManagerFactory.new()
+	scene.call("set_manager_factory_for_testing", Callable(manager_factory, "build_manager"))
+	get_tree().root.add_child(scene)
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+	var browser_state: ModioWorkoutBrowserState = scene.get("_state")
+	var upload_intro: Label = scene.find_child("UploadWorkoutIntroLabel", true, false)
+	var upload_status: Label = scene.find_child("UploadWorkoutStatusLabel", true, false)
+	assert_not_null(browser_state)
+	assert_not_null(upload_intro)
+	assert_not_null(upload_status)
+	assert_eq(browser_state.active_tab, ModioWorkoutBrowserState.TAB_UPLOAD)
+	assert_eq(int(browser_state.public_listing.get("result_count", 0)), 1)
+	assert_eq(int(browser_state.workout_listing.get("result_count", 0)), 1)
+	assert_eq(int(browser_state.subscribed_listing.get("result_count", 0)), 1)
+	assert_string_contains(upload_intro.text, "signed-in athlete bearer")
+	assert_string_contains(upload_status.text, "Provide a workout name")
+	assert_true(manager_factory.manager.calls.count("build_authenticated_user_request") >= 1)
+	assert_eq(manager_factory.manager.calls.count("build_listing_request"), 2)
+	assert_eq(manager_factory.manager.calls.count("build_user_subscriptions_request"), 1)
+	assert_string_contains(browser_state.status_text, "hydrated profile, wallet, purchase history, workout, subscribed")
 
 	scene.queue_free()
 	await get_tree().process_frame
@@ -333,7 +507,7 @@ func test_restore_saved_token_rejection_path_clears_saved_auth_and_preserves_ema
 	]))
 
 	var scene: Control = _instantiate_scene()
-	var manager_factory := RestoreAuthRejectManagerFactory.new()
+	var manager_factory = RestoreAuthRejectManagerFactory.new()
 	scene.call("set_manager_factory_for_testing", Callable(manager_factory, "build_manager"))
 	get_tree().root.add_child(scene)
 	await get_tree().process_frame
@@ -738,7 +912,7 @@ func test_switching_to_test_environment_loads_test_bucket_and_keeps_live_bucket_
 	]))
 
 	var scene: Control = _instantiate_scene()
-	var manager_factory := ExchangeSuccessManagerFactory.new()
+	var manager_factory = ExchangeSuccessManagerFactory.new()
 	scene.call("set_manager_factory_for_testing", Callable(manager_factory, "build_manager"))
 	get_tree().root.add_child(scene)
 	await get_tree().process_frame
@@ -809,7 +983,7 @@ func test_clear_session_uses_active_environment_bucket_without_touching_other_bu
 	]))
 
 	var scene: Control = _instantiate_scene()
-	var manager_factory := ExchangeSuccessManagerFactory.new()
+	var manager_factory = ExchangeSuccessManagerFactory.new()
 	scene.call("set_manager_factory_for_testing", Callable(manager_factory, "build_manager"))
 	get_tree().root.add_child(scene)
 	await get_tree().process_frame
@@ -842,6 +1016,27 @@ func test_clear_session_uses_active_environment_bucket_without_touching_other_bu
 
 	scene.queue_free()
 	await get_tree().process_frame
+
+func _listing_payload(entries: Array) -> Dictionary:
+	return {
+		"data": entries,
+		"result_count": entries.size(),
+		"result_offset": 0,
+		"result_limit": 9,
+		"result_total": entries.size(),
+		"page": {
+			"count": entries.size(),
+			"offset": 0,
+			"limit": 9,
+			"total": entries.size(),
+			"has_next": false,
+			"has_previous": false,
+			"next_offset": -1,
+			"previous_offset": -1,
+			"page_index": 0,
+			"page_count": 1
+		}
+	}
 
 func _sample_mod_entry(mod_id: int) -> Dictionary:
 	return {

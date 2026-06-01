@@ -2,7 +2,7 @@
 
 **Date:** 2026-06-01
 **Status:** In Progress
-**Last Updated:** 2026-06-01 13:57 EDT
+**Last Updated:** 2026-06-01 14:31 EDT
 **Blocked Reason:** None
 **Agent:** `chip`
 
@@ -815,9 +815,11 @@ Focused regression coverage was added in `.testbed/tests/test_modio_workout_brow
 - `.testbed/tests/`
 - `.testbed/scripts/modio_workout_browser_testbed.gd`
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** QA passed without needing a follow-up fix. The restored-auth startup seam now behaves correctly against the exact regression Derrick reported. Focused browser coverage in `.testbed/tests/test_modio_workout_browser_testbed.gd` proves that a saved future-dated bearer with `browser_tab="upload"` rehydrates into an authenticated state on startup, re-enables every expected non-public browser tab (`Profile`, `Workout Browser`, `Subscribed Workouts`, and `Upload Workout`), restores `Upload Workout` as the active browser tab, and re-enables the upload submit button after auth restore. The paired fallback guard also stayed green: when auth is absent during restore-time refreshes, the UI temporarily shows the public tab without clobbering the saved non-public tab intent, and once auth exists the saved `Upload Workout` intent becomes active again.
+
+This lines up with the controller change in `.testbed/scripts/modio_workout_browser_testbed.gd`: `_refresh_auth_gated_browser_state()` is now the single-source-of-truth pass for non-public tab disabled state, upload-submit enablement, and browser-tab selection sync, and the startup saved-auth rehydration path explicitly reapplies that seam after `/me` restore. QA reran the focused browser suite plus scene validators: `godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gtest=res://tests/test_modio_workout_browser_testbed.gd -gexit` (14/14 passing), `godot --headless --path .testbed --script res://tests/validate_modio_testbed_scenes.gd` (passed), and `godot --headless --path .testbed --script res://tests/qa_verify_scene_output_updates.gd` (passed). The only remaining note is the pre-existing non-failing scene-harness `ObjectDB`/resources-at-exit warning after `qa_verify_scene_output_updates.gd`; no restored-auth tab gating regression remained in this QA slice.
 
 ---
 
@@ -828,6 +830,81 @@ Focused regression coverage was added in `.testbed/tests/test_modio_workout_brow
 **Role:** `auditor`  
 **References:** `REF-02`, `REF-03`, `REF-06`  
 **Prompt:** In `aerobeat-vendor-modio`, claim bead `oc-rjnl` on start with `bd update oc-rjnl --status in_progress --json`. Independently audit the startup restored-auth tab enablement fix. Verify that restored auth refreshes all non-public tab gating/enabled state correctly, especially `Upload Workout`, inspect validation evidence, update this plan with the final audit verdict, commit/push by default only if an audit-sized fix is needed, and close the bead with a clear reason.
+
+**Folders Created/Deleted/Modified:**
+- `.plans/`
+- `.testbed/`
+- `src/`
+
+**Files Created/Deleted/Modified:**
+- `.plans/2026-06-01-aerobeat-vendor-modio-workout-upload-tab-audit.md`
+- `.testbed/tests/`
+- `.testbed/scripts/modio_workout_browser_testbed.gd`
+
+**Status:** ✅ Complete
+
+**Results:** Independent audit passed without needing an audit-sized fix. The restored-auth startup seam now re-enables every expected non-public browser tab from the same auth-gated refresh path instead of leaving `Upload Workout` behind in stale pre-auth state. In `.testbed/scripts/modio_workout_browser_testbed.gd`, `_refresh_auth_gated_browser_state()` now owns the shared refresh for browser-tab disabled state (`Profile`, `Workout Browser`, `Subscribed Workouts`, `Upload Workout`), upload-submit enablement, and browser-tab selection sync, and the startup restore flow explicitly reapplies that seam after saved `/me` rehydration. That makes the implementation claim true for all three audit goals: restored auth refreshes all non-public tab gating together, saved `browser_tab="upload"` is restored correctly after auth rehydration, and the upload submit button follows that same auth-gated refresh path.
+
+The focused regression evidence supports the claim directly. I reran `godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gtest=res://tests/test_modio_workout_browser_testbed.gd -gexit` (14/14 passing), `godot --headless --path .testbed --script res://tests/validate_modio_testbed_scenes.gd` (passed), and `godot --headless --path .testbed --script res://tests/qa_verify_scene_output_updates.gd` (passed). The browser test suite’s restore-path coverage specifically proves that a saved future-dated bearer plus `browser_tab="upload"` rehydrates into an authenticated state on startup, re-enables all four non-public tabs, restores `Upload Workout` as the active tab, and re-enables the upload submit button. The paired unauthenticated fallback guard also stayed green, confirming the temporary public-tab fallback during signed-out restore does not clobber saved non-public tab intent. The only remaining note is the pre-existing non-failing scene-harness `ObjectDB`/resources-at-exit warning after `qa_verify_scene_output_updates.gd`; it did not fail the run and is unrelated to this restored-auth gating slice.
+
+---
+### Task 28: Fix saved-auth startup not hydrating non-public views
+
+**Bead ID:** `oc-plkd`  
+**SubAgent:** `primary` (for `coder`)  
+**Role:** `coder`  
+**References:** `REF-02`, `REF-03`, `REF-06`  
+**Prompt:** In `aerobeat-vendor-modio`, claim bead `oc-plkd` on start with `bd update oc-plkd --status in_progress --json`. Fix the saved-auth startup path so authenticated non-public views hydrate the same way they do after manual refresh/auth flows. Derrick confirmed that the testbed now auto-signs in on startup, but the non-public views still do not refresh/populate until manually refreshed, and `Upload Workout` has no manual refresh affordance so it remains improperly loaded. Identify the root cause, make startup restored auth run the necessary non-public view hydration path(s), add focused regression coverage, run relevant validation, update this plan with what actually changed, commit and push by default, and close the bead with a clear reason.
+
+**Folders Created/Deleted/Modified:**
+- `.plans/`
+- `.testbed/`
+- `src/`
+
+**Files Created/Deleted/Modified:**
+- `.plans/2026-06-01-aerobeat-vendor-modio-workout-upload-tab-audit.md`
+- `.testbed/scripts/modio_workout_browser_testbed.gd`
+- `.testbed/tests/`
+
+**Status:** ✅ Complete
+
+**Results:** Root cause was that the saved-auth startup seam only restored bearer/session state and profile data, while the authenticated listing hydration for the other non-public views still lived behind manual fetch paths. In practice that meant startup could re-enable auth-gated tabs without actually hydrating `Workout Browser` or `Subscribed Workouts`, and `Upload Workout` could remain half-restored because it has no separate manual refresh affordance to finish that work later. I fixed that in `.testbed/scripts/modio_workout_browser_testbed.gd` by adding a dedicated `_hydrate_restored_authenticated_views()` startup path. After saved bearer restore, startup now runs `/me` + wallet + purchases, then authenticated workout/subscribed listing hydration through the same controller fetch seam used by manual refreshes, then a final auth-gated browser refresh so restored-tab selection and upload controls stay aligned with the now-hydrated auth state.
+
+I also refactored listing fetches through `_fetch_listing_for_context(...)` so startup hydration reuses the exact same query/normalization/UI-update path as manual listing refreshes instead of duplicating request logic or faking post-auth UI state. Focused regression coverage was added in `.testbed/tests/test_modio_workout_browser_testbed.gd` using isolated stable/session config files plus a startup-restore manager stub: the new test proves startup now hydrates public/workout/subscribed listings, restores `Upload Workout` as the active tab, and shows authenticated upload copy without needing manual refresh. Coder validation passed with `godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gtest=res://tests/test_modio_workout_browser_testbed.gd -gexit` (15/15 passing), `godot --headless --path .testbed --script res://tests/validate_modio_testbed_scenes.gd`, and `godot --headless --path .testbed --script res://tests/qa_verify_scene_output_updates.gd` (passed with the same pre-existing non-failing ObjectDB/resources-at-exit warning from the scene QA harness).
+
+---
+
+### Task 29: QA saved-auth startup hydration fix
+
+**Bead ID:** `oc-2tyy`  
+**SubAgent:** `primary` (for `qa`)  
+**Role:** `qa`  
+**References:** `REF-02`, `REF-03`, `REF-06`  
+**Prompt:** In `aerobeat-vendor-modio`, claim bead `oc-2tyy` on start with `bd update oc-2tyy --status in_progress --json`. Verify that saved-auth startup now hydrates the expected non-public views without needing manual refresh, including `Upload Workout`. Run relevant validation/tests, update this plan with QA findings, commit/push by default only if QA-sized fixes are needed, and close the bead with a clear reason.
+
+**Folders Created/Deleted/Modified:**
+- `.plans/`
+- `.testbed/`
+- `src/`
+
+**Files Created/Deleted/Modified:**
+- `.plans/2026-06-01-aerobeat-vendor-modio-workout-upload-tab-audit.md`
+- `.testbed/tests/`
+- `.testbed/scripts/modio_workout_browser_testbed.gd`
+
+**Status:** ⏳ Pending
+
+**Results:** Pending.
+
+---
+
+### Task 30: Audit saved-auth startup hydration fix
+
+**Bead ID:** `oc-695y`  
+**SubAgent:** `primary` (for `auditor`)  
+**Role:** `auditor`  
+**References:** `REF-02`, `REF-03`, `REF-06`  
+**Prompt:** In `aerobeat-vendor-modio`, claim bead `oc-695y` on start with `bd update oc-695y --status in_progress --json`. Independently audit the saved-auth startup hydration fix for non-public views. Verify restored auth now hydrates the expected non-public views truthfully on startup, especially `Upload Workout`, inspect validation evidence, update this plan with the final audit verdict, commit/push by default only if an audit-sized fix is needed, and close the bead with a clear reason.
 
 **Folders Created/Deleted/Modified:**
 - `.plans/`

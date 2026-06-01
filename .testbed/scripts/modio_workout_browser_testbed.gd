@@ -1183,8 +1183,7 @@ func _restore_saved_runtime_state() -> void:
 		_refresh_all_ui()
 		return
 	if _state.is_authenticated():
-		_refresh_profile_data(false, true)
-		_refresh_auth_gated_browser_state()
+		_hydrate_restored_authenticated_views()
 
 func _persist_session_state(extra_values: Dictionary = {}) -> Dictionary:
 	_sync_environment_from_selector(false, false)
@@ -1210,6 +1209,26 @@ func _refresh_auth_gated_browser_state() -> void:
 	if is_instance_valid(_upload_submit_button):
 		_upload_submit_button.disabled = not is_authenticated
 	_sync_browser_tab_selection()
+
+func _hydrate_restored_authenticated_views() -> void:
+	_refresh_profile_data(false, true)
+	if not _state.is_authenticated():
+		return
+	var hydrated_context_labels := PackedStringArray(["profile", "wallet", "purchase history"])
+	var hydration_failures := PackedStringArray()
+	if _state.can_browse_public():
+		for context in [ModioWorkoutBrowserState.TAB_WORKOUT, ModioWorkoutBrowserState.TAB_SUBSCRIBED]:
+			var result := _fetch_listing_for_context(context)
+			if bool(result.get("ok", false)):
+				hydrated_context_labels.append(context.replace("_", " "))
+			else:
+				hydration_failures.append("%s: %s" % [context.replace("_", " "), str(result.get("message", "Failed to hydrate %s." % context))])
+	_refresh_auth_gated_browser_state()
+	if hydration_failures.is_empty():
+		_set_status("Restored saved athlete auth and hydrated %s from %s." % [", ".join(hydrated_context_labels), _store.get_storage_path(_session_config_path())])
+		return
+	_set_status("Restored saved athlete auth, but some startup hydration failed: %s" % "; ".join(hydration_failures))
+
 
 func _sync_browser_tab_selection() -> void:
 	if not is_instance_valid(_tab_container):
@@ -1381,15 +1400,20 @@ func _build_listing_query(context: String) -> ModioListingQuery:
 	return query
 
 func _fetch_listing(context: String) -> void:
+	var result := _fetch_listing_for_context(context)
+	if not bool(result.get("ok", false)):
+		_set_status(str(result.get("message", "Failed to fetch %s." % context)))
+		return
+	_set_status(str(result.get("message", "Loaded %s." % context)))
+
+func _fetch_listing_for_context(context: String) -> Dictionary:
 	_state.query_for_context(context).merge(_read_query_from_controls(context), true)
 	if not _state.can_browse_public():
-		_set_status("Enter both Game ID and API Key before browsing mod.io.")
 		_refresh_all_ui()
-		return
+		return {"ok": false, "message": "Enter both Game ID and API Key before browsing mod.io."}
 	if context != ModioWorkoutBrowserState.TAB_PUBLIC and not _state.is_authenticated():
-		_set_status("Athlete-only tabs require an access token from the email-code auth flow.")
 		_refresh_all_ui()
-		return
+		return {"ok": false, "message": "Athlete-only tabs require an access token from the email-code auth flow."}
 	_rebuild_manager()
 	var response: Dictionary
 	if context == ModioWorkoutBrowserState.TAB_SUBSCRIBED:
@@ -1397,18 +1421,20 @@ func _fetch_listing(context: String) -> void:
 	else:
 		response = _manager.execute_adapter_request("build_listing_request", [_build_listing_query(context)])
 	if not bool(response.get("ok", false)):
-		_set_status(_response_error_message(response, "Failed to fetch %s." % context))
-		return
+		return {"ok": false, "message": _response_error_message(response, "Failed to fetch %s." % context)}
 	var normalized = _manager.normalize_with_adapter(
 		"normalize_subscriptions_response" if context == ModioWorkoutBrowserState.TAB_SUBSCRIBED else "normalize_mod_list_response",
 		[response.get("payload", {})]
 	)
 	_state.set_listing_for_context(context, normalized if normalized is Dictionary else ModioWorkoutBrowserState._empty_listing())
 	_state.raw_debug_sections[context] = response.get("payload", {})
-	_set_status("Loaded %s (%d result(s))." % [context.replace("_", " "), int(_state.listing_for_context(context).get("result_count", 0))])
 	_update_listing_ui(context)
 	if context == ModioWorkoutBrowserState.TAB_SUBSCRIBED:
 		_update_profile_ui()
+	return {
+		"ok": true,
+		"message": "Loaded %s (%d result(s))." % [context.replace("_", " "), int(_state.listing_for_context(context).get("result_count", 0))]
+	}
 
 func _shift_page(context: String, direction: int) -> void:
 	var query: Dictionary = _state.query_for_context(context)
