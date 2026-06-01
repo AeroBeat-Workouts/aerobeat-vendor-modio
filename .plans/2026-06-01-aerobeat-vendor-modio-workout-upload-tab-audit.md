@@ -509,5 +509,6 @@ The audit-sized gap was in evidence, not behavior: the browser tests covered hel
 - `007251b` (`aerobeat-tool-device-detection`) - `Add mod.io upload metadata helper`
 - `ea03fe3` (`aerobeat-vendor-modio`) - `Seed truthful upload metadata defaults`
 - `9d13c89` (`aerobeat-tool-device-detection`) - `Avoid global class collision in modio metadata helper`
+- `6287c46` - `Audit auth expiry restore validation seam`
 
 **Lessons Learned:** For UI refinements like this, the risky part is not just visual parity; it is preserving behavioral truth. A denser form can still fail the real requirement if the action falls below the viewport or if the controller quietly starts owning backend orchestration again. The extra scrollbar probe was worth doing because it confirmed the design succeeds for the right reason: when compression is not enough, scrolling genuinely carries the operator to the action. The next truth check is semantic rather than spatial: make sure `metadata` vs `tags` copy reflects actual mod.io authoring semantics and AeroBeat taxonomy usage instead of placeholder guesses.
