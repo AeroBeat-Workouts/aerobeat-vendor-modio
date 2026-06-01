@@ -1,6 +1,6 @@
 extends Control
 
-const ModioWorkoutUploadFlow = preload("res://addons/aerobeat-vendor-modio/src/modio_workout_upload_flow.gd")
+const ModioWorkoutUploadFlowScript = preload("res://addons/aerobeat-vendor-modio/src/modio_workout_upload_flow.gd")
 const AeroDeviceDetectionModioMetadata = preload("res://addons/aerobeat-tool-device-detection/src/AeroDeviceDetectionModioMetadata.gd")
 
 const GLOBAL_TAB_CONNECTION_INDEX := 0
@@ -56,7 +56,7 @@ var _store := ModioSessionConfigStore.new()
 var _state := ModioWorkoutBrowserState.new()
 var _manager = null
 var _base_config: ModioClientConfig
-var _upload_flow = ModioWorkoutUploadFlow.new()
+var _upload_flow = ModioWorkoutUploadFlowScript.new()
 var _image_cache: Dictionary = {}
 var _ui_built: bool = false
 var _suspend_session_persistence: bool = false
@@ -349,7 +349,7 @@ func _build_auth_panel() -> Control:
 	inner.add_child(heading)
 
 	var description := Label.new()
-	description.text = "Real mod.io athlete auth uses emailrequest → emailexchange. That in-game bearer path already defaults to roughly the longest direct session mod.io documents (about one common year), but it is not a permanent-login toggle and longer silent renewals would require a different backend OAuth architecture. Saved email + token state can be restored here, but athlete username/display-name edits are not supported through our current public REST access."
+	description.text = "Real mod.io athlete auth uses emailrequest → emailexchange. We still request the longest direct in-game expiry the provider allows us to ask for, but the latest provider-returned bearer in this testbed came back at roughly 90 days, not a guaranteed year. It is not a permanent-login toggle, and longer silent renewals would require a different backend OAuth architecture. Saved email + token state can be restored here, but athlete username/display-name edits are not supported through our current public REST access."
 	description.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	inner.add_child(description)
 
@@ -595,7 +595,7 @@ func _build_upload_tab() -> Control:
 	summary_description_row.name = "UploadWorkoutSummaryDescriptionRow"
 	summary_description_row.add_theme_constant_override("separation", 8)
 	form_root.add_child(summary_description_row)
-	summary_description_row.add_child(_build_upload_text_line("Summary", "UploadWorkoutSummaryLineEdit", "Short operator-visible summary", func(control: LineEdit) -> void:
+	summary_description_row.add_child(_build_upload_text_line("Summary (required)", "UploadWorkoutSummaryLineEdit", "Short operator-visible summary", func(control: LineEdit) -> void:
 		_upload_summary_line_edit = control
 	))
 	var description_box := _build_upload_multiline_box("Description", "UploadWorkoutDescriptionTextEdit", Vector2(0, 88), "", func(control: TextEdit) -> void:
@@ -1194,9 +1194,9 @@ func _sync_upload_controls() -> void:
 	_upload_submit_button.disabled = not _state.is_authenticated()
 	var auth_truth := "Athlete sign-in is required. This tab stays disabled until the email-code flow resolves a bearer token."
 	if _state.is_authenticated():
-		auth_truth = "This staged authoring flow uses the signed-in athlete bearer. It creates a draft mod first, uploads the workout ZIP as the latest modfile second, and only publishes if you opt in below."
+		auth_truth = "This staged authoring flow uses the signed-in athlete bearer. It creates a draft mod first, uploads the workout ZIP as the latest modfile second, and only publishes if you opt in below. mod.io currently expects a summary, a readable logo image at least 512x288, and string metadata before draft creation will pass."
 	_upload_intro_label.text = auth_truth
-	_upload_status_label.text = _state.upload_status_text if not _state.upload_status_text.is_empty() else "Provide a workout name, required metadata entries, a required logo file, and a required workout ZIP before running the staged upload."
+	_upload_status_label.text = _state.upload_status_text if not _state.upload_status_text.is_empty() else "Provide a workout name, required summary text, required metadata entries, a readable 512x288+ logo image, and a required workout ZIP before running the staged upload."
 	_upload_result_label.text = _format_upload_result(_state.upload_result)
 
 func _browser_tab_index_for_context(context: String) -> int:
@@ -1313,7 +1313,13 @@ func _format_upload_result(result: Dictionary) -> String:
 		var step_bits := PackedStringArray()
 		for step in steps:
 			if step is Dictionary:
-				step_bits.append("%s=%s" % [str(step.get("stage", "step")), "ok" if bool(step.get("ok", false)) else "failed"])
+				var stage := str(step.get("stage", "step"))
+				var ok := bool(step.get("ok", false))
+				step_bits.append("%s=%s" % [stage, "ok" if ok else "failed"])
+				var step_message := str(step.get("message", "")).strip_edges()
+				if not ok and not step_message.is_empty() and step_message != "ok":
+					lines.append("Failed Step: %s" % stage)
+					lines.append("Failure Reason: %s" % step_message)
 		lines.append("Steps: %s" % ", ".join(step_bits))
 	return "\n".join(lines)
 
@@ -1843,6 +1849,7 @@ func _on_upload_workout_pressed() -> void:
 	_rebuild_manager()
 	var result: Dictionary = _upload_flow.submit_workout(_manager, _state.upload_draft)
 	_state.upload_result = result
+	_state.raw_debug_sections["upload_attempt"] = result.duplicate(true)
 	_state.upload_status_text = str(result.get("message", "Workout upload attempt finished.")).strip_edges()
 	_set_status(_state.upload_status_text)
 	_refresh_all_ui()
@@ -1881,7 +1888,7 @@ func _on_exchange_code_pressed(_submitted_text: String = "") -> void:
 	_state.access_token_expires_at = int(normalized_token.get("expires_at", payload.get("date_expires", 0))) if normalized_token is Dictionary else int(payload.get("date_expires", 0))
 	_state.last_security_code = code
 	_state.raw_debug_sections["auth_exchange"] = payload
-	_state.raw_debug_sections["saved_token_restore_note"] = "Access token exchanged with the longest direct in-game expiry we can truthfully request (~1 year max). Saved expiry: %s. Refreshing /me + wallet + purchases now." % _format_unix_timestamp(_state.access_token_expires_at)
+	_state.raw_debug_sections["saved_token_restore_note"] = "Access token exchanged. We requested the longest direct in-game expiry we can ask for, but the provider returned this session expiry: %s. Recent observed testbed tokens have been closer to ~90 days than a guaranteed year. Refreshing /me + wallet + purchases now." % _format_unix_timestamp(_state.access_token_expires_at)
 	_rebuild_manager()
 	var persisted := _persist_session_state()
 	if not bool(persisted.get("ok", false)):

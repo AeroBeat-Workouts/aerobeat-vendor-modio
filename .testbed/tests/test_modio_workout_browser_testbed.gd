@@ -492,6 +492,52 @@ func test_upload_submit_invokes_reusable_flow_and_reports_result() -> void:
 	scene.queue_free()
 	await get_tree().process_frame
 
+func test_upload_submit_surfaces_failed_step_reason_in_result_panel() -> void:
+	var scene: Control = _instantiate_scene()
+	get_tree().root.add_child(scene)
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+	var browser_state: ModioWorkoutBrowserState = scene.get("_state")
+	assert_not_null(browser_state)
+	browser_state.game_id = "777"
+	browser_state.api_key = "demo-key"
+	browser_state.access_token = "qa-token"
+	browser_state.active_tab = ModioWorkoutBrowserState.TAB_UPLOAD
+	var mock_flow := MockUploadFlow.new()
+	mock_flow.response = {
+		"ok": false,
+		"mod_id": 0,
+		"steps": [
+			{
+				"stage": "create_draft",
+				"ok": false,
+				"message": "Validation Failed. Please see below to fix invalid input: Details: summary: The \"summary\" field is required.; metadata_blob: The \"metadata_blob\" must be a string. error_ref=13009"
+			}
+		],
+		"message": "Validation Failed. Please see below to fix invalid input: Details: summary: The \"summary\" field is required.; metadata_blob: The \"metadata_blob\" must be a string. error_ref=13009"
+	}
+	scene.set("_upload_flow", mock_flow)
+	scene.call("_refresh_all_ui")
+	await get_tree().process_frame
+
+	var upload_button: Button = scene.find_child("UploadWorkoutSubmitButton", true, false)
+	var upload_result: RichTextLabel = scene.find_child("UploadWorkoutResultLabel", true, false)
+	assert_not_null(upload_button)
+	assert_not_null(upload_result)
+
+	upload_button.emit_signal("pressed")
+	await get_tree().process_frame
+
+	assert_string_contains(upload_result.text, "Failed Step: create_draft")
+	assert_string_contains(upload_result.text, "summary: The \"summary\" field is required.")
+	assert_string_contains(upload_result.text, "metadata_blob: The \"metadata_blob\" must be a string.")
+	assert_string_contains(upload_result.text, "error_ref=13009")
+	assert_true(browser_state.raw_debug_sections.has("upload_attempt"))
+
+	scene.queue_free()
+	await get_tree().process_frame
+
 func _sample_mod_entry(mod_id: int) -> Dictionary:
 	return {
 		"id": mod_id,

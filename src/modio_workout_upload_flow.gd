@@ -4,26 +4,34 @@ extends RefCounted
 const PUBLISH_STATUS_ACCEPTED := 1
 const PUBLISH_VISIBILITY_PUBLIC := 1
 const DEFAULT_COMMUNITY_OPTIONS := 131072
+const DEFAULT_METADATA_BLOB := "{}"
+const MIN_LOGO_WIDTH := 512
+const MIN_LOGO_HEIGHT := 288
 
 func prepare_submission(fields: Dictionary) -> Dictionary:
 	var errors := PackedStringArray()
 	var name := _required_string(fields, "name", errors)
+	var summary := _required_string(fields, "summary", errors)
 	var metadata_kvp := _normalize_string_array(fields.get("metadata_kvp", fields.get("metadata", [])))
 	if metadata_kvp.is_empty():
 		errors.append("metadata_kvp is required and must contain at least one entry.")
 
 	var logo_source := _normalize_existing_file(fields.get("logo_path", fields.get("logo", "")), "logo_path", errors)
+	_validate_minimum_image_dimensions(logo_source.path, "logo_path", errors, MIN_LOGO_WIDTH, MIN_LOGO_HEIGHT)
 	var zip_source := _normalize_existing_file(fields.get("zip_path", fields.get("filedata", "")), "zip_path", errors, PackedStringArray(["zip"]))
+	var metadata_blob := str(fields.get("metadata_blob", DEFAULT_METADATA_BLOB)).strip_edges()
+	if metadata_blob.is_empty():
+		metadata_blob = DEFAULT_METADATA_BLOB
 
 	var create_fields := {
 		"name": name,
+		"summary": summary,
 		"logo": logo_source.request_value,
-		"metadata_kvp": metadata_kvp
+		"metadata_kvp": metadata_kvp,
+		"metadata_blob": metadata_blob
 	}
 	_append_optional_string_field(fields, create_fields, "name_id")
-	_append_optional_string_field(fields, create_fields, "summary")
 	_append_optional_string_field(fields, create_fields, "description")
-	_append_optional_string_field(fields, create_fields, "metadata_blob")
 	_append_optional_string_array_field(fields, create_fields, "tags")
 	_append_optional_int_field(fields, create_fields, "community_options")
 	_append_optional_int_field(fields, create_fields, "maturity_option")
@@ -155,8 +163,19 @@ func _execute_step(manager, stage: String, builder_method: StringName, builder_a
 
 func _response_error_message(response: Dictionary, fallback: String) -> String:
 	var error_payload = response.get("error", {})
-	if error_payload is Dictionary and not str(error_payload.get("message", "")).strip_edges().is_empty():
-		return str(error_payload.get("message", "")).strip_edges()
+	if error_payload is Dictionary:
+		var parts := PackedStringArray()
+		var message := str(error_payload.get("message", "")).strip_edges()
+		if not message.is_empty():
+			parts.append(message)
+		var detail_bits := _flatten_error_details(error_payload.get("details", {}))
+		if not detail_bits.is_empty():
+			parts.append("Details: %s" % "; ".join(detail_bits))
+		var error_ref := int(error_payload.get("error_ref", 0))
+		if error_ref > 0:
+			parts.append("error_ref=%s" % error_ref)
+		if not parts.is_empty():
+			return " ".join(parts)
 	return fallback
 
 func _failed_result(stage: String, message: String) -> Dictionary:
@@ -259,3 +278,30 @@ func _normalize_existing_file(value: Variant, field_name: String, errors: Packed
 		"path": absolute_path,
 		"request_value": "@%s" % absolute_path
 	}
+
+func _validate_minimum_image_dimensions(path: String, field_name: String, errors: PackedStringArray, minimum_width: int, minimum_height: int) -> void:
+	if path.is_empty() or not FileAccess.file_exists(path):
+		return
+	var image := Image.load_from_file(path)
+	if image == null or image.is_empty():
+		errors.append("%s must be a readable image file." % field_name)
+		return
+	if image.get_width() < minimum_width or image.get_height() < minimum_height:
+		errors.append("%s must be at least %dx%d pixels for mod.io create-draft validation." % [field_name, minimum_width, minimum_height])
+
+func _flatten_error_details(details: Variant, prefix: String = "") -> PackedStringArray:
+	var result := PackedStringArray()
+	if details is Dictionary:
+		for key in details.keys():
+			var nested_prefix := "%s.%s" % [prefix, str(key)] if not prefix.is_empty() else str(key)
+			result.append_array(_flatten_error_details(details.get(key), nested_prefix))
+		return result
+	if details is Array:
+		for entry in details:
+			result.append_array(_flatten_error_details(entry, prefix))
+		return result
+	var cleaned := str(details).strip_edges()
+	if cleaned.is_empty():
+		return result
+	result.append("%s: %s" % [prefix, cleaned] if not prefix.is_empty() else cleaned)
+	return result

@@ -492,11 +492,116 @@ The audit-sized gap was in evidence, not behavior: the browser tests covered hel
 
 ---
 
+
+### Task 16: Diagnose create-draft upload failure and clean warning noise
+
+**Bead ID:** `oc-mwzf`  
+**SubAgent:** `primary` (for `coder`)  
+**Role:** `coder`  
+**References:** `REF-02`, `REF-03`, `REF-04`, `REF-05`, `REF-06`, `REF-07`  
+**Prompt:** In `aerobeat-vendor-modio`, claim bead `oc-mwzf` on start with `bd update oc-mwzf --status in_progress --json`. Investigate the newly reported testbed issues: (1) Upload Workout currently fails at `create_draft_failed` while trying to upload a dummy workout ZIP, and the UI does not expose the underlying validation/server reason clearly enough; (2) there is a small warning cleanup to fix around `ModioWorkoutUploadFlow` having the same name as a global class in `modio_workout_upload_flow.gd`; and (3) Derrick's screenshot confirms the latest provider-returned token expiry is about 90 days, not one year, so make sure any related auth copy/error handling remains truthful. Identify and fix the create-draft failure if it is a local issue, or at minimum surface the real validation/server error clearly in the UI and testbed diagnostics. Remove the warning noise cleanly, add/update focused tests, run relevant validation, update this plan with what actually changed, commit and push by default, and close the bead with a clear reason.
+
+**Folders Created/Deleted/Modified:**
+- `.plans/`
+- `.testbed/`
+- `src/`
+
+**Files Created/Deleted/Modified:**
+- `.plans/2026-06-01-aerobeat-vendor-modio-workout-upload-tab-audit.md`
+- `.testbed/scripts/modio_workout_browser_testbed.gd`
+- `.testbed/tests/`
+- `src/`
+
+**Status:** ⏳ Pending
+
+**Results:** Pending.
+
+---
+
+### Task 17: QA create-draft failure diagnostics and warning cleanup
+
+**Bead ID:** `oc-28pm`  
+**SubAgent:** `primary` (for `qa`)  
+**Role:** `qa`  
+**References:** `REF-02`, `REF-04`, `REF-05`, `REF-06`  
+**Prompt:** In `aerobeat-vendor-modio`, claim bead `oc-28pm` on start with `bd update oc-28pm --status in_progress --json`. Verify the Upload Workout create-draft failure diagnostics and warning cleanup. Confirm the reported `create_draft_failed` path is either fixed or surfaced truthfully with the real validation/server reason, confirm the `ModioWorkoutUploadFlow` warning is gone, rerun relevant validation/tests, update this plan with QA findings, commit/push by default only if QA-sized fixes are needed, and close the bead with a clear reason.
+
+**Folders Created/Deleted/Modified:**
+- `.plans/`
+- `.testbed/`
+- `src/`
+
+**Files Created/Deleted/Modified:**
+- `.plans/2026-06-01-aerobeat-vendor-modio-workout-upload-tab-audit.md`
+- `.testbed/`
+- `src/`
+
+**Status:** ⏳ Pending
+
+**Results:** Pending.
+
+---
+
+### Task 18: Audit create-draft failure diagnostics and warning cleanup
+
+**Bead ID:** `oc-tpkt`  
+**SubAgent:** `primary` (for `auditor`)  
+**Role:** `auditor`  
+**References:** `REF-02`, `REF-04`, `REF-05`, `REF-06`  
+**Prompt:** In `aerobeat-vendor-modio`, claim bead `oc-tpkt` on start with `bd update oc-tpkt --status in_progress --json`. Independently audit the reported Upload Workout `create_draft_failed` issue and the warning cleanup. Verify the failure is either fixed or surfaced truthfully with the underlying reason, verify the warning is removed, verify evidence supports the claim, update this plan with the final audit verdict, commit/push by default only if an audit-sized fix is needed, and close the bead with a clear reason.
+
+**Folders Created/Deleted/Modified:**
+- `.plans/`
+- `.testbed/`
+- `src/`
+
+**Files Created/Deleted/Modified:**
+- `.plans/2026-06-01-aerobeat-vendor-modio-workout-upload-tab-audit.md`
+- `.testbed/`
+- `src/`
+
+**Status:** ⏳ Pending
+
+**Results:** Pending.
+
+---
+
+### Task 12: Diagnose create-draft failure and tighten upload/auth truthfulness
+
+**Bead ID:** `oc-mwzf`  
+**SubAgent:** `primary` (for `coder`)  
+**Role:** `coder`  
+**References:** `REF-02`, `REF-03`, `REF-04`, `REF-05`, `REF-06`, `REF-07`  
+**Prompt:** In `aerobeat-vendor-modio`, claim bead `oc-mwzf` on start with `bd update oc-mwzf --status in_progress --json`. Investigate Derrick's newly reported upload/auth polish issues: Upload Workout currently fails at `create_draft_failed` while trying to upload a dummy workout ZIP and the UI hides the underlying provider reason too much; there is a warning around `ModioWorkoutUploadFlow` colliding with the global class of `modio_workout_upload_flow.gd`; and the latest provider-returned token expiry screenshot shows about 90 days, so auth copy/error handling must stay truthful rather than promising a year. Identify the real root cause of the create-draft failure, fix any local issues you can, at minimum surface the real validation/server error clearly in the UI/diagnostics, remove the global-name warning cleanly, add/update focused tests, run relevant validation, update this plan with what actually changed, commit/push by default, and close bead `oc-mwzf` with a clear reason.
+
+**Folders Created/Deleted/Modified:**
+- `.plans/`
+- `.testbed/`
+- `src/`
+
+**Files Created/Deleted/Modified:**
+- `.plans/2026-06-01-aerobeat-vendor-modio-workout-upload-tab-audit.md`
+- `.testbed/scripts/modio_workout_browser_testbed.gd`
+- `.testbed/tests/test_modio_workout_browser_testbed.gd`
+- `.testbed/tests/test_modio_workout_upload_flow.gd`
+- `src/modio_workout_upload_flow.gd`
+
+**Status:** ✅ Complete
+
+**Results:** Reproduced the failing `create_draft_failed` seam directly against the configured **test** mod.io host with a disposable curl probe after Godot's headless HTTP path hit a local SSL initialization failure in this sandbox. The real provider-side validation error was not vague at all once surfaced: `Validation Failed. Please see below to fix invalid input:` with nested field details showing **`summary` is required**, **`metadata_blob` must be a string**, and the chosen dummy **logo image dimensions were invalid**. A second disposable probe confirmed the local fix path: when the request included a real summary, `metadata_blob="{}"`, and a readable `512x288+` logo, draft creation succeeded (`201`) and the temporary test mod was deleted immediately afterward. That means the failure was partly local-product truthfulness debt, not just opaque provider behavior: the upload helper/UI were letting operators walk into a known-invalid create-draft request and then collapsing the returned field errors into overly vague copy.
+
+I fixed the local seam accordingly. `src/modio_workout_upload_flow.gd` now enforces the provider-required summary before any network call, auto-seeds a safe default `metadata_blob` of `{}` when the operator does not provide one, and locally validates that the chosen logo is a readable image with at least `512x288` resolution before attempting draft creation. On the diagnostics side, the helper now preserves nested provider field errors and `error_ref` values in the returned message instead of dropping them on the floor, and the Upload Workout result panel now prints the failed stage plus the concrete failure reason so the UI/debug view shows the real mod.io complaint rather than just `create_draft_failed`. The controller also saves the full upload attempt result into `raw_debug_sections["upload_attempt"]` for easier operator inspection.
+
+The warning cleanup is also done: `.testbed/scripts/modio_workout_browser_testbed.gd` no longer defines a preload constant named `ModioWorkoutUploadFlow`, which had been shadowing the actual global class name from `src/modio_workout_upload_flow.gd`; the preload alias is now `ModioWorkoutUploadFlowScript`, removing the duplicate-global-name warning cleanly without changing the helper seam. Auth copy was tightened to match the screenshot evidence: the profile/auth explanatory text and saved-token restore note no longer promise a one-year session; they now explain that we request the longest direct expiry we can ask for, but the latest observed provider-returned bearer in this testbed was closer to **~90 days**, and the actual saved expiry shown to the operator is the source of truth.
+
+Focused coverage was updated to lock the fixes in place. `test_modio_workout_upload_flow.gd` now uses real generated PNGs for logo validation, covers summary-required validation, small-logo rejection, default `metadata_blob` seeding, and server-field-error propagation for create-draft failures. `test_modio_workout_browser_testbed.gd` now verifies that failed staged uploads surface the failed step plus the nested provider field reasons in the result panel and that the full upload attempt lands in debug state. Validation passed with `godot --headless --path .testbed --import`, targeted GUT for `res://tests/test_modio_workout_upload_flow.gd` plus `res://tests/test_modio_workout_browser_testbed.gd`, `godot --headless --path .testbed --script res://tests/validate_modio_testbed_scenes.gd`, and `godot --headless --path .testbed --script res://tests/qa_verify_scene_output_updates.gd`. The existing non-failing ObjectDB/resources-at-exit warning remains in the headless test environment and is unrelated to this slice.
+
+---
 ## Final Results
 
 **Status:** ✅ Complete
 
-**What We Built:** The default mod.io browser testbed still uses the reusable helper-driven `Upload Workout` tab and now also seeds truthful metadata for vendor-seam testing instead of guessed taxonomy examples. The new cross-repo seam is in place: `aerobeat-tool-device-detection` now exposes a dedicated helper that normalizes detected-device JSON into stable mod.io metadata KVP pairs, and `aerobeat-vendor-modio` consumes that helper in the upload testbed to prefill deterministic device-derived metadata alongside explicit seeded fields like `aerobeat_version=1.0.0`. Public AeroBeat taxonomy stays in Tags, with the seeded/default tag example set to `boxing, easy, edm` instead of the prior misleading metadata-first examples. The token-lifetime slice is now implemented, QA-verified, and audit-verified: saved auth expiry is persisted/restored, obviously expired auth is pre-cleared on startup, and restore-time token rejection clears invalid saved bearer state while preserving email context for re-auth.
+**What We Built:** The default mod.io browser testbed still uses the reusable helper-driven `Upload Workout` tab and now also seeds truthful metadata for vendor-seam testing instead of guessed taxonomy examples. The new cross-repo seam is in place: `aerobeat-tool-device-detection` now exposes a dedicated helper that normalizes detected-device JSON into stable mod.io metadata KVP pairs, and `aerobeat-vendor-modio` consumes that helper in the upload testbed to prefill deterministic device-derived metadata alongside explicit seeded fields like `aerobeat_version=1.0.0`. Public AeroBeat taxonomy stays in Tags, with the seeded/default tag example set to `boxing, easy, edm` instead of the prior misleading metadata-first examples. The token-lifetime slice is now implemented, QA-verified, and audit-verified: saved auth expiry is persisted/restored, obviously expired auth is pre-cleared on startup, and restore-time token rejection clears invalid saved bearer state while preserving email context for re-auth. This final coder follow-up also diagnosed the real `create_draft_failed` seam against the configured test host and tightened the upload flow so the UI/helper no longer hide or casually trigger known-invalid draft-create requests: summary is now required locally, `metadata_blob` defaults truthfully to `{}`, logo files are preflight-checked for readable `512x288+` dimensions, failed upload attempts surface nested mod.io field errors plus `error_ref`, the testbed warning-causing preload alias was cleaned up, and auth copy now reflects the latest observed provider-returned expiry being closer to ~90 days than a guaranteed year.
 
 **Reference Check:** `REF-01` through `REF-07` remain the active source-of-truth set, now supplemented by the current online mod.io REST/docs pages for Add Mod Tags, Add/Get Mod KVP Metadata, Game Object `tag_options`, Mod Object, Edit Mod, and Filtering. This coder slice follows that guidance directly: `feature` / `difficulty` / `genre` remain tag-space concerns per `REF-07`, while `metadata_kvp` is kept for structured provider/tool metadata. The new device helper only emits stable/useful hardware fields and intentionally excludes privacy-heavy or noisy fields, matching the approved slice requirements.
 
@@ -510,5 +615,6 @@ The audit-sized gap was in evidence, not behavior: the browser tests covered hel
 - `ea03fe3` (`aerobeat-vendor-modio`) - `Seed truthful upload metadata defaults`
 - `9d13c89` (`aerobeat-tool-device-detection`) - `Avoid global class collision in modio metadata helper`
 - `6287c46` - `Audit auth expiry restore validation seam`
+- `HEAD` - `Diagnose workout upload draft validation`
 
-**Lessons Learned:** For UI refinements like this, the risky part is not just visual parity; it is preserving behavioral truth. A denser form can still fail the real requirement if the action falls below the viewport or if the controller quietly starts owning backend orchestration again. The extra scrollbar probe was worth doing because it confirmed the design succeeds for the right reason: when compression is not enough, scrolling genuinely carries the operator to the action. The next truth check is semantic rather than spatial: make sure `metadata` vs `tags` copy reflects actual mod.io authoring semantics and AeroBeat taxonomy usage instead of placeholder guesses.
+**Lessons Learned:** For UI refinements like this, the risky part is not just visual parity; it is preserving behavioral truth. A denser form can still fail the real requirement if the action falls below the viewport or if the controller quietly starts owning backend orchestration again. The extra scrollbar probe was worth doing because it confirmed the design succeeds for the right reason: when compression is not enough, scrolling genuinely carries the operator to the action. The next truth check was semantic rather than spatial, and this follow-up proved why: a vague `create_draft_failed` label hid concrete provider requirements we could cheaply validate ourselves. When mod.io already tells us the exact invalid fields, the product should either preflight them locally or surface them verbatim enough for an operator to act on them.
