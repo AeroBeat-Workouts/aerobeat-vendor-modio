@@ -369,15 +369,23 @@ Post-fix validation passed in both repos. In `aerobeat-tool-device-detection`, `
 - `src/`
 - `../aerobeat-tool-device-detection/`
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** Independent audit passed without needing an additional audit-sized fix. The seeded upload metadata defaults in `.testbed/scripts/modio_workout_browser_testbed.gd` are truthful and match the approved intent: `_default_upload_metadata_text()` always starts with `aerobeat_version=1.0.0`, `upload_surface=modio_workout_browser_testbed`, and `upload_flow=staged_draft_then_modfile`, then appends deterministic device-derived KVP lines from `AeroDeviceDetectionModioMetadata.build_metadata_kvp_pairs(UPLOAD_METADATA_DEVICE_SEED)`. Rechecking the real seeded fixture confirms the intended Surface Pro 8-style values are present in metadata space, including `device_profile=surface_pro_8_upload_fixture`, `device_platform=windows`, `device_os_name=Windows`, `device_os_version=11`, `device_cpu_name=11th Gen Intel(R) Core(TM) i7-1185G7`, `device_gpu_vendor=Intel`, `device_gpu_name=Intel Iris Xe Graphics`, `device_rendering_method=forward_plus`, `device_display_server=windows`, `device_screen_width=2880`, `device_screen_height=1920`, and `device_memory_gb=16`.
+
+Tags also remain taxonomy-only and aligned with the AeroBeat taxonomy source of truth. The upload UI now labels tags as `taxonomy/discovery`, seeds the default/example tag string as `boxing, easy, edm`, and keeps those values in tag space rather than teaching them through `metadata_kvp`. That matches `/workspace/projects/aerobeat/aerobeat-docs/docs/architecture/modio-tag-mapping.md`, which defines public launch taxonomy around `feature`, `difficulty`, and `genre`, with `boxing`, `easy|medium|hard|pro`, and approved genres such as `edm` living in mod.io tags instead of provider metadata KVP fields.
+
+The cross-repo helper seam is real and correctly scoped. `aerobeat-vendor-modio` preloads `res://addons/aerobeat-tool-device-detection/src/AeroDeviceDetectionModioMetadata.gd` and uses `AeroDeviceDetectionModioMetadata.build_metadata_kvp_pairs(...)` directly when constructing the seeded metadata text, so device JSON normalization is not duplicated locally. In `aerobeat-tool-device-detection/src/AeroDeviceDetectionModioMetadata.gd`, the helper normalizes either response dictionaries or JSON strings through the existing device-detection normalization seam and intentionally emits only the approved stable/useful fields: `profile`, platform/OS, CPU, GPU vendor/name, rendering method, display server, screen width/height, and memory. It intentionally excludes the noisy/privacy-heavy/raw fields called out in the plan goals, including `vendor_id`, `device_name`, `model_name`, `renderer_name`, runtime `tags`, nested `metadata`, and request/meta timestamps.
+
+Dependency refresh evidence is also consistent with the claim. The active plan records the explicit `python3 /home/derrick/.openclaw/workspace/scripts/godotenv-sync --repo /home/derrick/.openclaw/workspace/projects/aerobeat/aerobeat-vendor-modio/.testbed` refresh step after the upstream helper fix, `.testbed/addons.jsonc` points this dependency at the upstream `aerobeat-tool-device-detection` repo, and the installed addon copy in `aerobeat-vendor-modio/.testbed/addons/aerobeat-tool-device-detection/src/AeroDeviceDetectionModioMetadata.gd` is byte-identical to the upstream source helper. I did not find contrary evidence that vanilla `godotenv` was used for this slice.
+
+Validation evidence supports the final claim across both repos. I reran `godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit` in `aerobeat-tool-device-detection` (11/11 passing, including the metadata helper contract tests), plus `godot --headless --path .testbed --script res://tests/validate_modio_testbed_scenes.gd`, `godot --headless --path .testbed --script res://tests/qa_verify_scene_output_updates.gd`, and the targeted GUT pass for `res://tests/test_modio_workout_upload_flow.gd` + `res://tests/test_modio_workout_browser_testbed.gd` in `aerobeat-vendor-modio` (all passing). The vendor QA script still emits the known non-failing ObjectDB/resource-at-exit warning, but it did not fail the run and no truthfulness or seam regression was found in this audit slice.
 
 ---
 
 ## Final Results
 
-**Status:** ⚠️ In Progress
+**Status:** ✅ Complete
 
 **What We Built:** The default mod.io browser testbed still uses the reusable helper-driven `Upload Workout` tab and now also seeds truthful metadata for vendor-seam testing instead of guessed taxonomy examples. The new cross-repo seam is in place: `aerobeat-tool-device-detection` now exposes a dedicated helper that normalizes detected-device JSON into stable mod.io metadata KVP pairs, and `aerobeat-vendor-modio` consumes that helper in the upload testbed to prefill deterministic device-derived metadata alongside explicit seeded fields like `aerobeat_version=1.0.0`. Public AeroBeat taxonomy stays in Tags, with the seeded/default tag example set to `boxing, easy, edm` instead of the prior misleading metadata-first examples.
 
