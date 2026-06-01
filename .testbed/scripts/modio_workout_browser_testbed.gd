@@ -33,6 +33,8 @@ var _upload_flow = ModioWorkoutUploadFlow.new()
 var _image_cache: Dictionary = {}
 var _ui_built: bool = false
 var _suspend_session_persistence: bool = false
+var _stable_config_path_override: String = ""
+var _session_config_path_override: String = ""
 
 var _status_label: Label
 var _server_option_button: OptionButton
@@ -124,6 +126,16 @@ func _ready() -> void:
 	_refresh_all_ui()
 	_restore_saved_runtime_state()
 	_suspend_session_persistence = false
+
+func set_config_paths_for_testing(stable_path: String = "", session_path: String = "") -> void:
+	_stable_config_path_override = stable_path.strip_edges()
+	_session_config_path_override = session_path.strip_edges()
+
+func _stable_config_path() -> String:
+	return _stable_config_path_override if not _stable_config_path_override.is_empty() else ModioEnvLoader.CONFIG_STABLE_PATH
+
+func _session_config_path() -> String:
+	return _session_config_path_override if not _session_config_path_override.is_empty() else ModioEnvLoader.CONFIG_SESSION_PATH
 
 func describe_scene_surface() -> Dictionary:
 	_ensure_ui_built()
@@ -937,17 +949,19 @@ func _field_label(text: String) -> Label:
 	return label
 
 func _load_initial_state() -> void:
-	var explicit_env := _store.read_environment()
-	var resolved_env := _loader.resolve_environment(explicit_env)
-	_base_config = _loader.build_client_config(resolved_env)
+	var session_config_path := _session_config_path()
+	var stable_config_path := _stable_config_path()
+	var explicit_env := _store.read_environment(session_config_path)
+	var resolved_env := _loader.resolve_environment(explicit_env, stable_config_path, session_config_path)
+	_base_config = _loader.build_client_config(resolved_env, stable_config_path, session_config_path)
 	_state.environment = resolved_env
 	_state.game_id = _base_config.game_id
 	_state.api_key = _base_config.api_key
 	_state.access_token = _base_config.access_token
 	_state.user_id = _base_config.user_id
-	_state.email = _store.read_env_value(resolved_env, "email")
-	_state.last_requested_email = _store.read_env_value(resolved_env, "last_requested_email", ModioEnvLoader.CONFIG_SESSION_PATH, _state.email)
-	_state.active_tab = _store.read_env_value(resolved_env, "browser_tab", ModioEnvLoader.CONFIG_SESSION_PATH, ModioWorkoutBrowserState.TAB_PUBLIC)
+	_state.email = _store.read_env_value(resolved_env, "email", session_config_path)
+	_state.last_requested_email = _store.read_env_value(resolved_env, "last_requested_email", session_config_path, _state.email)
+	_state.active_tab = _store.read_env_value(resolved_env, "browser_tab", session_config_path, ModioWorkoutBrowserState.TAB_PUBLIC)
 	_state.raw_debug_sections["saved_token_restore_note"] = "Stored token detected. Rehydrating /me + wallet + purchases on reopen." if _state.is_authenticated() else ""
 	_state.status_text = "Public browsing auto-loads when valid Game ID + API Key are already configured. Athlete-only tabs unlock after email-code auth."
 	_rebuild_manager()
@@ -981,7 +995,7 @@ func _refresh_all_ui() -> void:
 	_server_option_button.select(0 if _state.environment == ModioEnvLoader.ENV_TEST else 1)
 	_game_id_line_edit.text = _state.game_id
 	_api_key_line_edit.text = _state.api_key
-	_storage_disclosure_label.text = "Game ID + API key are read from %s. Athlete email + auth/session values are read from and written back to %s." % [ModioEnvLoader.CONFIG_STABLE_PATH, _store.get_storage_path()]
+	_storage_disclosure_label.text = "Game ID + API key are read from %s. Athlete email + auth/session values are read from and written back to %s." % [_stable_config_path(), _store.get_storage_path(_session_config_path())]
 	if _email_line_edit.text != _state.email:
 		_email_line_edit.text = _state.email
 	_auth_state_label.text = _build_auth_state_text()
@@ -1003,7 +1017,7 @@ func _refresh_all_ui() -> void:
 func _build_auth_state_text() -> String:
 	var lines := PackedStringArray()
 	lines.append("Server: %s" % _state.environment.capitalize())
-	lines.append("Session path: %s" % _store.get_storage_path())
+	lines.append("Session path: %s" % _store.get_storage_path(_session_config_path()))
 	lines.append("Athlete email: %s" % (_state.email if not _state.email.is_empty() else "(not saved yet)"))
 	if _state.is_authenticated():
 		lines.append("Access token loaded: yes")
@@ -1033,7 +1047,7 @@ func _persist_session_state(extra_values: Dictionary = {}) -> Dictionary:
 		"browser_tab": _state.active_tab
 	}
 	values.merge(extra_values, true)
-	return _store.save_session_values(_state.environment, values)
+	return _store.save_session_values(_state.environment, values, _session_config_path())
 
 func _sync_browser_tab_selection() -> void:
 	if not is_instance_valid(_tab_container):
@@ -1751,10 +1765,10 @@ func _on_exchange_code_pressed(_submitted_text: String = "") -> void:
 	_rebuild_manager()
 	var persisted := _persist_session_state()
 	if not bool(persisted.get("ok", false)):
-		_set_status("Exchanged code, but failed to persist access_token to %s." % _store.get_storage_path())
+		_set_status("Exchanged code, but failed to persist access_token to %s." % _store.get_storage_path(_session_config_path()))
 		_refresh_all_ui()
 		return
-	_set_status("Access token stored in %s. Refreshing /me to resolve athlete identity..." % _store.get_storage_path())
+	_set_status("Access token stored in %s. Refreshing /me to resolve athlete identity..." % _store.get_storage_path(_session_config_path()))
 	_refresh_profile_data(true)
 
 func _on_clear_session_pressed() -> void:
@@ -1764,9 +1778,9 @@ func _on_clear_session_pressed() -> void:
 	_state.upload_status_text = ""
 	_state.upload_result = {}
 	_state.raw_debug_sections["saved_token_restore_note"] = ""
-	_store.clear_session_values(_state.environment, PackedStringArray(["access_token", "user_id", "email", "last_requested_email", "browser_tab"]))
+	_store.clear_session_values(_state.environment, PackedStringArray(["access_token", "user_id", "email", "last_requested_email", "browser_tab"]), _session_config_path())
 	_rebuild_manager()
-	_set_status("Cleared saved athlete email, access_token, user_id, and browser restore state from %s." % _store.get_storage_path())
+	_set_status("Cleared saved athlete email, access_token, user_id, and browser restore state from %s." % _store.get_storage_path(_session_config_path()))
 	_refresh_all_ui()
 
 func _on_profile_refresh_pressed() -> void:
@@ -1802,7 +1816,7 @@ func _refresh_profile_data(open_profile_tab: bool, restoring_saved_token: bool =
 	else:
 		_state.purchased = {"error": _response_error_message(purchased_response, "Failed to load purchase history."), "data": []}
 	_state.raw_debug_sections["saved_token_restore_note"] = "Stored token successfully rehydrated athlete profile, wallet, and purchase history on reopen." if restoring_saved_token else ""
-	_set_status("Loaded athlete profile, wallet, and purchase history. Session values are stored in %s." % _store.get_storage_path())
+	_set_status("Loaded athlete profile, wallet, and purchase history. Session values are stored in %s." % _store.get_storage_path(_session_config_path()))
 	if open_profile_tab:
 		_state.active_tab = ModioWorkoutBrowserState.TAB_PROFILE
 	_refresh_all_ui()

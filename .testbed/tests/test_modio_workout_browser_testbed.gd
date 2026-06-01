@@ -1,8 +1,7 @@
 extends GutTest
 
 const WorkoutBrowserScene := preload("res://scenes/workout_browser.tscn")
-const ModioSessionConfigStore = preload("res://scripts/modio_session_config_store.gd")
-const SESSION_PATH := "res://configs/modio.session.local.cfg"
+const SESSION_PATH := "user://modio_workout_browser_testbed_session.cfg"
 
 var _session_backup_exists := false
 var _session_backup_text := ""
@@ -45,6 +44,11 @@ func after_each() -> void:
 	elif FileAccess.file_exists(SESSION_PATH):
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(SESSION_PATH))
 
+func _instantiate_scene() -> Control:
+	var scene: Control = WorkoutBrowserScene.instantiate()
+	scene.call("set_config_paths_for_testing", "", SESSION_PATH)
+	return scene
+
 func test_ready_restores_saved_email_without_wiping_session_values() -> void:
 	_write_text(SESSION_PATH, "".join([
 		"[modio]\n",
@@ -61,18 +65,19 @@ func test_ready_restores_saved_email_without_wiping_session_values() -> void:
 		"browser_tab=\"profile\"\n"
 	]))
 
-	var scene: Control = WorkoutBrowserScene.instantiate()
+	var scene: Control = _instantiate_scene()
 	get_tree().root.add_child(scene)
 	await get_tree().process_frame
 	await get_tree().process_frame
 
-	var store := ModioSessionConfigStore.new()
 	var email_edit: LineEdit = scene.find_child("EmailLineEdit", true, false)
+	var browser_state: ModioWorkoutBrowserState = scene.get("_state")
 	assert_not_null(email_edit)
+	assert_not_null(browser_state)
 	assert_eq(email_edit.text, "qa-athlete@example.com")
-	assert_eq(store.read_env_value("test", "email", SESSION_PATH), "qa-athlete@example.com")
-	assert_eq(store.read_env_value("test", "access_token", SESSION_PATH), "qa-stale-token")
-	assert_eq(store.read_env_value("test", "browser_tab", SESSION_PATH), "profile")
+	assert_eq(browser_state.email, "qa-athlete@example.com")
+	assert_eq(browser_state.access_token, "qa-stale-token")
+	assert_eq(browser_state.active_tab, "profile")
 
 	scene.queue_free()
 	await get_tree().process_frame
@@ -84,7 +89,7 @@ func test_public_listing_keeps_visible_card_viewport_after_ui_update() -> void:
 	host.size = Vector2(1440, 900)
 	get_tree().root.add_child(host)
 
-	var scene: Control = WorkoutBrowserScene.instantiate()
+	var scene: Control = _instantiate_scene()
 	host.add_child(scene)
 	await get_tree().process_frame
 	await get_tree().process_frame
@@ -127,7 +132,7 @@ func test_public_listing_keeps_visible_card_viewport_after_ui_update() -> void:
 	await get_tree().process_frame
 
 func test_public_detail_cta_depends_on_auth_and_subscription_state() -> void:
-	var scene: Control = WorkoutBrowserScene.instantiate()
+	var scene: Control = _instantiate_scene()
 	get_tree().root.add_child(scene)
 	await get_tree().process_frame
 	await get_tree().process_frame
@@ -181,7 +186,7 @@ func test_public_detail_cta_depends_on_auth_and_subscription_state() -> void:
 	await get_tree().process_frame
 
 func test_detail_slideout_exposes_download_controls() -> void:
-	var scene: Control = WorkoutBrowserScene.instantiate()
+	var scene: Control = _instantiate_scene()
 	get_tree().root.add_child(scene)
 	await get_tree().process_frame
 	await get_tree().process_frame
@@ -205,7 +210,7 @@ func test_detail_slideout_exposes_download_controls() -> void:
 	await get_tree().process_frame
 
 func test_upload_tab_is_auth_gated_and_exposes_required_path_controls() -> void:
-	var scene: Control = WorkoutBrowserScene.instantiate()
+	var scene: Control = _instantiate_scene()
 	get_tree().root.add_child(scene)
 	await get_tree().process_frame
 	await get_tree().process_frame
@@ -234,7 +239,7 @@ func test_upload_tab_is_auth_gated_and_exposes_required_path_controls() -> void:
 	await get_tree().process_frame
 
 func test_upload_submit_invokes_reusable_flow_and_reports_result() -> void:
-	var scene: Control = WorkoutBrowserScene.instantiate()
+	var scene: Control = _instantiate_scene()
 	get_tree().root.add_child(scene)
 	await get_tree().process_frame
 	await get_tree().process_frame

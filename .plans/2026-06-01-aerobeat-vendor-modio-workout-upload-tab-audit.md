@@ -1,8 +1,8 @@
 # AeroBeat Vendor mod.io Workout Upload Tab Audit
 
 **Date:** 2026-06-01
-**Status:** In Progress
-**Last Updated:** 2026-06-01 07:51 EDT
+**Status:** Complete
+**Last Updated:** 2026-06-01 08:15 EDT
 **Blocked Reason:** None
 **Agent:** `chip`
 
@@ -154,21 +154,27 @@ The staged authoring contract is reflected accurately in both implementation and
 - `src/`
 - `tests/`
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** Independent audit passed after one audit-sized fix to the validation seam. The core implementation claims are true against the code and the documented mod.io write surface. The reusable repo-root helper in `src/modio_workout_upload_flow.gd` really owns the staged authoring contract: it validates operator fields up front, normalizes local logo/ZIP paths into the adapter’s documented multipart shapes, issues `build_add_mod_request` first, `build_add_modfile_request` second, and only performs `build_update_mod_request` for `status=1` / `visible=1` when `publish_after_upload` is enabled. Failure handling is truthful: auth is gated before writes, validation stops before network calls, and a failed modfile upload short-circuits before publish. That satisfies the plan’s requirement that the staged create/upload/publish orchestration live in repo-root `/src/` rather than being reconstructed ad hoc in the scene controller.
+
+The default browser testbed is also a thin client over that helper rather than a duplicate backend seam. In `.testbed/scripts/modio_workout_browser_testbed.gd`, the controller preloads the helper once into `_upload_flow`, collects UI draft values into `_state.upload_draft`, and delegates submission through `_upload_flow.submit_workout(_manager, _state.upload_draft)`. The controller does not locally rebuild the create-mod / add-modfile / publish request sequence. The `Upload Workout` tab is truthfully auth-gated at both levels checked in the plan: `_refresh_all_ui()` disables the tab and submit button when no bearer token is present, while `_on_upload_workout_pressed()` still returns an explicit auth error if invoked while signed out. The tab copy and result text stay honest about this being a staged draft-upload-publish workflow, not a single opaque backend primitive.
+
+The audit-sized defect was in the evidence, not the feature seam. Re-running the full GUT suite surfaced that `test_modio_workout_browser_testbed.gd` depended on the real repo session config path and could report inconsistent results depending on ambient operator state. I fixed that by letting `modio_workout_browser_testbed.gd` accept test-only config-path overrides and updating the browser testbed spec to use an isolated `user://` session file plus in-memory restored-state assertions. After that fix, the validation story matched the claims again: `godot --headless --path .testbed --import`, `godot --headless --path .testbed --script res://tests/validate_modio_testbed_scenes.gd`, `godot --headless --path .testbed --script res://tests/qa_verify_scene_output_updates.gd`, the focused GUT upload/browser pass, and the full `godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit` suite all passed. The only remaining note is the pre-existing non-failing GUT warning in `test_modio_vendor_adapter.gd` about a float/int comparison, which is outside this upload-tab slice.
 
 ---
 
 ## Final Results
 
-**Status:** ⚠️ In Progress
+**Status:** ✅ Complete
 
-**What We Built:** The coder slice is complete and QA-verified: a repo-root staged workout upload helper, an auth-gated `Upload Workout` browser tab that consumes it as a thin client, and focused helper/controller/scene validation for the new flow. Auditor review is still pending.
+**What We Built:** The full coder → QA → auditor loop is now complete. The repo ships a reusable repo-root staged workout upload helper in `src/modio_workout_upload_flow.gd`, an auth-gated `Upload Workout` tab in the default browser testbed that consumes that helper as a thin client, and focused helper/controller/scene validation that now stays green both in targeted runs and across the full `.testbed` GUT suite.
 
-**Reference Check:** `REF-01` through `REF-07` were implemented against directly and QA-checked. The staged authoring truth from `REF-04`/`REF-05` lives in `src/modio_workout_upload_flow.gd`, while the browser-scene insertion and auth gating remain aligned with `REF-01` through `REF-03` and the validator expectations in `REF-06`. QA confirmed the controller calls the helper seam instead of duplicating staged backend writes locally.
+**Reference Check:** `REF-01` through `REF-07` are satisfied. `REF-04`/`REF-05` remain the source of truth for the real mod.io write seam, and the audit confirmed the staged create → upload → optional publish orchestration lives in the reusable helper rather than being duplicated inside the testbed. `REF-01` through `REF-03` remain aligned with the browser-scene insertion, restored session behavior, and auth gating. `REF-06` now truthfully supports the claims after the audit fix isolated the browser testbed session-path dependency from ambient operator state.
 
 **Commits:**
 - `6212010` - `Add staged workout upload helper and testbed tab`
+- `47ea25c` - `Record QA verification for workout upload tab`
+- `(pending local commit)` - Audit fix for isolated testbed session config overrides and final audit plan update
 
-**Lessons Learned:** The repo is already more capable on the backend than the default scene suggests. The main design risk is not missing API support; it is accidentally building a misleading “single upload button” UX over what is actually a staged authoring contract with required logo/metadata and a separate modfile upload step. Keeping that truth visible in a reusable `/src/` helper plus a thin auth-gated testbed UI is the safest way to avoid regressions and operator confusion. QA also confirmed that running the broader browser/testbed suite is worthwhile here, because the real regression risk is not isolated helper correctness but accidental drift in the default operator-facing scene.
+**Lessons Learned:** The real risk in this slice was less about missing mod.io backend coverage and more about keeping the operator-facing surface honest. The staged authoring contract needed to live in one reusable seam and the validation needed to be isolated from local machine/session state. Audit caught that second part: even when the feature implementation was sound, brittle evidence can undermine the claim. Isolating config paths for the browser testbed made the full-suite proof as truthful as the upload helper itself.
