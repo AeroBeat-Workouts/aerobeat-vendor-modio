@@ -2,7 +2,7 @@
 
 **Date:** 2026-06-01
 **Status:** In Progress
-**Last Updated:** 2026-06-01 08:08 EDT
+**Last Updated:** 2026-06-01 07:51 EDT
 **Blocked Reason:** None
 **Agent:** `chip`
 
@@ -127,9 +127,11 @@ Focused validation was added at both seams: `test_modio_workout_upload_flow.gd` 
 - `.testbed/tests/test_modio_workout_browser_testbed.gd`
 - `tests/`
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** QA verified the implementation without needing a fix. The reusable seam claim is true in the default browser surface: the testbed preloads `src/modio_workout_upload_flow.gd`, stores it in `_upload_flow`, and the upload button delegates to `_upload_flow.submit_workout(_manager, _state.upload_draft)` rather than rebuilding `build_add_mod_request` / `build_add_modfile_request` / `build_update_mod_request` sequencing locally in the controller. Signed-out behavior is truthful at both the UI and handler layers: the `Upload Workout` browser tab starts disabled when no bearer token is present, the submit button is disabled, the upload intro/status copy explains that athlete sign-in is required, and `_on_upload_workout_pressed()` still hard-stops with an auth failure if invoked programmatically while signed out. Required field validation is also truthful in the helper: `prepare_submission()` blocks missing `name`, empty `metadata_kvp`, missing logo paths, missing ZIP paths, nonexistent files, and non-`.zip` workout archives before any network call runs.
+
+The staged authoring contract is reflected accurately in both implementation and operator copy. `submit_workout()` performs `create_draft` first, `upload_modfile` second, and `publish_mod` only when `publish_after_upload` is enabled; failures short-circuit at the first broken stage and the success message distinguishes draft-only completion from published completion. The upload tab copy matches that contract instead of implying a single backend primitive. Regression coverage stayed green across both the focused upload/browser checks and the broader browser scene surface: `godot --headless --path .testbed --import`, `godot --headless --path .testbed --script res://tests/validate_modio_testbed_scenes.gd`, `godot --headless --path .testbed --script res://tests/qa_verify_scene_output_updates.gd`, the targeted GUT pass for `test_modio_workout_upload_flow.gd` + `test_modio_workout_browser_testbed.gd`, and the full `addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit` suite all passed. The only note worth handing to audit is a pre-existing Godot/GUT warning in `test_modio_vendor_adapter.gd` (`Float/Int comparison. Got FLOAT but expected INT`); it did not fail the suite and is outside this upload-tab QA slice.
 
 ---
 
@@ -162,11 +164,11 @@ Focused validation was added at both seams: `test_modio_workout_upload_flow.gd` 
 
 **Status:** ⚠️ In Progress
 
-**What We Built:** The coder slice is now complete: a repo-root staged workout upload helper, an auth-gated `Upload Workout` browser tab that consumes it as a thin client, and focused helper/controller/scene validation for the new flow.
+**What We Built:** The coder slice is complete and QA-verified: a repo-root staged workout upload helper, an auth-gated `Upload Workout` browser tab that consumes it as a thin client, and focused helper/controller/scene validation for the new flow. Auditor review is still pending.
 
-**Reference Check:** `REF-01` through `REF-07` were implemented against directly. The staged authoring truth from `REF-04`/`REF-05` now lives in `src/modio_workout_upload_flow.gd`, while the browser-scene insertion and auth gating remain aligned with `REF-01` through `REF-03` and the validator expectations in `REF-06`.
+**Reference Check:** `REF-01` through `REF-07` were implemented against directly and QA-checked. The staged authoring truth from `REF-04`/`REF-05` lives in `src/modio_workout_upload_flow.gd`, while the browser-scene insertion and auth gating remain aligned with `REF-01` through `REF-03` and the validator expectations in `REF-06`. QA confirmed the controller calls the helper seam instead of duplicating staged backend writes locally.
 
 **Commits:**
-- Pending coder commit/push.
+- `6212010` - `Add staged workout upload helper and testbed tab`
 
-**Lessons Learned:** The repo is already more capable on the backend than the default scene suggests. The main design risk is not missing API support; it is accidentally building a misleading “single upload button” UX over what is actually a staged authoring contract with required logo/metadata and a separate modfile upload step. Keeping that truth visible in a reusable `/src/` helper plus a thin auth-gated testbed UI is the safest way to avoid regressions and operator confusion.
+**Lessons Learned:** The repo is already more capable on the backend than the default scene suggests. The main design risk is not missing API support; it is accidentally building a misleading “single upload button” UX over what is actually a staged authoring contract with required logo/metadata and a separate modfile upload step. Keeping that truth visible in a reusable `/src/` helper plus a thin auth-gated testbed UI is the safest way to avoid regressions and operator confusion. QA also confirmed that running the broader browser/testbed suite is worthwhile here, because the real regression risk is not isolated helper correctness but accidental drift in the default operator-facing scene.
