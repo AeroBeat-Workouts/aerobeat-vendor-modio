@@ -98,6 +98,7 @@ func prepare_request(request: Dictionary, config: ModioClientConfig = null, opti
 	var encoded_body_bytes := PackedByteArray()
 	var final_content_type := content_type
 	var multipart_boundary := ""
+	var body_is_binary := false
 	var has_raw_body := raw_body != null
 	if has_raw_body:
 		var raw_body_result := _normalize_raw_request_body(raw_body, content_type)
@@ -106,6 +107,7 @@ func prepare_request(request: Dictionary, config: ModioClientConfig = null, opti
 		encoded_body = str(raw_body_result.get("body_string", ""))
 		encoded_body_bytes = raw_body_result.get("body_bytes", PackedByteArray())
 		final_content_type = str(raw_body_result.get("content_type", content_type))
+		body_is_binary = bool(raw_body_result.get("body_is_binary", false))
 	else:
 		var encoded_body_result := _encode_request_body(body, content_type, requested_multipart_boundary)
 		if not bool(encoded_body_result.get("ok", false)):
@@ -114,6 +116,7 @@ func prepare_request(request: Dictionary, config: ModioClientConfig = null, opti
 		encoded_body_bytes = encoded_body_result.get("body_bytes", encoded_body.to_utf8_buffer())
 		final_content_type = str(encoded_body_result.get("content_type", content_type))
 		multipart_boundary = str(encoded_body_result.get("boundary", ""))
+		body_is_binary = bool(encoded_body_result.get("body_is_binary", false))
 	if final_content_type != "" and not headers.has("Content-Type"):
 		headers["Content-Type"] = final_content_type
 	if encoded_body_bytes.size() > 0 and not headers.has("Content-Length"):
@@ -130,6 +133,7 @@ func prepare_request(request: Dictionary, config: ModioClientConfig = null, opti
 		"raw_body": raw_body,
 		"body_string": encoded_body,
 		"body_bytes": encoded_body_bytes,
+		"body_is_binary": body_is_binary,
 		"has_raw_body": has_raw_body,
 		"content_type": final_content_type,
 		"multipart_boundary": multipart_boundary,
@@ -335,16 +339,22 @@ func _encode_parameters(values: Dictionary) -> String:
 
 func _normalize_raw_request_body(raw_body: Variant, content_type: String) -> Dictionary:
 	var body_bytes := PackedByteArray()
+	var body_string := ""
+	var body_is_binary := false
 	if raw_body is PackedByteArray:
 		body_bytes = raw_body
+		body_string = _describe_binary_body(body_bytes, content_type)
+		body_is_binary = true
 	elif raw_body is String:
-		body_bytes = str(raw_body).to_utf8_buffer()
+		body_string = str(raw_body)
+		body_bytes = body_string.to_utf8_buffer()
 	else:
 		return {"ok": false, "error": "Raw request bodies must be a PackedByteArray or String."}
 	return {
 		"ok": true,
-		"body_string": body_bytes.get_string_from_utf8(),
+		"body_string": body_string,
 		"body_bytes": body_bytes,
+		"body_is_binary": body_is_binary,
 		"content_type": content_type
 	}
 
@@ -358,10 +368,11 @@ func _encode_request_body(values: Dictionary, content_type: String, multipart_bo
 				"ok": true,
 				"body_string": "",
 				"body_bytes": PackedByteArray(),
+				"body_is_binary": false,
 				"content_type": "%s; boundary=%s" % [CONTENT_TYPE_MULTIPART, empty_boundary],
 				"boundary": empty_boundary
 			}
-		return {"ok": true, "body_string": "", "body_bytes": PackedByteArray(), "content_type": content_type, "boundary": ""}
+		return {"ok": true, "body_string": "", "body_bytes": PackedByteArray(), "body_is_binary": false, "content_type": content_type, "boundary": ""}
 	if _is_multipart_content_type(content_type):
 		var boundary := multipart_boundary.strip_edges()
 		if boundary.is_empty():
@@ -373,14 +384,15 @@ func _encode_request_body(values: Dictionary, content_type: String, multipart_bo
 			"ok": true,
 			"body_string": str(multipart_result.get("body_string", "")),
 			"body_bytes": multipart_result.get("body_bytes", PackedByteArray()),
+			"body_is_binary": bool(multipart_result.get("body_is_binary", false)),
 			"content_type": "%s; boundary=%s" % [CONTENT_TYPE_MULTIPART, boundary],
 			"boundary": boundary
 		}
 	if content_type == "" or content_type == CONTENT_TYPE_FORM:
 		var form_body := _encode_parameters(values)
-		return {"ok": true, "body_string": form_body, "body_bytes": form_body.to_utf8_buffer(), "content_type": content_type, "boundary": ""}
+		return {"ok": true, "body_string": form_body, "body_bytes": form_body.to_utf8_buffer(), "body_is_binary": false, "content_type": content_type, "boundary": ""}
 	var json_body := JSON.stringify(values)
-	return {"ok": true, "body_string": json_body, "body_bytes": json_body.to_utf8_buffer(), "content_type": content_type, "boundary": ""}
+	return {"ok": true, "body_string": json_body, "body_bytes": json_body.to_utf8_buffer(), "body_is_binary": false, "content_type": content_type, "boundary": ""}
 
 func _is_multipart_content_type(content_type: String) -> bool:
 	return content_type.strip_edges().begins_with(CONTENT_TYPE_MULTIPART)
@@ -392,50 +404,63 @@ func _encode_multipart_body(values: Dictionary, boundary: String) -> Dictionary:
 	var keys: Array = values.keys()
 	keys.sort_custom(func(a, b): return str(a) < str(b))
 	var body_bytes := PackedByteArray()
+	var debug_parts: Array[String] = []
+	var body_is_binary := false
 	for key in keys:
-		var append_result := _append_multipart_field(body_bytes, boundary, str(key), values[key])
+		var append_result := _append_multipart_field(body_bytes, debug_parts, boundary, str(key), values[key])
 		if not bool(append_result.get("ok", false)):
 			return append_result
+		body_is_binary = body_is_binary or bool(append_result.get("body_is_binary", false))
 	_append_multipart_bytes(body_bytes, ("--%s--\r\n" % boundary).to_utf8_buffer())
+	debug_parts.append("--%s--\r\n" % boundary)
+	var debug_body := ""
+	for part in debug_parts:
+		debug_body += part
 	return {
 		"ok": true,
 		"body_bytes": body_bytes,
-		"body_string": body_bytes.get_string_from_utf8()
+		"body_string": debug_body,
+		"body_is_binary": body_is_binary
 	}
 
-func _append_multipart_field(body_bytes: PackedByteArray, boundary: String, key: String, value: Variant) -> Dictionary:
+func _append_multipart_field(body_bytes: PackedByteArray, debug_parts: Array[String], boundary: String, key: String, value: Variant) -> Dictionary:
+	var body_is_binary := false
 	if value is Array:
 		var array_field_name := key if key.ends_with("[]") else "%s[]" % key
 		if value.is_empty():
-			return _append_single_multipart_part(body_bytes, boundary, array_field_name, "")
+			return _append_single_multipart_part(body_bytes, debug_parts, boundary, array_field_name, "")
 		for item in value:
-			var append_result := _append_single_multipart_part(body_bytes, boundary, array_field_name, item)
+			var append_result := _append_single_multipart_part(body_bytes, debug_parts, boundary, array_field_name, item)
 			if not bool(append_result.get("ok", false)):
 				return append_result
-		return {"ok": true}
-	return _append_single_multipart_part(body_bytes, boundary, key, value)
+			body_is_binary = body_is_binary or bool(append_result.get("body_is_binary", false))
+		return {"ok": true, "body_is_binary": body_is_binary}
+	return _append_single_multipart_part(body_bytes, debug_parts, boundary, key, value)
 
-func _append_single_multipart_part(body_bytes: PackedByteArray, boundary: String, key: String, value: Variant) -> Dictionary:
+func _append_single_multipart_part(body_bytes: PackedByteArray, debug_parts: Array[String], boundary: String, key: String, value: Variant) -> Dictionary:
 	var file_part_result := _resolve_multipart_file_part(value)
 	if not bool(file_part_result.get("ok", false)):
 		return file_part_result
 	var file_part: Dictionary = file_part_result.get("file_part", {})
 	if not file_part.is_empty():
-		_append_multipart_bytes(body_bytes, ("--%s\r\n" % boundary).to_utf8_buffer())
-		var disposition := 'Content-Disposition: form-data; name="%s"; filename="%s"\r\n' % [_escape_multipart_header_value(key), _escape_multipart_header_value(str(file_part.filename))]
-		_append_multipart_bytes(body_bytes, disposition.to_utf8_buffer())
 		var content_type := str(file_part.get("content_type", "")).strip_edges()
 		if content_type.is_empty():
 			content_type = "application/octet-stream"
+		_append_multipart_bytes(body_bytes, ("--%s\r\n" % boundary).to_utf8_buffer())
+		var disposition := 'Content-Disposition: form-data; name="%s"; filename="%s"\r\n' % [_escape_multipart_header_value(key), _escape_multipart_header_value(str(file_part.filename))]
+		_append_multipart_bytes(body_bytes, disposition.to_utf8_buffer())
 		_append_multipart_bytes(body_bytes, ("Content-Type: %s\r\n\r\n" % content_type).to_utf8_buffer())
 		_append_multipart_bytes(body_bytes, file_part.data)
 		_append_multipart_bytes(body_bytes, "\r\n".to_utf8_buffer())
-		return {"ok": true}
+		debug_parts.append("--%s\r\n%sContent-Type: %s\r\n\r\n%s\r\n" % [boundary, disposition, content_type, _describe_binary_file_part(str(file_part.filename), file_part.data)])
+		return {"ok": true, "body_is_binary": true}
+	var text_value := _parameter_to_string(value)
 	_append_multipart_bytes(body_bytes, ("--%s\r\n" % boundary).to_utf8_buffer())
 	_append_multipart_bytes(body_bytes, ('Content-Disposition: form-data; name="%s"\r\n\r\n' % _escape_multipart_header_value(key)).to_utf8_buffer())
-	_append_multipart_bytes(body_bytes, _parameter_to_string(value).to_utf8_buffer())
+	_append_multipart_bytes(body_bytes, text_value.to_utf8_buffer())
 	_append_multipart_bytes(body_bytes, "\r\n".to_utf8_buffer())
-	return {"ok": true}
+	debug_parts.append("--%s\r\nContent-Disposition: form-data; name=\"%s\"\r\n\r\n%s\r\n" % [boundary, _escape_multipart_header_value(key), text_value])
+	return {"ok": true, "body_is_binary": false}
 
 func _append_multipart_bytes(body_bytes: PackedByteArray, bytes: PackedByteArray) -> void:
 	body_bytes.append_array(bytes)
@@ -511,6 +536,15 @@ func _guess_multipart_content_type(path: String) -> String:
 			return "application/zip"
 		_:
 			return "application/octet-stream"
+
+func _describe_binary_body(body_bytes: PackedByteArray, content_type: String) -> String:
+	var label := content_type.strip_edges()
+	if label.is_empty():
+		label = "application/octet-stream"
+	return "[binary body omitted: %s bytes, content_type=%s]" % [body_bytes.size(), label]
+
+func _describe_binary_file_part(filename: String, data: PackedByteArray) -> String:
+	return "[binary file omitted: %s bytes from %s]" % [data.size(), filename]
 
 func _escape_multipart_header_value(value: String) -> String:
 	return value.replace('"', "\\\"")

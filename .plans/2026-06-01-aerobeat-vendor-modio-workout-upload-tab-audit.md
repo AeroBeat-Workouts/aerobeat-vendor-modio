@@ -2,7 +2,7 @@
 
 **Date:** 2026-06-01
 **Status:** In Progress
-**Last Updated:** 2026-06-01 15:12 EDT
+**Last Updated:** 2026-06-01 15:18 EDT
 **Blocked Reason:** None
 **Agent:** `chip`
 
@@ -976,9 +976,13 @@ Focused regression coverage was updated to prove the real behavior instead of th
 - `.testbed/tests/`
 - `src/`
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** QA passed without needing a fix. The transport seam now truthfully converts multipart `@file` values into real file parts instead of literal path text. In `src/network/modio_http_transport.gd`, `_append_single_multipart_part()` routes each multipart value through `_resolve_multipart_file_part()`, which recognizes both explicit `{filename, content_type, data}` file-part dictionaries and legacy `"@/path"` strings. For `@file` strings, `_load_multipart_file_part_from_path()` resolves the local path, reads the raw bytes, assigns `filename` from the basename, and infers a concrete content type (`image/png`, `image/jpeg`, `image/gif`, `image/webp`, `application/zip`, or octet-stream fallback). That addresses the root cause from the prior slice: the `logo` field is no longer serialized as a bogus text path.
+
+The upload-helper seam is also truthful end to end. `src/modio_workout_upload_flow.gd` still normalizes `logo_path` and `zip_path` into the existing `@absolute-path` contract, and the focused tests now prove those values become real multipart uploads at the transport boundary. `test_modio_workout_upload_flow.gd` verifies the create-draft request carries `logo` as a multipart part with `filename="logo.png"`, `Content-Type: image/png`, and the actual PNG bytes, while the modfile request carries `filedata` as `filename="workout.zip"`, `Content-Type: application/zip`, and the actual ZIP bytes. `test_modio_http_transport.gd` independently proves the lower-level seam for both image and ZIP payloads and confirms missing `@file` paths fail early with a clear `Multipart @file path does not exist` transport error instead of silently sending bogus text.
+
+Regression coverage stayed green. I reran `godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gtest=res://tests/test_modio_http_transport.gd -gtest=res://tests/test_modio_workout_upload_flow.gd -gexit` (passing), plus `godot --headless --path .testbed --script res://tests/validate_scaffold.gd`, `godot --headless --path .testbed --script res://tests/validate_modio_testbed_scenes.gd`, and the broader GUT suite via `godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit` (127/127 passing). The full-suite run still emits the same pre-existing non-failing warnings noted elsewhere in the plan: a float/int comparison warning in `test_modio_vendor_adapter.gd`, some UTF-8 replacement warnings when binary multipart bytes are rendered into a UTF-8 debug string, and the usual Godot/GUT leak/resources-at-exit noise. I did not find a QA-sized defect in this multipart fix slice.
 
 ---
 
@@ -989,6 +993,82 @@ Focused regression coverage was updated to prove the real behavior instead of th
 **Role:** `auditor`  
 **References:** `REF-02`, `REF-04`, `REF-05`, `REF-06`  
 **Prompt:** In `aerobeat-vendor-modio`, claim bead `oc-l7tt` on start with `bd update oc-l7tt --status in_progress --json`. Independently audit the multipart logo upload fix. Verify the logo field is encoded correctly for mod.io, inspect validation evidence, ensure diagnostics remain truthful, update this plan with the final audit verdict, commit/push by default only if an audit-sized fix is needed, and close the bead with a clear reason.
+
+**Folders Created/Deleted/Modified:**
+- `.plans/`
+- `.testbed/`
+- `src/`
+
+**Files Created/Deleted/Modified:**
+- `.plans/2026-06-01-aerobeat-vendor-modio-workout-upload-tab-audit.md`
+- `.testbed/tests/`
+- `src/`
+
+**Status:** ⏳ Pending
+
+**Results:** Pending.
+
+---
+### Task 34: Fix UTF-8 parsing errors from the binary multipart upload path
+
+**Bead ID:** `oc-bnc9`  
+**SubAgent:** `primary` (for `coder`)  
+**Role:** `coder`  
+**References:** `REF-02`, `REF-04`, `REF-05`, `REF-06`  
+**Prompt:** In `aerobeat-vendor-modio`, claim bead `oc-bnc9` on start with `bd update oc-bnc9 --status in_progress --json`. Investigate and fix the real UTF-8 parsing errors emitted during successful multipart uploads. Derrick confirmed the upload itself now succeeds, but the engine still logs Unicode/UTF-8 parsing errors during the process, which strongly suggests the binary multipart request path is still being coerced into text somewhere in transport/debug handling. Identify the exact local cause, fix it, keep diagnostics truthful, add focused regression coverage, run relevant validation, update this plan with what actually changed, commit and push by default, and close the bead with a clear reason.
+
+**Folders Created/Deleted/Modified:**
+- `.plans/`
+- `.testbed/`
+- `src/`
+
+**Files Created/Deleted/Modified:**
+- `.plans/2026-06-01-aerobeat-vendor-modio-workout-upload-tab-audit.md`
+- `.testbed/tests/`
+- `src/network/modio_http_transport.gd`
+- `src/`
+
+**Status:** ✅ Complete
+
+**Results:** Root cause confirmed inside `src/network/modio_http_transport.gd`: the successful binary upload paths were still coercing raw multipart/request bytes into UTF-8 debug text via `PackedByteArray.get_string_from_utf8()` in two places. The raw binary part-upload seam hit this in `_normalize_raw_request_body()`, and multipart form uploads with logo/ZIP/image file parts hit it in `_encode_multipart_body()`. Uploads still succeeded because dispatch already used `request_raw()` for multipart/raw bodies, but the debug/recorded body string path was trying to decode PNG/ZIP/octet-stream bytes and triggering the engine’s Unicode replacement warnings.
+
+The fix keeps transport behavior and diagnostics truthful without regressing uploads. Raw `PackedByteArray` request bodies now keep their real bytes for dispatch while exposing a descriptive debug string (`[binary body omitted: ...]`) instead of pretending octet-stream is UTF-8 text. Multipart encoding now builds two representations on purpose: the real `body_bytes` payload sent to mod.io, and a safe `body_string` preview made from headers/text fields plus explicit binary placeholders (`[binary file omitted: ...]`) for file parts. I also added a `body_is_binary` flag on prepared/final requests so tests and future diagnostics can tell when the preview is intentionally non-literal.
+
+Focused regression coverage was updated in `.testbed/tests/test_modio_http_transport.gd` and `.testbed/tests/test_modio_workout_upload_flow.gd` to assert the new safe binary diagnostics for raw multipart-part uploads and staged logo/ZIP authoring requests while still proving the actual request bytes contain the expected file payloads. Validation passed with `godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gtest=res://tests/test_modio_http_transport.gd -gtest=res://tests/test_modio_workout_upload_flow.gd -gexit` and the broader `godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit` suite (127/127 passing; the only remaining warning is the pre-existing float/int comparison warning in `test_modio_vendor_adapter.gd`).
+
+---
+
+### Task 35: QA UTF-8 multipart upload warning fix
+
+**Bead ID:** `oc-dudw`  
+**SubAgent:** `primary` (for `qa`)  
+**Role:** `qa`  
+**References:** `REF-02`, `REF-04`, `REF-05`, `REF-06`  
+**Prompt:** In `aerobeat-vendor-modio`, claim bead `oc-dudw` on start with `bd update oc-dudw --status in_progress --json`. Verify successful multipart uploads no longer emit UTF-8 parsing errors from the binary path and that diagnostics remain truthful. Run relevant validation/tests, update this plan with QA findings, commit/push by default only if QA-sized fixes are needed, and close the bead with a clear reason.
+
+**Folders Created/Deleted/Modified:**
+- `.plans/`
+- `.testbed/`
+- `src/`
+
+**Files Created/Deleted/Modified:**
+- `.plans/2026-06-01-aerobeat-vendor-modio-workout-upload-tab-audit.md`
+- `.testbed/tests/`
+- `src/`
+
+**Status:** ⏳ Pending
+
+**Results:** Pending.
+
+---
+
+### Task 36: Audit UTF-8 multipart upload warning fix
+
+**Bead ID:** `oc-nbeo`  
+**SubAgent:** `primary` (for `auditor`)  
+**Role:** `auditor`  
+**References:** `REF-02`, `REF-04`, `REF-05`, `REF-06`  
+**Prompt:** In `aerobeat-vendor-modio`, claim bead `oc-nbeo` on start with `bd update oc-nbeo --status in_progress --json`. Independently audit the fix for UTF-8 parsing errors during successful multipart uploads. Verify the binary multipart path no longer emits UTF-8 parsing errors in the normal success case, inspect validation evidence, update this plan with the final audit verdict, commit/push by default only if an audit-sized fix is needed, and close the bead with a clear reason.
 
 **Folders Created/Deleted/Modified:**
 - `.plans/`
