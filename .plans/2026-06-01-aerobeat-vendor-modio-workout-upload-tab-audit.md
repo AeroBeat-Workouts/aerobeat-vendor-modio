@@ -2,7 +2,7 @@
 
 **Date:** 2026-06-01
 **Status:** In Progress
-**Last Updated:** 2026-06-01 08:36 EDT
+**Last Updated:** 2026-06-01 09:25 EDT
 **Blocked Reason:** None
 **Agent:** `chip`
 
@@ -249,20 +249,141 @@ Validation evidence supports the claim. I reran `godot --headless --path .testbe
 
 ---
 
-## Final Results
+### Task 8: Research mod.io metadata vs tags semantics for truthful workout-upload UI copy
+
+**Bead ID:** `oc-3gwz`  
+**SubAgent:** `primary` (for `research`)  
+**Role:** `research`  
+**References:** `REF-04`, `REF-05`, `REF-06`, `REF-07`  
+**Prompt:** In `aerobeat-vendor-modio`, claim bead `oc-3gwz` on start with `bd update oc-3gwz --status in_progress --json`. Research the exact semantics of mod.io mod authoring `metadata` / `metadata_kvp` versus `tags` using current online mod.io API references plus the local repo/docs. Determine which field should carry AeroBeat taxonomy values like `feature`, `difficulty`, and `genre`; determine what `metadata` is actually intended for in mod authoring beyond just being key/value pairs; and identify whether the current Upload Workout tab examples/copy are misleading. Update this plan with a docs-backed answer and concrete UI wording/example recommendations, then close the bead with a clear reason. Do not implement the UI change yet; research and plan only.
+
+**Folders Created/Deleted/Modified:**
+- `.plans/`
+- `.testbed/`
+- `src/`
+
+**Files Created/Deleted/Modified:**
+- `.plans/2026-06-01-aerobeat-vendor-modio-workout-upload-tab-audit.md`
 
 **Status:** ✅ Complete
 
-**What We Built:** The default mod.io browser testbed now includes a reusable helper-driven `Upload Workout` tab plus the follow-up layout refinement Derrick requested. The upload form preserves the staged draft → ZIP upload → optional publish contract, keeps athlete auth gating intact, and uses paired side-by-side rows plus a vertical scroll container so the submit action remains reachable even in shorter viewports.
+**Results:** Research completed against both the current online mod.io docs and the local AeroBeat/repo trail. **Documented mod.io facts:** (1) `POST /games/:game-id/mods/:mod-id/tags` is for a mod's profile tags, and mod.io explicitly says you may only add tags allowed by the parent game's `tag_options`; those game tag groups can be public, hidden-for-filtering, or locked, and the filtering docs/examples treat `tags` as a first-class browse field. (2) `POST /games/:game-id/mods/:mod-id/metadatakvp` is for **searchable key-value metadata**; mod.io says it is useful to define how a mod works or other information needed to display/manage the mod, gives gameplay-property examples like gravity and fire rate, and explicitly recommends the upload tool define/submit that metadata **behind the scenes** because invalid values may cause problems. (3) The mod create/edit surface also exposes repeated `metadata[]` parts for profile authoring plus optional `metadata_blob`, so the word `metadata` is overloaded in mod.io; in this Upload Workout tab the current `Metadata KVP` field maps to the searchable KVP form, not to `metadata_blob`.
 
-**Reference Check:** `REF-01` through `REF-07` were satisfied for this slice. The controller-built upload UI now contains the requested `Summary | Description`, `Metadata | Tags`, and `Workout Logo | Workout ZIP` rows; the helper-driven staged upload seam in `/src/` remained intact; and validation/audit evidence confirmed the viewport-scroll truthfulness instead of relying on layout assumptions.
+**Local AeroBeat facts:** `aerobeat-docs/docs/architecture/modio-tag-mapping.md` already locks the public AeroBeat storefront taxonomy to `feature`, `difficulty`, and `genre`, with `trust_state` hidden/admin-only. The prior live-harness evidence in the repo plan trail also confirms the current sandbox game exposes those tag groups and that valid mod tag writes used raw tag values like `boxing`, `easy`, and `edm` — not `feature=boxing` style pairs. That means AeroBeat taxonomy values belong in **mod.io tags**, not in `metadata_kvp`. More specifically: `feature` should be a single public tag value, `difficulty` should be a single public tag value, and `genre` may be multi-select; the per-mod payload should carry the allowed tag values themselves while the grouping/category comes from the game's configured `tag_options`.
+
+**Docs-backed interpretation / AeroBeat recommendation:** mod.io `metadata_kvp` should be treated as structured implementation or operational metadata, not as the primary athlete-facing taxonomy surface. The docs support using it for mod behavior/configuration and for internal display/management/search, but they do **not** present it as the normal public browse taxonomy mechanism. For AeroBeat, that makes `metadata_kvp` a better home for hidden/provider-side structured fields only if we truly need them (for example tool-generated identifiers or controlled workflow data), while `feature`, `difficulty`, and `genre` should stay in tags. The docs are somewhat ambiguous about the exact expected delimiter convention inside the authored string values because the REST prose says key-value pairs while different local tests/examples use both `key:value` and `key=value`; the important docs-stable semantic point is that this field is KVP metadata for behavior/management, not public taxonomy.
+
+**Current Upload Workout tab copy is misleading in two ways.** First, the placeholder `difficulty=intermediate` under `Metadata KVP` teaches the wrong bucket: `difficulty` is an AeroBeat public taxonomy value and should be a tag, not metadata. Second, the optional tags placeholder `cardio, endurance` does not match the currently locked AeroBeat public taxonomy groups/values; the local mapping doc and sandbox evidence point toward values such as `boxing`, `easy|medium|hard|pro`, and approved genres like `edm`, not generic freeform descriptors. The current copy also risks implying that creators should hand-author freeform provider metadata, even though mod.io recommends upload tools submit that metadata behind the scenes.
+
+**Concrete UI wording/example recommendations (research only; not implemented here):**
+- Rename or relabel the taxonomy-facing field away from generic freeform `Tags (optional, comma-separated)` toward something like **`Discovery Tags (required/optional, selected from the game's configured taxonomy)`**.
+- If the UI must stay text-first temporarily, use truthful example copy such as **`boxing, medium, edm`** and add helper text like **`Use allowed mod.io tag values from the game's Feature / Difficulty / Genre groups. Do not type feature= or difficulty= here.`**
+- Stronger recommendation: replace the freeform taxonomy text box with grouped controls sourced from `GET /games/{game-id}/tags` / game `tag_options` so the operator picks `feature`, `difficulty`, and `genre` values explicitly instead of guessing valid strings.
+- Reword the metadata field to make its role narrower and less taxonomy-like, e.g. **`Advanced Metadata KVP (provider-side structured fields; one key=value per line)`** with helper text like **`Use only for structured mod behavior/management data when needed. Public workout discovery values like feature, difficulty, and genre belong in Tags.`**
+- If AeroBeat does not currently need creator-authored KVP at all, best recommendation is to hide/collapse this field in the first-pass upload form and let the tool populate any required metadata behind the scenes.
+- Remove the current `coach=...` style public-facing example unless AeroBeat explicitly decides that coach metadata should live in mod.io KVP; the current docs/mapping trail does not justify it as public upload guidance.
+
+Bottom line: **AeroBeat taxonomy belongs in mod.io tags; `metadata_kvp` is for structured searchable metadata about how the mod works or how the tool/provider manages it; and the current upload-form placeholders should be revised because they currently teach the wrong separation.**
+
+
+### Task 9: Add truthful metadata examples and seed device-hardware metadata for upload testing
+
+**Bead ID:** `oc-8yyp`  
+**SubAgent:** `primary` (for `coder`)  
+**Role:** `coder`  
+**References:** `REF-02`, `REF-03`, `REF-04`, `REF-05`, `REF-06`, `REF-07`  
+**Prompt:** Pending final execution approval. In `aerobeat-vendor-modio`, refine the Upload Workout testbed so metadata remains present for vendor-seam testing, but with truthful example content instead of guessed taxonomy. Seed a fake testbed metadata example including `aerobeat_version=1.0.0`, and wire in a path for hardware-derived metadata from `aerobeat-tool-device-detection` via a dedicated extension/helper there that can transform detected-device JSON into metadata KVP pairs suitable for upload testing. After updating `aerobeat-tool-device-detection`, refresh the dependency in `aerobeat-vendor-modio` using the canonical `godotenv-sync` script/workflow rather than the vanilla `godotenv` CLI, to avoid noise/UID issues. Preserve the current helper-driven upload seam and keep taxonomy in Tags rather than Metadata KVP.
+
+**Folders Created/Deleted/Modified:**
+- `.plans/`
+- `.testbed/`
+- `src/`
+- `../aerobeat-tool-device-detection/`
+
+**Files Created/Deleted/Modified:**
+- `.plans/2026-06-01-aerobeat-vendor-modio-workout-upload-tab-audit.md`
+- `.testbed/addons.jsonc`
+- `.testbed/scripts/modio_workout_browser_state.gd`
+- `.testbed/scripts/modio_workout_browser_testbed.gd`
+- `.testbed/tests/test_modio_workout_browser_testbed.gd`
+- `../aerobeat-tool-device-detection/src/AeroDeviceDetectionModioMetadata.gd`
+- `../aerobeat-tool-device-detection/.testbed/tests/test_device_detection_contract.gd`
+
+**Status:** ✅ Complete
+
+**Results:** Implemented the coder slice across both repos without changing the existing helper-driven upload seam or auth gating. In `aerobeat-tool-device-detection`, I added `src/AeroDeviceDetectionModioMetadata.gd`, a dedicated helper that converts either detected-device dictionaries or JSON strings into normalized mod.io upload metadata KVP pairs, plus contract coverage in `.testbed/tests/test_device_detection_contract.gd`. The helper intentionally keeps only stable/useful hardware fields for upload testing: `device_profile`, `device_platform`, `device_os_name`, `device_os_version`, `device_cpu_name`, `device_gpu_vendor`, `device_gpu_name`, `device_rendering_method`, `device_display_server`, `device_screen_width`, `device_screen_height`, and `device_memory_gb`. It deliberately excludes noisy/ephemeral/privacy-heavy fields such as `vendor_id`, `device_name`, `model_name`, `renderer_name`, runtime `tags`, nested `metadata`, request/meta timestamps, and other raw response scaffolding.
+
+In `aerobeat-vendor-modio`, the Upload Workout testbed now seeds truthful metadata instead of guessed taxonomy. The seeded metadata examples are: `aerobeat_version=1.0.0`, `upload_surface=modio_workout_browser_testbed`, `upload_flow=staged_draft_then_modfile`, plus deterministic device-derived KVP lines generated through the new helper from a fixed Surface Pro 8-style upload fixture. Public taxonomy stayed in Tags instead of Metadata KVP: the draft/tag defaults and field copy now use `boxing, easy, edm`, matching the current AeroBeat `feature` / `difficulty` / `genre` truth from `REF-07`. The testbed continues to delegate submissions through `_upload_flow.submit_workout(_manager, _state.upload_draft)` rather than rebuilding backend request orchestration in the controller.
+
+Dependency refresh was performed with the canonical safe workflow Derrick requested: after pushing `aerobeat-tool-device-detection` `main`, I ran `python3 /home/derrick/.openclaw/workspace/scripts/godotenv-sync --repo /home/derrick/.openclaw/workspace/projects/aerobeat/aerobeat-vendor-modio/.testbed` (not the vanilla `godotenv` CLI) so the vendor testbed reinstalled the new addon cleanly and scrubbed UID noise as part of the same pass. Validation run for this coder slice: in `aerobeat-tool-device-detection`, `godot --headless --path .testbed --import` and `godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit`; in `aerobeat-vendor-modio`, `godot --headless --path .testbed --import`, `godot --headless --path .testbed --script res://tests/validate_modio_testbed_scenes.gd`, `godot --headless --path .testbed --script res://tests/qa_verify_scene_output_updates.gd`, and targeted GUT for `res://tests/test_modio_workout_upload_flow.gd` plus `res://tests/test_modio_workout_browser_testbed.gd`. All passed; the existing non-failing ObjectDB/resource-at-exit warning still appears in the vendor GUT environment.
+
+---
+
+### Task 10: QA truthful upload metadata seeding and device-derived metadata path
+
+**Bead ID:** `oc-7yf6`  
+**SubAgent:** `primary` (for `qa`)  
+**Role:** `qa`  
+**References:** `REF-02`, `REF-04`, `REF-05`, `REF-06`, `REF-07`  
+**Prompt:** In `aerobeat-vendor-modio`, claim bead `oc-7yf6` on start with `bd update oc-7yf6 --status in_progress --json`. Verify that the Upload Workout testbed now uses truthful seeded metadata examples, that taxonomy remains in Tags rather than Metadata KVP, that the device-derived metadata path is wired correctly from `aerobeat-tool-device-detection`, and that the dependency refresh used `godotenv-sync` rather than vanilla `godotenv`. Run relevant validation/tests, update this plan with QA findings, commit/push by default only if QA-sized fixes are needed, and close the bead with a clear reason.
+
+**Folders Created/Deleted/Modified:**
+- `.plans/`
+- `.testbed/`
+- `src/`
+- `../aerobeat-tool-device-detection/`
+
+**Files Created/Deleted/Modified:**
+- `.plans/2026-06-01-aerobeat-vendor-modio-workout-upload-tab-audit.md`
+- `.testbed/`
+- `src/`
+- `../aerobeat-tool-device-detection/`
+
+**Status:** ⏳ Pending
+
+**Results:** Pending.
+
+---
+
+### Task 11: Audit truthful upload metadata seeding and device-derived metadata path
+
+**Bead ID:** `oc-2hld`  
+**SubAgent:** `primary` (for `auditor`)  
+**Role:** `auditor`  
+**References:** `REF-02`, `REF-04`, `REF-05`, `REF-06`, `REF-07`  
+**Prompt:** In `aerobeat-vendor-modio`, claim bead `oc-2hld` on start with `bd update oc-2hld --status in_progress --json`. Independently audit the seeded metadata examples and device-derived metadata path for truthfulness and cross-repo seam correctness. Verify that metadata examples are truthful, tags remain taxonomy-only, device JSON is normalized into metadata KVPs through the intended helper seam, and validation evidence supports the claim. Update this plan with the final audit verdict, commit/push by default only if an audit-sized fix is needed, and close the bead with a clear reason.
+
+**Folders Created/Deleted/Modified:**
+- `.plans/`
+- `.testbed/`
+- `src/`
+- `../aerobeat-tool-device-detection/`
+
+**Files Created/Deleted/Modified:**
+- `.plans/2026-06-01-aerobeat-vendor-modio-workout-upload-tab-audit.md`
+- `.testbed/`
+- `src/`
+- `../aerobeat-tool-device-detection/`
+
+**Status:** ⏳ Pending
+
+**Results:** Pending.
+
+---
+
+## Final Results
+
+**Status:** ⚠️ In Progress
+
+**What We Built:** The default mod.io browser testbed still uses the reusable helper-driven `Upload Workout` tab and now also seeds truthful metadata for vendor-seam testing instead of guessed taxonomy examples. The new cross-repo seam is in place: `aerobeat-tool-device-detection` now exposes a dedicated helper that normalizes detected-device JSON into stable mod.io metadata KVP pairs, and `aerobeat-vendor-modio` consumes that helper in the upload testbed to prefill deterministic device-derived metadata alongside explicit seeded fields like `aerobeat_version=1.0.0`. Public AeroBeat taxonomy stays in Tags, with the seeded/default tag example set to `boxing, easy, edm` instead of the prior misleading metadata-first examples.
+
+**Reference Check:** `REF-01` through `REF-07` remain the active source-of-truth set, now supplemented by the current online mod.io REST/docs pages for Add Mod Tags, Add/Get Mod KVP Metadata, Game Object `tag_options`, Mod Object, Edit Mod, and Filtering. This coder slice follows that guidance directly: `feature` / `difficulty` / `genre` remain tag-space concerns per `REF-07`, while `metadata_kvp` is kept for structured provider/tool metadata. The new device helper only emits stable/useful hardware fields and intentionally excludes privacy-heavy or noisy fields, matching the approved slice requirements.
 
 **Commits:**
 - `6212010` - `Add staged workout upload helper and testbed tab`
 - `47ea25c` - `Record QA verification for workout upload tab`
 - `4613612` - `Audit workout upload tab validation seam`
 - `2bad34f` - `Refine workout upload tab layout`
+- `dfa3f0f` - `Record audit verdict for upload layout refinement`
 
-**Lessons Learned:** For UI refinements like this, the risky part is not just visual parity; it is preserving behavioral truth. A denser form can still fail the real requirement if the action falls below the viewport or if the controller quietly starts owning backend orchestration again. The extra scrollbar probe was worth doing because it confirmed the design succeeds for the right reason: when compression is not enough, scrolling genuinely carries the operator to the action.
-
-*Completed on 2026-06-01*
+**Lessons Learned:** For UI refinements like this, the risky part is not just visual parity; it is preserving behavioral truth. A denser form can still fail the real requirement if the action falls below the viewport or if the controller quietly starts owning backend orchestration again. The extra scrollbar probe was worth doing because it confirmed the design succeeds for the right reason: when compression is not enough, scrolling genuinely carries the operator to the action. The next truth check is semantic rather than spatial: make sure `metadata` vs `tags` copy reflects actual mod.io authoring semantics and AeroBeat taxonomy usage instead of placeholder guesses.

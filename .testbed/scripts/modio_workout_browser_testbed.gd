@@ -1,6 +1,7 @@
 extends Control
 
 const ModioWorkoutUploadFlow = preload("res://addons/aerobeat-vendor-modio/src/modio_workout_upload_flow.gd")
+const AeroDeviceDetectionModioMetadata = preload("res://addons/aerobeat-tool-device-detection/src/AeroDeviceDetectionModioMetadata.gd")
 
 const GLOBAL_TAB_CONNECTION_INDEX := 0
 const GLOBAL_TAB_AUTH_INDEX := 1
@@ -23,6 +24,32 @@ const SORT_OPTIONS := [
 	{"label": "Most Downloaded", "value": "-downloads_total"},
 	{"label": "Alphabetical", "value": "name"}
 ]
+const UPLOAD_METADATA_BASE_SEED := {
+	"aerobeat_version": "1.0.0",
+	"upload_surface": "modio_workout_browser_testbed",
+	"upload_flow": "staged_draft_then_modfile"
+}
+const UPLOAD_METADATA_DEVICE_SEED := {
+	"profile": "surface_pro_8_upload_fixture",
+	"device_name": "Surface Pro 8",
+	"model_name": "Surface Pro 8",
+	"platform": "windows",
+	"os_name": "Windows",
+	"os_version": "11",
+	"cpu_name": "11th Gen Intel(R) Core(TM) i7-1185G7",
+	"gpu_name": "Intel Iris Xe Graphics",
+	"gpu_vendor": "Intel",
+	"renderer_name": "forward_plus",
+	"rendering_method": "forward_plus",
+	"display_server": "windows",
+	"screen_size": {"width": 2880, "height": 1920},
+	"memory_gb": 16.0,
+	"tags": ["surface", "intel", "portable"],
+	"metadata": {
+		"engine": {"major": 4},
+		"feature_tags": ["debug"]
+	}
+}
 
 var _loader := ModioEnvLoader.new()
 var _store := ModioSessionConfigStore.new()
@@ -576,11 +603,11 @@ func _build_upload_tab() -> Control:
 	metadata_tags_row.name = "UploadWorkoutMetadataTagsRow"
 	metadata_tags_row.add_theme_constant_override("separation", 8)
 	form_root.add_child(metadata_tags_row)
-	var metadata_box := _build_upload_multiline_box("Metadata KVP (required, one entry per line)", "UploadWorkoutMetadataTextEdit", Vector2(0, 88), "difficulty=intermediate\ncoach=derrick", func(control: TextEdit) -> void:
+	var metadata_box := _build_upload_multiline_box("Metadata KVP (required, one entry per line)", "UploadWorkoutMetadataTextEdit", Vector2(0, 88), _default_upload_metadata_text(), func(control: TextEdit) -> void:
 		_upload_metadata_text_edit = control
 	)
 	metadata_tags_row.add_child(metadata_box)
-	metadata_tags_row.add_child(_build_upload_text_line("Tags (optional, comma-separated)", "UploadWorkoutTagsLineEdit", "cardio, endurance", func(control: LineEdit) -> void:
+	metadata_tags_row.add_child(_build_upload_text_line("Tags (taxonomy/discovery, comma-separated)", "UploadWorkoutTagsLineEdit", "boxing, easy, edm", func(control: LineEdit) -> void:
 		_upload_tags_line_edit = control
 	))
 
@@ -974,9 +1001,26 @@ func _load_initial_state() -> void:
 	_state.email = _store.read_env_value(resolved_env, "email", session_config_path)
 	_state.last_requested_email = _store.read_env_value(resolved_env, "last_requested_email", session_config_path, _state.email)
 	_state.active_tab = _store.read_env_value(resolved_env, "browser_tab", session_config_path, ModioWorkoutBrowserState.TAB_PUBLIC)
+	_seed_upload_draft_defaults()
 	_state.raw_debug_sections["saved_token_restore_note"] = "Stored token detected. Rehydrating /me + wallet + purchases on reopen." if _state.is_authenticated() else ""
 	_state.status_text = "Public browsing auto-loads when valid Game ID + API Key are already configured. Athlete-only tabs unlock after email-code auth."
 	_rebuild_manager()
+
+func _seed_upload_draft_defaults() -> void:
+	var seeded_metadata := _default_upload_metadata_text()
+	if str(_state.upload_draft.get("metadata_kvp", "")).strip_edges().is_empty():
+		_state.upload_draft["metadata_kvp"] = seeded_metadata
+	if str(_state.upload_draft.get("tags", "")).strip_edges().is_empty():
+		_state.upload_draft["tags"] = "boxing, easy, edm"
+
+func _default_upload_metadata_text() -> String:
+	var lines := PackedStringArray([
+		"aerobeat_version=%s" % UPLOAD_METADATA_BASE_SEED["aerobeat_version"],
+		"upload_surface=%s" % UPLOAD_METADATA_BASE_SEED["upload_surface"],
+		"upload_flow=%s" % UPLOAD_METADATA_BASE_SEED["upload_flow"],
+	])
+	lines.append_array(PackedStringArray(AeroDeviceDetectionModioMetadata.build_metadata_kvp_pairs(UPLOAD_METADATA_DEVICE_SEED)))
+	return "\n".join(lines)
 
 func _rebuild_manager() -> void:
 	var portal := _base_config.portal if _base_config != null else ""

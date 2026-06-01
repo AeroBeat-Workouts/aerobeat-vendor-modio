@@ -13,6 +13,12 @@
       "checkout": "main",
       "subfolder": "/"
     },
+    // Deterministic device-detection contract + metadata projection helper for upload testing.
+    "aerobeat-tool-device-detection": {
+      "url": "git@github.com:AeroBeat-Workouts/aerobeat-tool-device-detection.git",
+      "checkout": "main",
+      "subfolder": "/"
+    },
     // Optional local unit-test framework for the hidden workbench.
     "gut": {
       "url": "git@github.com:bitwes/Gut.git",

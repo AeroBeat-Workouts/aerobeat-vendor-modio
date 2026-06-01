@@ -132,7 +132,7 @@ static func _default_upload_draft() -> Dictionary:
 		"summary": "",
 		"description": "",
 		"metadata_kvp": "",
-		"tags": "",
+		"tags": "boxing, easy, edm",
 		"logo_path": "",
 		"zip_path": "",
 		"version": "",
