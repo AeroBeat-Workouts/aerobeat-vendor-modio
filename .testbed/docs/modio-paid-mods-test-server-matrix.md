@@ -15,7 +15,7 @@ godot --headless --path .testbed --script res://scripts/modio_live_harness.gd --
 godot --headless --path .testbed --script res://scripts/modio_live_harness.gd -- --paid-mods --json
 # rerun after the minimal parse fix
 
-godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit
+godot --headless --path .testbed --script addons/aerobeat-vendor-godot-unit-test/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit
 ```
 
 ## Local config state observed during QA

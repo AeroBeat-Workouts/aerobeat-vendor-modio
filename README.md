@@ -327,7 +327,7 @@ cd .testbed
 godotenv addons install
 ```
 
-Baseline dev/test dependencies stay narrow: `aerobeat-tool-core` plus `gut`.
+Baseline dev/test dependencies stay narrow: `aerobeat-tool-core` plus `aerobeat-vendor-godot-unit-test`.
 
 ### Open the workbench
 
@@ -368,7 +368,7 @@ godot --headless --path .testbed --script res://tests/validate_modio_testbed_sce
 From the repo root:
 
 ```bash
-godot --headless --path .testbed --script addons/gut/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit
+godot --headless --path .testbed --script addons/aerobeat-vendor-godot-unit-test/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit
 ```
 
 ## References used for the current implementation
