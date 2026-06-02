@@ -1,25 +1,26 @@
 {
   "$schema": "https://chickensoft.games/schemas/addons.schema.json",
   "addons": {
-    // Install this repo into the hidden workbench the same way a consumer does.
     "aerobeat-vendor-modio": {
       "url": "..",
       "source": "symlink",
       "subfolder": "/"
     },
-    // Shared tool/workflow contracts used by downstream AeroBeat API tooling.
     "aerobeat-tool-core": {
-      "url": "git@github.com:AeroBeat-Workouts/aerobeat-tool-core.git",
-      "checkout": "main",
-      "subfolder": "/"
+      "url": "../../aerobeat-tool-core",
+      "subfolder": "/",
+      "source": "symlink"
     },
-    // Deterministic device-detection contract + metadata projection helper for upload testing.
     "aerobeat-tool-device-detection": {
-      "url": "git@github.com:AeroBeat-Workouts/aerobeat-tool-device-detection.git",
-      "checkout": "main",
-      "subfolder": "/"
+      "url": "../../aerobeat-tool-device-detection",
+      "subfolder": "/",
+      "source": "symlink"
     },
-    // Optional local unit-test framework for the hidden workbench.
+    "aerobeat-tool-headless-manager": {
+      "url": "../../aerobeat-tool-headless-manager",
+      "subfolder": "/",
+      "source": "symlink"
+    },
     "gut": {
       "url": "git@github.com:bitwes/Gut.git",
       "checkout": "main",
