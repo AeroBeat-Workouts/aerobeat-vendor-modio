@@ -1,7 +1,7 @@
 # AeroBeat Vendor Mod.io Adjacent Comment Surfaces
 
 **Date:** 2026-05-02  
-**Status:** In Progress  
+**Status:** Stale  
 **Agent:** Chip 🐱‍💻
 
 ---

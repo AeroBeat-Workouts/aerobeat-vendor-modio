@@ -1,7 +1,7 @@
 # AeroBeat Vendor Mod.io IAP Sync Drift Resolution
 
 **Date:** 2026-05-04  
-**Status:** Blocked / Deferred  
+**Status:** Stale  
 **Agent:** Chip 🐱‍💻
 
 ---

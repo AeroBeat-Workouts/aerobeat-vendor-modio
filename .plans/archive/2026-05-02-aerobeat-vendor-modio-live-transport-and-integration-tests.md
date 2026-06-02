@@ -1,7 +1,7 @@
 # AeroBeat Vendor Mod.io Live Transport and Integration Tests
 
 **Date:** 2026-05-02  
-**Status:** In Progress  
+**Status:** Stale  
 **Agent:** Chip 🐱‍💻
 
 ---

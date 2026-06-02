@@ -1,7 +1,7 @@
 # AeroBeat Vendor Mod.io Live Env and Harness
 
 **Date:** 2026-05-05  
-**Status:** In Progress  
+**Status:** Stale  
 **Agent:** Chip 🐱‍💻
 
 ---

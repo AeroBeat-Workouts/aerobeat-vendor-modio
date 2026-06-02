@@ -1,7 +1,7 @@
 # AeroBeat Vendor Mod.io Broader Endpoint Coverage
 
 **Date:** 2026-05-02  
-**Status:** Draft  
+**Status:** Stale  
 **Agent:** Chip 🐱‍💻
 
 ---
