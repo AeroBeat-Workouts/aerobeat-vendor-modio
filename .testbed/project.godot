@@ -13,3 +13,7 @@ config_version=5
 config/name="AeroBeat Vendor mod.io Testbed"
 run/main_scene="res://scenes/workout_browser.tscn"
 config/features=PackedStringArray("4.6", "Forward Plus")
+
+[autoload]
+
+AeroHeadlessManager="*res://addons/aerobeat-tool-headless-manager/src/AeroHeadlessManager.gd"
