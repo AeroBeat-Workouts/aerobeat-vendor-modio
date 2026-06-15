@@ -11,6 +11,64 @@ _Target:_ approved test user host `https://u-71104.test.mod.io/v1` with supplied
 - `api_key`: provided and used locally in ignored cfg only
 - `api_path`: `https://u-71104.test.mod.io/v1`
 
+## OAuth bearer rerun (Task 5, 2026-06-15)
+
+This follow-up rerun used the newly supplied OAuth bearer tokens instead of the earlier blank-token session config. I updated only the ignored local cfg files needed for the rerun:
+
+- `.testbed/configs/modio.local.cfg`
+  - `game_id="1325"`
+  - `api_key="<provided u-71104 api key>"`
+  - `base_url="https://u-71104.test.mod.io/v1"`
+- `.testbed/configs/modio.session.local.cfg`
+  - `access_token="<AeroBeat Test Harness - test.mod.io OAuth token>"`
+  - `user_id="71104"`
+
+The second supplied OAuth token for `games-1325` was **not** needed for the local rerun config, but it was used in direct comparison calls below. On the tested bearer endpoints, both tokens produced the same live results against the approved `u-71104.test.mod.io` host.
+
+### Exact bearer rerun commands
+
+```bash
+# user-host token
+curl -sS -D - -A 'curl/8.5.0' \
+  -H "Authorization: Bearer <AeroBeat Test Harness token>" \
+  -H 'Accept: application/json' \
+  'https://u-71104.test.mod.io/v1/me?api_key=<u-71104 api key>'
+
+curl -sS -D - -A 'curl/8.5.0' \
+  -H "Authorization: Bearer <AeroBeat Test Harness token>" \
+  -H 'Accept: application/json' \
+  'https://u-71104.test.mod.io/v1/me/purchased?api_key=<u-71104 api key>'
+
+curl -sS -D - -A 'curl/8.5.0' \
+  -H "Authorization: Bearer <AeroBeat Test Harness token>" \
+  -H 'Accept: application/json' \
+  'https://u-71104.test.mod.io/v1/me/wallets?api_key=<u-71104 api key>&game_id=1325'
+
+# comparison with the second supplied token for games-1325
+curl -sS -D - -A 'curl/8.5.0' \
+  -H "Authorization: Bearer <games-1325 token>" \
+  -H 'Accept: application/json' \
+  'https://u-71104.test.mod.io/v1/me?api_key=<u-71104 api key>'
+```
+
+### OAuth bearer rerun results
+
+| Endpoint | Token(s) tested | Result | Exact evidence |
+| --- | --- | --- | --- |
+| `GET /me` | `AeroBeat Test Harness - test.mod.io`, `games-1325` | **PASS** | Both tokens returned `200` with the same user profile for `id=71104`, `username="DerrickBarra"`, and `monetization_status=49`. |
+| `GET /me/purchased` | `AeroBeat Test Harness - test.mod.io`, `games-1325` | **PASS (empty)** | Both tokens returned `200` with `{"data":[],"result_count":0,...,"result_total":0}`. This is a valid empty bearer result, not an auth failure. |
+| `GET /me/wallets?game_id=1325` | `AeroBeat Test Harness - test.mod.io`, `games-1325` | **PASS** | Both tokens returned `200` with wallet payload `{"type":"standard_mio","currency":"mio",...,"balance":0,"pending_balance":0,"deficit":0,"monetization_status":49,"game_id":1325}`. |
+| `GET /me/wallets` (no `game_id`) | `AeroBeat Test Harness - test.mod.io` | **FAIL — provider/business response** | Returned `404`, `error_ref 14001`, `The requested resource could not be found.` |
+| `GET /me/wallets?game_id=12962` | `AeroBeat Test Harness - test.mod.io` | **FAIL — stale/incorrect game context** | Returned `404`, `error_ref 14001`, `The requested resource could not be found.` |
+
+### OAuth bearer rerun interpretation
+
+- The newly supplied OAuth bearer tokens unblocked the `/me` bearer lane exactly as hoped.
+- The corrected bearer context is: approved user host `https://u-71104.test.mod.io/v1`, the supplied `u-71104` API key, and a real bearer token. Under that context, `/me`, `/me/purchased`, and `/me/wallets?game_id=1325` all work.
+- The `games-1325` token did **not** change the observed behavior on these tested bearer reads versus the `AeroBeat Test Harness - test.mod.io` token.
+- The stale prior `game_id=12962` is no longer the truthful wallet context for this bearer lane. `1325` is the working wallet game context evidenced by the live response.
+- Full game-scoped bearer rerun remains **partially blocked**. We now have a working bearer `game_id` for `/me/wallets`, but we still do **not** have the missing `g-1325.test.mod.io` API key needed to truthfully claim the game-host / token-packs lane is revalidated. That should stay separate from the successful `/me*` rerun.
+
 ## Exact commands run
 
 ```bash

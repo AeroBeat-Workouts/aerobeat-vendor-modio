@@ -1,8 +1,8 @@
 # AeroBeat Vendor Mod.io Monetization Revalidation
 
 **Date:** 2026-06-15  
-**Status:** In Progress  
-**Last Updated:** 2026-06-15 12:33 EDT  
+**Status:** Complete  
+**Last Updated:** 2026-06-15 13:47 EDT  
 **Blocked Reason:** None  
 **Agent:** `Cookie`
 
@@ -251,19 +251,53 @@ No broader scope changes were justified by the audit.
 
 ---
 
+### Task 5: Rerun bearer monetization checks with provided OAuth tokens
+
+**Bead ID:** `aerobeat-vendor-modio-te4`  
+**SubAgent:** `primary`  
+**Role:** `qa`  
+**References:** `REF-04`, `REF-05`, `REF-09`  
+**Prompt:** In `aerobeat-vendor-modio`, claim the assigned bead on start with `bd update <bead-id> --status in_progress --json`. Use the newly supplied OAuth tokens to rerun the bearer monetization checks truthfully. Prefer the corrected auth context and test only what is now genuinely unblocked: `/me`, `/me/wallets`, `/me/purchased`, plus any other monetization-adjacent bearer read that can be exercised without inventing missing game-scoped inputs. If the `g-1325.test.mod.io` API key is still missing, treat the game-scoped rerun as partially blocked rather than guessing. Update the plan with exact results, note which local ignored config files were touched, commit/push only if tracked repo docs/plan change, then close the bead with `bd close <bead-id> --reason "OAuth-token bearer rerun completed" --json`.
+
+**Folders Created/Deleted/Modified:**
+- `.testbed/configs/`
+- `.plans/`
+- `.testbed/docs/`
+
+**Files Created/Deleted/Modified:**
+- `.testbed/configs/modio.local.cfg`
+- `.testbed/configs/modio.session.local.cfg`
+- `.plans/2026-06-15-aerobeat-vendor-modio-monetization-revalidation.md`
+- `.testbed/docs/modio-paid-mods-test-server-matrix.md`
+
+**Status:** ✅ Complete
+
+**Results:** Reran the bearer monetization lane directly with the newly supplied OAuth tokens and updated both the active plan and `REF-09` with exact live responses. For the local ignored config, changed only what this rerun actually needed: `.testbed/configs/modio.local.cfg` now uses `game_id=1325` on the approved `https://u-71104.test.mod.io/v1` host with the supplied `u-71104` API key, and `.testbed/configs/modio.session.local.cfg` now carries the supplied `AeroBeat Test Harness - test.mod.io` bearer token for `user_id=71104`.
+
+With that corrected auth context, the previously blocked `/me*` bearer lane is now genuinely working. Direct `curl` verification showed:
+- `GET /me` → `200` with DerrickBarra user payload (`id=71104`, `monetization_status=49`)
+- `GET /me/purchased` → `200` with a valid empty list (`result_total=0`)
+- `GET /me/wallets?game_id=1325` → `200` with a valid wallet payload (`type=standard_mio`, `currency=mio`, `balance=0`, `game_id=1325`)
+
+Two comparison calls also mattered. First, `GET /me/wallets` with **no** `game_id` returned `404 / error_ref 14001`, and `GET /me/wallets?game_id=12962` returned the same `404 / error_ref 14001`, so the old `12962` context is no longer truthful for this bearer lane. Second, the separate supplied OAuth token for `games-1325` produced the **same** successful `200` results as the `AeroBeat Test Harness - test.mod.io` token on `/me`, `/me/purchased`, and `/me/wallets?game_id=1325`; for the tested user-host bearer reads, the client/token choice did not change the outcome.
+
+The game-scoped rerun remains only **partially** unblocked. We now have live evidence that `1325` is the working wallet game context for `/me/wallets`, but we still do **not** have the missing `g-1325.test.mod.io` API key, so it would be guesswork to claim full revalidation of game-host bearer routes like token-packs. No code changes were required; the tracked updates were documentation only (`REF-09` and this plan), and the ignored local cfg files were the only secret-bearing files touched.
+
+---
+
 ## Final Results
 
 **Status:** ⚠️ Partial
 
-**What We Built:** A truthful 2026-06-15 monetization revalidation record for the approved test-user host, including exact provider responses for the reachable bearer lane, explicit separation of provider auth failures vs. missing local business inputs, and documentation of the current Godot harness parse blocker on HEAD.
+**What We Built:** A truthful 2026-06-15 monetization revalidation record for the approved test-user host, including the initial staircase evidence, the independent audit, and the final OAuth-token bearer rerun that now proves `/me`, `/me/purchased`, and `/me/wallets?game_id=1325` work on `https://u-71104.test.mod.io/v1` with the supplied `u-71104` API key plus either supplied OAuth token.
 
-**Reference Check:** `REF-03`, `REF-04`, `REF-05`, `REF-07`, `REF-08`, and `REF-09` were independently cross-checked in the final audit. The matrix doc and README remain truthful to the code and evidence: `/me/*` monetization reads still need a bearer access token, the supplied facts did not expose a valid game-scoped target for token-packs/owned-mod reads, owned-mod read and buyer-write gaps were caused by real missing prerequisites, and S2S history remains unproven because truthful team/transaction inputs were unavailable.
+**Reference Check:** `REF-03`, `REF-04`, `REF-05`, `REF-07`, `REF-08`, and `REF-09` were independently cross-checked in the final audit and then updated with the OAuth rerun evidence. The repo/testbed truth is now: `/me` bearer reads are genuinely working once a real access token is supplied; the stale `12962` wallet context is no longer correct for this bearer lane; `1325` is a proven working wallet `game_id`; and full game-host bearer validation still remains separate because the `g-1325.test.mod.io` API key was not provided.
 
 **Commits:**
 - `7d97f39` - docs: record monetization staircase revalidation
-- `HEAD` - docs: record monetization audit verdict
+- `HEAD` - docs: record monetization audit verdict + OAuth bearer rerun
 
-**Lessons Learned:** The approved `u-71104.test.mod.io` tuple is real, but it is not by itself a complete rerun package for the whole paid staircase. We still need a valid bearer token for `/me/*`, a correct current game/mod context for game-scoped monetization routes, and better repo truth around the current `ModioVendorAdapter` parse failure before the Godot harness can be trusted as the first execution path again.
+**Lessons Learned:** The approved `u-71104.test.mod.io` tuple plus a real bearer token is enough for the `/me*` monetization lane, but that does not automatically complete the game-host story. For truthful future reruns we should keep three facts distinct: user-host bearer reads now work, `/me/wallets` needs the current working `game_id` (`1325`), and token-packs / other game-scoped bearer routes still should not be claimed as revalidated until the missing `g-1325.test.mod.io` API key is in hand.
 
 ---
 
