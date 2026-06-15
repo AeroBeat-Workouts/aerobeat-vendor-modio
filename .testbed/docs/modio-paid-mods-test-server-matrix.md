@@ -162,6 +162,44 @@ godot --headless --path .testbed --script res://scripts/modio_live_harness.gd --
 - The harness output materially matches the documented matrix on pass/skip state, prerequisite boundaries, and the S2S open question.
 - Important nuance: the harness still *models* token-packs inside its access-token-gated `paid_bearer_reads` group. That matches current implementation and current harness output, but it is slightly stricter than the earlier direct game-host proof, which showed token-packs also succeed on `g-1325` without bearer once the host/key tuple is correct.
 
+## Owned paid-mod id discovery (Task 10, 2026-06-15)
+
+To unblock the next read-only monetization lane, I checked whether DerrickBarra currently has any truthful paid mod on `game_id=1325` that he can administer, using the already-proven bearer + `g-1325` context but without calling `/monetization/team` yet.
+
+| Discovery check | Result | Exact evidence |
+| --- | --- | --- |
+| `GET /games/1325/mods?submitted_by=71104&status=1&_limit=100` | **PASS — no paid ids** | `200`, `result_total=2`, rows `16165` and `16112`; both returned `monetization_options=0`, `price=0`, `stock=0`. |
+| `GET /games/1325/mods?submitted_by=71104&status=3&_limit=100` | **PASS — no paid ids** | `200`, `result_total=52`; every returned row had `monetization_options=0`, `price=0`, `stock=0`. |
+| `GET /me/mods?_limit=100` on `https://u-71104.test.mod.io/v1` | **PASS — supporting inventory read, no paid ids** | `200`, `result_total=54`; zero rows had `price>0`, `monetization_options>0`, or non-empty `skus`. |
+| `GET /me/purchased` | **PASS (empty) — supporting buyer inventory read** | Already proven earlier in this matrix: `200`, `result_total=0`. |
+
+### Task 10 interpretation
+
+- No truthful owned/administered paid mod id was discoverable for DerrickBarra on `game_id=1325` during this pass.
+- The blocker is now narrower and more honest: the next lane is not blocked by a missing local placeholder alone; it is blocked because the current test-server fixture set does not expose any paid mod in DerrickBarra’s administered inventory.
+- I did **not** call `GET /games/{game-id}/mods/{owned_mod_id}/monetization/team` in this discovery step because no truthful `owned_mod_id` / `paid_mod_id` was found to supply.
+
+## Paid workout fixture creation (Task 11, 2026-06-15)
+
+To unblock the deeper monetization lanes honestly, I created a new disposable workout fixture directly through the REST-backed authoring path on `https://g-1325.test.mod.io/v1` using the existing bearer context for `DerrickBarra`.
+
+| Step | Result | Exact evidence |
+| --- | --- | --- |
+| `POST /games/1325/mods` | **PASS** | `201`, created draft/public mod `16364` (`name_id="oc-paid-workout-fixture-20260615"`) with `community_options=131072`, `price=0`, `monetization_options=0`, and the uploaded logo present. |
+| `POST /games/1325/mods/16364/files` | **PASS** | `201`, created modfile `23257` (`filename="paid-workout-0tnj.zip"`, `version="1.0.0"`, md5 `b8f6cd8a6ab49fe8e04b858ecfd5fe8f`). |
+| First `POST /games/1325/mods/16364` paid-state attempt with `status=1`, `visible=1`, `summary`, `price=500`, `monetization_options=2` | **FAIL — provider prerequisite surfaced** | `404`, `error_ref 900022`, `Monetization team could not be found.` The same response still left the mod published at `status=1`, but `price` and `monetization_options` remained `0`. |
+| `POST /games/1325/mods/16364/monetization/team` as multipart | **FAIL — request-shape truth surfaced** | `415`, `error_ref 13006`, `Incorrect Content-Type header in request, must be application/x-www-form-urlencoded`. |
+| `POST /games/1325/mods/16364/monetization/team` as `application/x-www-form-urlencoded` with `users[0][id]=71104` and `users[0][split]=100` | **PASS** | `200`, returned one monetization-team account row for `id=71104`, `username="DerrickBarra"`, `monetization_status=49`, `monetization_options=1`, `split=100`. |
+| Second `POST /games/1325/mods/16364` paid-state attempt with `status=1`, `visible=1`, `summary`, `price=500`, `monetization_options=2` | **PASS** | `200`, returned mod `16364` with `price=500`, `monetization_options=2`, and the uploaded modfile still attached. |
+| `GET /games/1325/mods/16364` | **PASS — final verification** | `200`, confirmed final fixture state `status=1`, `visible=1`, `price=500`, `monetization_options=2`, `modfile.id=23257`, `name_id="oc-paid-workout-fixture-20260615"`. |
+
+### Task 11 interpretation
+
+- The paid workout fixture was **actually created**. The truthful paid fixture is mod **`16364`** on `game_id=1325`.
+- The exact blocker that prevented the first paid-state update was provider-side and concrete: the mod needed a monetization-team row before `price` + `monetization_options` updates would succeed.
+- The live server also exposed a request-shape nuance worth keeping explicit: despite the repo currently documenting the create route as multipart, this test-server route rejected multipart and required `application/x-www-form-urlencoded` for the `users[0][id]` / `users[0][split]` body.
+- The resulting fixture is now suitable for the next deeper monetization lanes because it has a truthful owned paid mod id plus a truthful mod monetization team.
+
 ## Exact commands run
 
 ```bash

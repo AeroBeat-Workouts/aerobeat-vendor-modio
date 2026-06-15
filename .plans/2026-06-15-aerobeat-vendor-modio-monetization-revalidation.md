@@ -2,7 +2,7 @@
 
 **Date:** 2026-06-15  
 **Status:** In Progress  
-**Last Updated:** 2026-06-15 15:41 EDT  
+**Last Updated:** 2026-06-15 17:33 EDT  
 **Blocked Reason:** None  
 **Agent:** `Cookie`
 
@@ -411,9 +411,92 @@ The matrix doc was updated with the exact harness rerun evidence. The main compa
 **Files Created/Deleted/Modified:**
 - `.plans/2026-06-15-aerobeat-vendor-modio-monetization-revalidation.md`
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** Converted the remaining deeper lanes into a narrow next-slice plan grounded only in what the direct endpoint proofs and restored harness now actually establish.
+
+Exact remaining prerequisites, kept separate by type:
+- **Owned-mod monetization-team read (`GET /games/{game-id}/mods/{owned_mod_id}/monetization/team`)**
+  - **Request-shape / resource prerequisites:** one truthful paid mod id that is both on `game_id=1325` and administered by the authenticated DerrickBarra test user (`owned_mod_id` or `paid_mod_id`); keep this as a concrete route-path input, not a vague “monetization setup” bucket.
+  - **Auth / license assumptions:** no new monetization-specific key was proven necessary beyond the already working bearer lane; use the same real access-token context already proven for `/me*` plus the truthful `g-1325` game context already proven for game-host reads.
+- **Guarded buyer writes (`POST /me/entitlements`, `POST /games/{game-id}/mods/{paid_mod_id}/checkout`)**
+  - **Request-shape / payload prerequisites:**
+    - entitlements: a truthful `entitlements_payload_json` for the intended portal/platform, including any portal-specific token fields the adapter validates
+    - checkout: a truthful `checkout_payload_json` with at least checkout `type`, `idempotent_key`, and the concrete paid mod id (`paid_mod_id` or `checkout_payload_json.mod_id`), plus any portal-specific fields the selected checkout type requires
+    - explicit operator opt-in via `--allow-paid-writes`
+  - **Auth / license assumptions:** the already proven bearer access-token lane is still the correct auth starting point; nothing in today’s evidence proves any extra monetization license key beyond that.
+- **S2S/history reads (`GET /s2s/monetization-teams/{monetization-team-id}/transactions` and detail by transaction id)**
+  - **Request-shape / resource prerequisites:** truthful `monetization_team_id`; for the detail route, a truthful `transaction_id` either supplied directly or harvested from the list response.
+  - **Auth / license assumptions:** the adapter/harness still require `service_token`, but that remains an implementation assumption rather than a provider fact proven by today’s reruns. This lane therefore needs a deliberate auth-truth check, not a blind continuation.
+
+Recommended safest execution order for the next slice:
+1. **Owned-mod monetization-team read first** — read-only and blocked by only one new factual input (the real owned paid-mod id).
+2. **S2S/history list read second** — still read-only, but explicitly treat `service_token` as an assumption under test rather than an unquestioned requirement.
+3. **S2S/history detail read third** — only if the list read succeeds or yields a truthful transaction id.
+4. **Entitlements write fourth** — first guarded buyer write because it can validate request shape and portal-specific payload handling without immediately invoking checkout.
+5. **Checkout write last** — most operationally sensitive lane; only run after the prior read lanes and entitlements payload path are already behaving truthfully.
+
+Harness/docs adjustments to make before or during that deeper-lane slice:
+- **Keep prerequisite categories explicit in the truth surface.** The current plan/harness/doc wording should continue separating route-path/payload facts (`owned_mod_id`, `paid_mod_id`, payload JSON, `transaction_id`) from auth assumptions (`access_token`, possible `service_token`).
+- **Add a small write-preflight step before executing buyer writes.** The harness already validates payload shape through adapter builders; the next slice should surface those validation errors clearly before any real POST attempt so missing portal/type fields do not get misread as provider-side monetization failures.
+- **Document S2S as an assumption-under-test, not settled truth.** `REF-09` and the harness overview already say this in spirit; keep that wording intact during execution so a missing `service_token` is not conflated with proof that mod.io requires one.
+- **Optionally note the token-pack auth nuance when touching paid-mod docs again.** It is outside the deeper-lane execution scope itself, but the current harness grouping is stricter than the direct `g-1325` proof because token-packs succeeded there without bearer once the host/key tuple was correct.
+
+No deeper lane was executed in this task; this was planning only.
+---
+
+### Task 10: Identify owned paid mod id for monetization-team read
+
+**Bead ID:** `aerobeat-vendor-modio-7fy`  
+**SubAgent:** `primary`  
+**Role:** `research`  
+**References:** `REF-03`, `REF-04`, `REF-05`, `REF-09`  
+**Prompt:** In `aerobeat-vendor-modio`, claim the assigned bead on start with `bd update <bead-id> --status in_progress --json`. Identify one truthful owned paid mod id on `game_id=1325` that DerrickBarra can administer, so the next deeper monetization lane (`GET /games/{game-id}/mods/{owned_mod_id}/monetization/team`) can be exercised. Use already-proven auth and game-host context where useful, prefer direct evidence over assumptions, and do not start the monetization-team read yet unless needed only to verify the mod id itself. Update the active plan with the exact identifier discovery result and any remaining blocker, then close the bead with `bd close <bead-id> --reason "Owned paid mod id identified" --json`.
+
+**Folders Created/Deleted/Modified:**
+- `.plans/`
+- `.testbed/docs/`
+
+**Files Created/Deleted/Modified:**
+- `.plans/2026-06-15-aerobeat-vendor-modio-monetization-revalidation.md`
+- `.testbed/docs/modio-paid-mods-test-server-matrix.md` (if needed)
+
+**Status:** ✅ Complete
+
+**Results:** Checked the proven `g-1325` + bearer context directly without widening into writes or the deeper `/monetization/team` read. The exact discovery result was a blocker, not an id: `GET /games/1325/mods?submitted_by=71104&status=1&_limit=100` returned `200` with `result_total=2` (`mod_id`s `16165` and `16112`), and both rows had `monetization_options=0`, `price=0`, and `stock=0`. `GET /games/1325/mods?submitted_by=71104&status=3&_limit=100` returned `200` with `result_total=52`; every returned row also had `monetization_options=0`, `price=0`, and `stock=0`. As a supporting authenticated inventory check, `GET /me/mods?api_key=<g-1325 key>&_limit=100` on `https://u-71104.test.mod.io/v1` returned `200` with `result_total=54`, and zero rows had `price>0`, `monetization_options>0`, or non-empty `skus`. Combined with the already-proven `GET /me/purchased` valid-empty result, today’s truthful discovery is: there is currently **no owned/administered paid mod id** available for DerrickBarra on `game_id=1325`, so the next deeper read remains blocked by missing provider-side paid-mod fixture data rather than by a repo wrapper gap. No monetization-team read was executed in this task.
+
+---
+
+### Task 11: Create paid workout fixture on test server
+
+**Bead ID:** `aerobeat-vendor-modio-l3x`  
+**SubAgent:** `primary`  
+**Role:** `coder`  
+**References:** `REF-03`, `REF-04`, `REF-05`, `REF-09`  
+**Prompt:** In `aerobeat-vendor-modio`, claim the assigned bead on start with `bd update <bead-id> --status in_progress --json`. Create one truthful paid workout fixture on the test server through the REST-backed mod authoring path. Keep the scope narrow: create or reuse the minimum workout mod fixture, attach the required workout content/file as needed, and update it into a paid state using the mod authoring fields the adapter already supports (`price`, `monetization_options`, and related mod fields) rather than inventing a new flow. Capture the resulting mod id and exact request path used, update the active plan with exact results and blockers, commit/push any tracked repo changes by default, and close the bead with `bd close <bead-id> --reason "Paid workout fixture created" --json`.
+
+**Folders Created/Deleted/Modified:**
+- `.plans/`
+- `.testbed/docs/`
+- `.testbed/configs/`
+
+**Files Created/Deleted/Modified:**
+- `.plans/2026-06-15-aerobeat-vendor-modio-monetization-revalidation.md`
+- `.testbed/docs/modio-paid-mods-test-server-matrix.md`
+- `.testbed/configs/modio.local.cfg`
+- `.testbed/configs/modio.session.local.cfg`
+
+**Status:** ✅ Complete
+
+**Results:** Created one truthful paid workout fixture on the approved `g-1325` test server through the REST-backed authoring path. The resulting paid mod id is **`16364`** and the uploaded modfile id is **`23257`**. The exact route sequence that succeeded was:
+1. `POST /games/1325/mods` with bearer auth + game API key, multipart draft fields (`name`, `name_id`, `summary`, `description`, `metadata[]`, `metadata_blob`, `community_options`) and a truthful 640x360 PNG logo → `201`, created mod `16364`.
+2. `POST /games/1325/mods/16364/files` with bearer auth + game API key, multipart `filedata` ZIP plus `version`/`changelog` → `201`, created modfile `23257`.
+3. First paid-state attempt: `POST /games/1325/mods/16364` with multipart `status=1`, `visible=1`, `summary`, `price=500`, `monetization_options=2` → **`404 error_ref 900022` / `Monetization team could not be found.`** Important truth: this still published the mod to public status `1`, but left `price=0` and `monetization_options=0`.
+4. Provider-guided unblock: `POST /games/1325/mods/16364/monetization/team` with bearer auth + game API key and one self-owned team member split (`users[0][id]=71104`, `users[0][split]=100`). A first multipart attempt returned **`415 error_ref 13006`** (`Incorrect Content-Type header in request, must be application/x-www-form-urlencoded`). Retrying the same documented indexed `users[...]` fields as `application/x-www-form-urlencoded` succeeded with `200` and returned DerrickBarra as the sole monetization-team member.
+5. Second paid-state attempt: `POST /games/1325/mods/16364` with multipart `status=1`, `visible=1`, `summary`, `price=500`, `monetization_options=2` → `200`, and the returned mod detail now showed `price=500`, `monetization_options=2`, and the uploaded modfile attached.
+6. Verification read: `GET /games/1325/mods/16364` → `200`, confirming the final paid fixture state.
+
+Tracked repo changes for this task are documentation-only: this plan plus the monetization matrix doc now capture the truthful request path, the intermediate blocker, and the final fixture state. Local-only config was reused/touched in the ignored files `.testbed/configs/modio.local.cfg` and `.testbed/configs/modio.session.local.cfg`; no secrets were added to tracked files.
 
 ---
 
@@ -421,15 +504,15 @@ The matrix doc was updated with the exact harness rerun evidence. The main compa
 
 **Status:** ✅ Complete
 
-**What We Built:** A truthful 2026-06-15 monetization revalidation record that now covers all three relevant proof layers for this slice: the user-host bearer lane on `https://u-71104.test.mod.io/v1`, the game-host token-pack lane on `https://g-1325.test.mod.io/v1`, and the restored in-repo Godot harness path reproducing those already-proven monetization reads from the real `--paid-mods` flow. The repo docs now record exactly which monetization reads are proven, which ones remain blocked by missing truthful inputs, and the testbed now uses a single consistent root-bridge path family instead of the broken mixed addon/bridge class-loading setup.
+**What We Built:** A truthful 2026-06-15 monetization revalidation record that now covers all four relevant proof layers for this slice: the user-host bearer lane on `https://u-71104.test.mod.io/v1`, the game-host token-pack lane on `https://g-1325.test.mod.io/v1`, the restored in-repo Godot harness path reproducing those already-proven monetization reads from the real `--paid-mods` flow, and a newly created paid workout fixture on the test server via the REST-backed authoring path. That fixture is mod **`16364`** with modfile **`23257`**, and its truthful paid state required creating a mod monetization team before the `price` + `monetization_options` update would stick.
 
-**Reference Check:** `REF-03`, `REF-04`, `REF-05`, `REF-07`, `REF-08`, and `REF-09` were cross-checked across the audit, OAuth rerun, game-host rerun, harness repair, and final harness rerun. The repo/testbed truth is now: `/me`, `/me/purchased`, and `/me/wallets?game_id=1325` work on the approved user host with a real bearer token; `GET /games/1325/monetization/token-packs` works on the approved game host with the supplied `g-1325` API key and also succeeded in the comparison call without bearer; and `godot --headless --path .testbed --script res://scripts/modio_live_harness.gd -- --paid-mods --json` now reproduces token packs, wallet, and purchased results successfully on the current local config. Owned-mod monetization-team, guarded buyer writes, and S2S/history still remain unproven only because truthful mod/team/payload inputs were not supplied.
+**Reference Check:** `REF-03`, `REF-04`, `REF-05`, `REF-07`, `REF-08`, and `REF-09` were cross-checked across the audit, OAuth rerun, game-host rerun, harness repair, final harness rerun, and the paid-fixture creation slice. The repo/testbed truth is now: `/me`, `/me/purchased`, and `/me/wallets?game_id=1325` work on the approved user host with a real bearer token; `GET /games/1325/monetization/token-packs` works on the approved game host with the supplied `g-1325` API key and also succeeded in the comparison call without bearer; `godot --headless --path .testbed --script res://scripts/modio_live_harness.gd -- --paid-mods --json` reproduces token packs, wallet, and purchased results successfully on the current local config; and creating a truthful paid workout fixture required `POST /games/1325/mods/{mod-id}/monetization/team` before the authoring update carrying `price` and `monetization_options` could succeed.
 
 **Commits:**
 - `7d97f39` - docs: record monetization staircase revalidation
-- `HEAD` - docs: repair testbed class-path bridges for paid-mods harness
+- `HEAD` - docs: record truthful paid workout fixture creation
 
-**Lessons Learned:** The main hidden bugbears were context drift and path-family drift. For truthful future reruns we should keep the lanes sharply separated: user-host `/me*` monetization reads require a real bearer token; game-host token packs require the correct `g-1325` host/key tuple and are now proven; owned-mod, buyer-write, and S2S/history lanes should stay unclaimed until the exact mod ids, payload JSON, and team/transaction identifiers exist. Separately, the `.testbed` workbench depends on its root bridge paths staying intact and used consistently; mixing `res://src/...` globals with direct addon/sibling script paths is what turned a missing bridge into the misleading `ModioVendorAdapter` parse/load failure.
+**Lessons Learned:** The main hidden bugbears were context drift, path-family drift, and one live request-shape mismatch on the monetization-team create route. For truthful future reruns we should keep the lanes sharply separated: user-host `/me*` monetization reads require a real bearer token; game-host token packs require the correct `g-1325` host/key tuple and are now proven; and paid-mod creation on this server currently needs a creator monetization-team row before `price` + `monetization_options` updates stop failing with `900022`. Separately, the `.testbed` workbench depends on its root bridge paths staying intact and used consistently; mixing `res://src/...` globals with direct addon/sibling script paths is what turned a missing bridge into the misleading `ModioVendorAdapter` parse/load failure.
 
 ---
 
