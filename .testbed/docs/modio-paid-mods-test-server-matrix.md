@@ -1,6 +1,6 @@
 # mod.io paid-mods test-server QA matrix
 
-> Current truth from the 2026-06-15 revalidation pass: Derrick’s approved `u-71104.test.mod.io` user-host tuple is real and reachable, bearer-only `/me/*` monetization reads still require an access token beyond `api_key` + `api_path`, and the supplied facts were not enough to truthfully execute the game-scoped or S2S-scoped monetization lanes without inventing missing inputs.
+> Current truth from the 2026-06-15 revalidation pass: the approved `u-71104.test.mod.io` bearer `/me*` lane works with a real OAuth token, and the later `g-1325.test.mod.io` rerun finally proved the game-host token-pack lane too. The remaining unproven monetization lanes are still the owned-mod read, guarded buyer writes, and S2S/history reads because this repo slice still lacks truthful mod/team/payload inputs and the official Godot harness path still fails parse on current HEAD.
 
 _Date:_ 2026-06-15  
 _Repo:_ `aerobeat-vendor-modio`  
@@ -67,7 +67,65 @@ curl -sS -D - -A 'curl/8.5.0' \
 - The corrected bearer context is: approved user host `https://u-71104.test.mod.io/v1`, the supplied `u-71104` API key, and a real bearer token. Under that context, `/me`, `/me/purchased`, and `/me/wallets?game_id=1325` all work.
 - The `games-1325` token did **not** change the observed behavior on these tested bearer reads versus the `AeroBeat Test Harness - test.mod.io` token.
 - The stale prior `game_id=12962` is no longer the truthful wallet context for this bearer lane. `1325` is the working wallet game context evidenced by the live response.
-- Full game-scoped bearer rerun remains **partially blocked**. We now have a working bearer `game_id` for `/me/wallets`, but we still do **not** have the missing `g-1325.test.mod.io` API key needed to truthfully claim the game-host / token-packs lane is revalidated. That should stay separate from the successful `/me*` rerun.
+- At this point in the day, full game-scoped bearer rerun was still blocked only by the missing `g-1325.test.mod.io` API key. Task 6 below closes that gap.
+
+## Game-host rerun (Task 6, 2026-06-15)
+
+This follow-up rerun switched the ignored stable config to the supplied AeroBeat game host facts and reused the already-proven bearer session context without inventing any new mod/team ids or write payloads.
+
+Local-only config touched for this rerun:
+
+- `.testbed/configs/modio.local.cfg`
+  - `game_id="1325"`
+  - `api_key="<provided g-1325 api key>"`
+  - `base_url="https://g-1325.test.mod.io/v1"`
+- `.testbed/configs/modio.session.local.cfg`
+  - reused the existing `access_token` for `user_id="71104"`
+  - no new payload/team/mod ids were added
+
+### Exact game-host rerun commands
+
+```bash
+# preflight
+curl -sS -D - -A 'curl/8.5.0' \
+  -H 'Accept: application/json' \
+  'https://g-1325.test.mod.io/v1/ping?api_key=<g-1325 api key>'
+
+curl -sS -D - -A 'curl/8.5.0' \
+  -H 'Accept: application/json' \
+  'https://g-1325.test.mod.io/v1/games/1325?api_key=<g-1325 api key>'
+
+# target monetization read with the already-proven bearer context
+curl -sS -D - -A 'curl/8.5.0' \
+  -H 'Accept: application/json' \
+  -H 'Authorization: Bearer <existing OAuth token>' \
+  'https://g-1325.test.mod.io/v1/games/1325/monetization/token-packs?api_key=<g-1325 api key>'
+
+# comparison call without bearer to isolate whether this route actually depends on bearer on g-host
+curl -sS -D - -A 'curl/8.5.0' \
+  -H 'Accept: application/json' \
+  'https://g-1325.test.mod.io/v1/games/1325/monetization/token-packs?api_key=<g-1325 api key>'
+```
+
+### Game-host rerun results
+
+| Endpoint | Auth context tested | Result | Exact evidence |
+| --- | --- | --- | --- |
+| `GET /ping` on `https://g-1325.test.mod.io/v1` | game API key | **PASS** | `200`, body `{"code":200,"success":true,"message":"Everything is okay!"}` |
+| `GET /games/1325` on `https://g-1325.test.mod.io/v1` | game API key | **PASS** | `200` with live AeroBeat game payload for `id=1325`, `name="AeroBeat"`, `name_id="aerobeat"`, `monetization_options=771`, and `monetization_teams=[{"team_id":1213641596,"gateway":"tilia"},{"team_id":1364052727,"gateway":"airwallex"}]`. |
+| `GET /games/1325/monetization/token-packs` on `https://g-1325.test.mod.io/v1` | game API key + bearer | **PASS** | `200` with `result_total=6` and six live token packs: `200 Pack`, `500 Pack`, `1000 Pack`, `2000 Pack`, `5000 Pack`, `10000 Pack` (`portal="web"`, prices `199/499/999/1999/4999/9999`, amounts `200/500/1000/2000/5000/10000`). |
+| `GET /games/1325/monetization/token-packs` on `https://g-1325.test.mod.io/v1` | game API key only (no bearer) | **PASS** | Returned the same `200` payload and `result_total=6` as the bearer call. On this route, the correct game-host/key tuple was the real blocker in earlier slices; bearer was not required for the observed success once the host/key were corrected. |
+
+### Game-host rerun interpretation
+
+- Task 6 successfully revalidated the remaining game-host monetization read that was previously blocked by the wrong host/key context: `GET /games/1325/monetization/token-packs` is now **proven working** on `https://g-1325.test.mod.io/v1`.
+- The correct game host itself is also now directly proven by `GET /games/1325`.
+- The live token-pack payload shows six configured web packs and removes the earlier ambiguity that came from testing against stale `12962` / user-host context.
+- The comparison call without bearer matters: for this exact token-pack route on the corrected g-host, the response succeeded with the game API key alone. So the truthful separation is:
+  - user-host `/me*` monetization reads still require bearer auth;
+  - game-host token-pack read is now proven on the game host and did **not** require bearer in the observed successful call.
+- No other monetization-adjacent game-host reads became testable without inventing missing inputs. Owned-mod monetization-team read still needs a truthful `owned_mod_id` / `paid_mod_id`, guarded buyer writes still need payloads, and S2S/history still needs team/transaction inputs.
+- The official Godot harness route is still blocked by the same repo parse bug on current HEAD, so this rerun also relied on direct `curl` evidence rather than a successful `godot --headless ... --paid-mods` pass.
 
 ## Exact commands run
 
