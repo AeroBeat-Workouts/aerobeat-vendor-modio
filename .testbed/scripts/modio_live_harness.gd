@@ -50,6 +50,7 @@ func _initialize() -> void:
 		"allow_writes": bool(plan.get("allow_writes", false)),
 		"paid_mods": bool(plan.get("paid_mods", false)),
 		"allow_paid_writes": bool(plan.get("allow_paid_writes", false)),
+		"paid_mods_overview": harness.build_paid_mods_overview(plan) if bool(plan.get("paid_mods", false)) else {},
 		"checks": results,
 		"ok": _results_are_ok(results)
 	}
@@ -393,7 +394,7 @@ func _run_optional_paid_mods_sweep(plan: Dictionary, adapter: ModioVendorAdapter
 		))
 		var owned_mod_id: String = config.resolve_owned_mod_id()
 		if owned_mod_id.is_empty():
-			results.append(_skipped_check("paid_monetization_team", "Read owned paid-mod monetization team", "Skipped because owned_mod_id or paid_mod_id is not configured"))
+			results.append(_skipped_check("paid_monetization_team", "Read owned paid-mod monetization team", "Skipped because owned_mod_id or paid_mod_id is not configured in stable config; this route still needs a concrete paid mod id"))
 		else:
 			results.append(_run_check(
 				"paid_monetization_team",
@@ -408,20 +409,25 @@ func _run_optional_paid_mods_sweep(plan: Dictionary, adapter: ModioVendorAdapter
 		results.append(_skipped_check("paid_token_packs", "Read game monetization token packs", missing_access_reason))
 		results.append(_skipped_check("paid_wallet", "Read authenticated user wallet", missing_access_reason))
 		results.append(_skipped_check("paid_purchased", "Read authenticated user purchased paid mods", missing_access_reason))
-		results.append(_skipped_check("paid_monetization_team", "Read owned paid-mod monetization team", missing_access_reason))
+		var owned_mod_skip_reason := missing_access_reason
+		if config.resolve_owned_mod_id().is_empty():
+			owned_mod_skip_reason += "; owned_mod_id or paid_mod_id is also not configured in stable config"
+		results.append(_skipped_check("paid_monetization_team", "Read owned paid-mod monetization team", owned_mod_skip_reason))
 
 	if not bool(plan.get("allow_paid_writes", false)):
-		var disabled_reason := "Skipped unless --allow-paid-writes is explicitly enabled"
+		var disabled_reason := "Skipped unless --allow-paid-writes is explicitly enabled; payload JSON and paid_mod_id remain required even after opting in"
 		results.append(_skipped_check("paid_entitlements", "Run paid entitlement sync", disabled_reason))
 		results.append(_skipped_check("paid_checkout", "Run paid checkout", disabled_reason))
 	else:
 		results.append(_run_paid_entitlements_check(adapter, config))
 		results.append(_run_paid_checkout_check(adapter, config))
 
-	if config.has_service_token():
-		var s2s_filters_input: Dictionary = config.paid_s2s_filters_input.duplicate(true)
+	var s2s_filters_input: Dictionary = config.paid_s2s_filters_input.duplicate(true)
+	var s2s_team_id := str(s2s_filters_input.get("monetization_team_id", "")).strip_edges()
+	if s2s_team_id.is_empty():
+		s2s_team_id = config.monetization_team_id
+	if config.has_service_token() and not s2s_team_id.is_empty():
 		var s2s_filters: Dictionary = _extract_guarded_fields(s2s_filters_input, ["monetization_team_id"])
-		var s2s_team_id := str(s2s_filters_input.get("monetization_team_id", ""))
 		var s2s_transactions_result := _run_check(
 			"paid_s2s_transactions",
 			"Read S2S monetization-team transaction history",
@@ -448,7 +454,13 @@ func _run_optional_paid_mods_sweep(plan: Dictionary, adapter: ModioVendorAdapter
 					return harness.summarize_s2s_transaction_response(adapter, response)
 			))
 	else:
-		var missing_service_reason := "Skipped because no service_token is configured in stable config"
+		var missing_service_parts := PackedStringArray()
+		if not config.has_service_token():
+			missing_service_parts.append("no service_token is configured in stable config")
+		if s2s_team_id.is_empty():
+			missing_service_parts.append("no monetization_team_id is configured in stable config or s2s_filters_json")
+		var missing_service_reason := "Skipped because %s" % "; ".join(missing_service_parts)
+		missing_service_reason += "; current harness still models this lane behind service_token, which remains an open question to verify"
 		results.append(_skipped_check("paid_s2s_transactions", "Read S2S monetization-team transaction history", missing_service_reason))
 		results.append(_skipped_check("paid_s2s_transaction", "Read one S2S monetization transaction", missing_service_reason))
 
@@ -809,6 +821,19 @@ func _print_human_summary(summary: Dictionary) -> void:
 	print("  base_url: %s" % str(summary.get("base_url", "")))
 	print("  game_id: %s" % str(summary.get("game_id", "")))
 	print("  allow_writes: %s" % str(summary.get("allow_writes", false)))
+	if bool(summary.get("paid_mods", false)):
+		var overview: Dictionary = summary.get("paid_mods_overview", {})
+		if not overview.is_empty():
+			print("  paid_mods_scope: %s" % str(overview.get("run_checks_scope", "")))
+			print("  paid_mods_behavior: %s" % str(overview.get("run_checks_behavior", "")))
+			print("  paid_mods_open_question: %s" % str(overview.get("open_question", "")))
+			for group in overview.get("route_groups", []):
+				if not (group is Dictionary):
+					continue
+				print("  <GROUP %s> %s" % [str(group.get("status", "unknown")).to_upper(), str(group.get("label", group.get("id", "group")))])
+				var group_details: Dictionary = group.get("details", {})
+				for key in group_details.keys():
+					print("    %s: %s" % [str(key), str(group_details[key])])
 	for check in summary.get("checks", []):
 		if not (check is Dictionary):
 			continue

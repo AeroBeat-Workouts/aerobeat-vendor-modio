@@ -1,4 +1,3 @@
-class_name ModioLiveHarness
 extends RefCounted
 
 const ModioClientConfig = preload("res://addons/aerobeat-vendor-modio/src/models/modio_client_config.gd")
@@ -683,6 +682,42 @@ func summarize_s2s_transaction_response(adapter, response: Dictionary) -> Dictio
 		"first_game_id": int(first_line_item.get("game_id", 0))
 	}
 
+func build_paid_mods_overview(plan_or_config, scene_mode: bool = false) -> Dictionary:
+	var config = _resolve_plan_config(plan_or_config)
+	var allow_paid_writes := false
+	if plan_or_config is Dictionary:
+		allow_paid_writes = bool(plan_or_config.get("allow_paid_writes", false))
+	return {
+		"run_checks_scope": "Bearer reads, owned-mod read, guarded buyer writes, and S2S/history reads.",
+		"run_checks_behavior": "Scene Run Checks reports the route groups + prerequisites. CLI --paid-mods executes the same matrix, while buyer writes still require --allow-paid-writes.",
+		"open_question": "Current harness keeps S2S/history behind service_token. Treat that as the current implementation, not a proven mod.io requirement.",
+		"route_groups": build_paid_mods_route_groups(config, allow_paid_writes, scene_mode)
+	}
+
+func build_paid_mods_route_groups(config, allow_paid_writes: bool = false, scene_mode: bool = false) -> Array[Dictionary]:
+	var groups: Array[Dictionary] = []
+	groups.append(_build_route_group(
+		"paid_bearer_reads",
+		"Bearer reads",
+		"GET /games/{game-id}/monetization/token-packs; GET /me/wallets; GET /me/purchased",
+		PackedStringArray(["access_token in .testbed/configs/modio.session.local.cfg"]),
+		_missing_access_token(config),
+		"Run first. No extra monetization-specific keys beyond normal bearer auth.",
+		scene_mode
+	))
+	groups.append(_build_route_group(
+		"paid_owned_mod_read",
+		"Owned-mod read",
+		"GET /games/{game-id}/mods/{owned_mod_id}/monetization/team",
+		PackedStringArray(["access_token in .testbed/configs/modio.session.local.cfg", "owned_mod_id or paid_mod_id in .testbed/configs/modio.local.cfg"]),
+		_missing_owned_mod_read_prereqs(config),
+		"Still needs a concrete paid mod id; that is a route input, not extra wrapper breadth.",
+		scene_mode
+	))
+	groups.append(_build_write_route_group(config, allow_paid_writes, scene_mode))
+	groups.append(_build_s2s_route_group(config, scene_mode))
+	return groups
+
 func parse_args(args: PackedStringArray) -> Dictionary:
 	var options := {
 		"env": "",
@@ -757,13 +792,15 @@ func parse_args(args: PackedStringArray) -> Dictionary:
 
 	return options
 
-func build_run_plan(options: Dictionary, loader: ModioEnvLoader = ModioEnvLoader.new()) -> Dictionary:
-	var resolved_env := loader.resolve_environment(
+func build_run_plan(options: Dictionary, loader = null) -> Dictionary:
+	if loader == null:
+		loader = ModioEnvLoader.new()
+	var resolved_env = loader.resolve_environment(
 		str(options.get("env", "")),
 		str(options.get("stable_path", ModioEnvLoader.CONFIG_STABLE_PATH)),
 		str(options.get("session_path", ModioEnvLoader.CONFIG_SESSION_PATH))
 	)
-	var config := loader.build_client_config(
+	var config = loader.build_client_config(
 		str(options.get("env", "")),
 		str(options.get("stable_path", ModioEnvLoader.CONFIG_STABLE_PATH)),
 		str(options.get("session_path", ModioEnvLoader.CONFIG_SESSION_PATH))
@@ -824,7 +861,7 @@ func build_run_plan(options: Dictionary, loader: ModioEnvLoader = ModioEnvLoader
 
 func build_missing_config_warnings(plan: Dictionary) -> PackedStringArray:
 	var warnings: PackedStringArray = []
-	var config: ModioClientConfig = plan.config
+	var config = plan.config
 	if config.game_id.is_empty():
 		warnings.append("Selected environment is missing game_id")
 	if config.api_key.is_empty():
@@ -844,8 +881,8 @@ func help_text() -> String:
 		"  --mods-limit <1..100>        Browse-read limit for the mods listing check (default: %d)" % DEFAULT_MODS_LIMIT,
 		"  --public-only                Skip optional authenticated /me check even if a token exists",
 		"  --allow-writes               Opt into the low-risk authenticated sandbox write sweep",
-		"  --paid-mods                  Opt into the paid-mods validation sweep (reads + guarded skips/writes)",
-		"  --allow-paid-writes          Opt into paid entitlements + checkout execution",
+		"  --paid-mods                  Opt into the monetization matrix: bearer reads, owned-mod read, guarded buyer writes, and S2S/history reads",
+		"  --allow-paid-writes          Opt into buyer-write execution for entitlements + checkout when payload JSON is present",
 		"  --allow-paid-team-write      Reserve the monetization-team write opt-in lane (currently a placeholder; no execution yet)",
 		"  --allow-paid-s2s-writes      Reserve the S2S write opt-in lane (currently a placeholder; no execution yet)",
 		"  --stable-config <path>       Override stable config path (default: res://configs/modio.local.cfg)",
@@ -860,7 +897,11 @@ func help_text() -> String:
 		"  4. When at least one public mod exists, also check detail/files/file-detail/stats/tags/metadatakvp/team/dependants/dependencies on the first listed mod",
 		"  5. GET /authenticate/terms",
 		"  6. Optional authenticated sweep when an access token is present: /me, /me/games, /me/mods, /me/files, /me/subscribed, /me/ratings, /me/collections, /me/following/collections, /me/followers, /me/users/muted, plus /users/{me-id}/followers|following|collections",
-		"  7. --paid-mods adds token-packs, wallets, purchased reads, monetization-team read, guarded entitlements/checkout, and S2S history reads using config-backed inputs",
+		"  7. --paid-mods adds the monetization matrix in four groups:",
+		"     - bearer reads: token-packs, wallets, purchased",
+		"     - owned-mod read: monetization-team for owned_mod_id / paid_mod_id",
+		"     - guarded buyer writes: entitlements + checkout (only with --allow-paid-writes)",
+		"     - S2S/history reads: transaction list/detail, currently modeled behind service_token",
 		"",
 		"Agreement current/version reads are supported by the adapter, but the public terms payload does not",
 		"currently expose agreement type/version ids in this sandbox, so the harness stops at GET /authenticate/terms.",
@@ -871,6 +912,119 @@ func help_text() -> String:
 		"environment unless you explicitly select live via --env live, MODIO_ENV=live, or the",
 		"local cfg override chain.",
 	])
+
+func _resolve_plan_config(plan_or_config):
+	if plan_or_config is Dictionary:
+		var config = plan_or_config.get("config", null)
+		if config != null:
+			return config
+	if plan_or_config != null:
+		return plan_or_config
+	return ModioClientConfig.new()
+
+func _missing_access_token(config) -> PackedStringArray:
+	var missing := PackedStringArray()
+	if not config.has_access_token():
+		missing.append("access_token in .testbed/configs/modio.session.local.cfg")
+	return missing
+
+func _missing_owned_mod_read_prereqs(config) -> PackedStringArray:
+	var missing := _missing_access_token(config)
+	if config.resolve_owned_mod_id().is_empty():
+		missing.append("owned_mod_id or paid_mod_id in .testbed/configs/modio.local.cfg")
+	return missing
+
+func _missing_buyer_write_prereqs(config) -> PackedStringArray:
+	var missing := _missing_access_token(config)
+	if config.paid_entitlements_input.is_empty():
+		missing.append("entitlements_payload_json in .testbed/configs/modio.session.local.cfg")
+	if config.paid_checkout_input.is_empty():
+		missing.append("checkout_payload_json in .testbed/configs/modio.session.local.cfg")
+	if config.resolve_paid_mod_id(str(config.paid_checkout_input.get("mod_id", ""))).is_empty():
+		missing.append("paid_mod_id or checkout_payload_json.mod_id")
+	return missing
+
+func _build_write_route_group(config, allow_paid_writes: bool, scene_mode: bool) -> Dictionary:
+	var requires := PackedStringArray([
+		"--allow-paid-writes in the CLI harness",
+		"access_token in .testbed/configs/modio.session.local.cfg",
+		"entitlements_payload_json in .testbed/configs/modio.session.local.cfg",
+		"checkout_payload_json in .testbed/configs/modio.session.local.cfg",
+		"paid_mod_id or checkout_payload_json.mod_id"
+	])
+	var missing := _missing_buyer_write_prereqs(config)
+	if scene_mode:
+		return {
+			"id": "paid_buyer_writes",
+			"label": "Guarded buyer writes",
+			"status": "guarded",
+			"details": {
+				"routes": "POST /me/entitlements; POST /games/{game-id}/mods/{paid_mod_id}/checkout",
+				"requires": "; ".join(requires),
+				"missing": "Scene Run Checks does not execute buyer writes. Use the CLI harness for the opt-in lane.",
+				"note": "Payload JSON and paid_mod_id remain inherently required inputs."
+			}
+		}
+	if not allow_paid_writes:
+		return {
+			"id": "paid_buyer_writes",
+			"label": "Guarded buyer writes",
+			"status": "guarded",
+			"details": {
+				"routes": "POST /me/entitlements; POST /games/{game-id}/mods/{paid_mod_id}/checkout",
+				"requires": "; ".join(requires),
+				"missing": "Run with --allow-paid-writes to execute this lane. Current config gaps: %s" % _join_missing_list(missing),
+				"note": "Payload JSON and paid_mod_id remain inherently required inputs."
+			}
+		}
+	return _build_route_group(
+		"paid_buyer_writes",
+		"Guarded buyer writes",
+		"POST /me/entitlements; POST /games/{game-id}/mods/{paid_mod_id}/checkout",
+		requires,
+		missing,
+		"These stay opt-in even when prerequisites exist.",
+		scene_mode
+	)
+
+func _build_s2s_route_group(config, scene_mode: bool) -> Dictionary:
+	var missing := PackedStringArray()
+	if not config.has_service_token():
+		missing.append("service_token in .testbed/configs/modio.local.cfg")
+	if config.monetization_team_id.is_empty() and str(config.paid_s2s_filters_input.get("monetization_team_id", "")).strip_edges().is_empty():
+		missing.append("monetization_team_id in .testbed/configs/modio.local.cfg or s2s_filters_json")
+	return _build_route_group(
+		"paid_s2s_history_reads",
+		"S2S/history reads",
+		"GET /s2s/monetization-teams/{monetization-team-id}/transactions; GET /s2s/monetization-teams/{monetization-team-id}/transactions/{transaction-id}",
+		PackedStringArray([
+			"service_token in .testbed/configs/modio.local.cfg (current harness assumption)",
+			"monetization_team_id in .testbed/configs/modio.local.cfg or s2s_filters_json",
+			"transaction_id via s2s_transaction_id or discovery from the history list"
+		]),
+		missing,
+		"Open question: mod.io approval may not require service_token here, but the current implementation still does.",
+		scene_mode
+	)
+
+func _build_route_group(id: String, label: String, routes: String, requires: PackedStringArray, missing: PackedStringArray, note: String, scene_mode: bool) -> Dictionary:
+	var status := "ready" if missing.is_empty() else "blocked"
+	if scene_mode and missing.is_empty():
+		status = "covered"
+	return {
+		"id": id,
+		"label": label,
+		"status": status,
+		"details": {
+			"routes": routes,
+			"requires": "; ".join(requires),
+			"missing": _join_missing_list(missing),
+			"note": note
+		}
+	}
+
+func _join_missing_list(missing: PackedStringArray) -> String:
+	return "none" if missing.is_empty() else "; ".join(missing)
 
 func _first_dictionary(items: Variant) -> Dictionary:
 	if items is Array and not items.is_empty() and items[0] is Dictionary:

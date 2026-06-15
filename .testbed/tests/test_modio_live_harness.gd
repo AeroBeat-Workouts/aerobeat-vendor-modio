@@ -109,6 +109,31 @@ func test_build_run_plan_carries_paid_mod_flags_and_loaded_inputs() -> void:
 	assert_eq(str(plan.config.paid_entitlements_input.get("portal", "")), "epicgames")
 	assert_eq(plan.config.s2s_transaction_id, "1234")
 
+func test_build_paid_mods_overview_reports_route_groups_and_open_question() -> void:
+	_write_config(STABLE_PATH, _stable_config("test"))
+	_write_config(SESSION_PATH, _session_config("", "", "session-token"))
+
+	var harness := ModioLiveHarness.new()
+	var plan := harness.build_run_plan({
+		"env": "test",
+		"mods_limit": 5,
+		"public_only": false,
+		"paid_mods": true,
+		"allow_paid_writes": false,
+		"stable_path": STABLE_PATH,
+		"session_path": SESSION_PATH
+	})
+	var overview := harness.build_paid_mods_overview(plan)
+	var route_groups: Array = overview.get("route_groups", [])
+
+	assert_eq(str(overview.get("run_checks_scope", "")), "Bearer reads, owned-mod read, guarded buyer writes, and S2S/history reads.")
+	assert_string_contains(str(overview.get("open_question", "")), "service_token")
+	assert_eq(route_groups.size(), 4)
+	assert_eq(str(route_groups[0].get("label", "")), "Bearer reads")
+	assert_eq(str(route_groups[0].get("status", "")), "ready")
+	assert_eq(str(route_groups[2].get("status", "")), "guarded")
+	assert_string_contains(str(route_groups[2].get("details", {}).get("missing", "")), "--allow-paid-writes")
+
 func test_build_missing_config_warnings_detects_required_public_tuple() -> void:
 	_write_config(STABLE_PATH, "[modio]\ndefault_environment=\"test\"\n\n[modio.test]\ngame_id=\"\"\napi_key=\"\"\n\n[modio.live]\ngame_id=\"2001\"\napi_key=\"live-key\"\n")
 	_write_config(SESSION_PATH, _session_config("", "", ""))

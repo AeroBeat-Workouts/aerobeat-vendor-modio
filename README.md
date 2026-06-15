@@ -273,7 +273,7 @@ The hidden `.testbed/` project now has a default operator-facing Workout Browser
 - `.testbed/scenes/safe_write_testbed.tscn`
   - focused smoke scene for reversible low-risk sandbox writes (subscribe / unsubscribe / positive rating)
 - `.testbed/scenes/paid_mods_testbed.tscn`
-  - focused smoke scene for paid-mod reads plus guarded paid/team/S2S posture notes
+  - focused smoke scene for the monetization matrix: bearer reads, owned-mod read, guarded buyer writes, and S2S/history reads, with explicit prerequisite/open-question reporting instead of a broad dashboard
 - shared smoke-scene behavior lives in `.testbed/scripts/modio_scene_runner.gd`
 - Workout Browser controller/state helpers live in `.testbed/scripts/modio_workout_browser_testbed.gd`, `.testbed/scripts/modio_workout_browser_state.gd`, and `.testbed/scripts/modio_session_config_store.gd`
 
@@ -302,19 +302,21 @@ What it does on the first pass:
    - when a public mod exists, drills into the first returned mod for detail/files/file-detail/stats/dependants/tags/metadatakvp/team/dependencies
    - `GET /authenticate/terms`
    - optional authenticated user-read sweep when `modio.session.local.cfg` contains an `access_token`: `GET /me`, `/me/games`, `/me/mods`, `/me/files`, `/me/subscribed`, `/me/ratings`, `/me/collections`, `/me/following/collections`, `/me/followers`, `/me/users/muted`, plus derived `/users/{me-id}/followers`, `/users/{me-id}/following`, and `/users/{me-id}/collections`
-4. when `--paid-mods` is enabled, also exercises the paid-mods matrix the harness can truthfully support today:
+4. when `--paid-mods` is enabled, the harness reports and exercises the same narrow monetization matrix the paid-mods scene shows today:
    - bearer reads: `GET /games/{game-id}/monetization/token-packs`, `GET /me/wallets`, `GET /me/purchased`
-   - owned paid-mod read: `GET /games/{game-id}/mods/{owned_mod_id}/monetization/team`
-   - guarded writes: `POST /me/entitlements`, `POST /games/{game-id}/mods/{paid_mod_id}/checkout`
-   - service-token reads: `GET /s2s/monetization-teams/{monetization-team-id}/transactions`, then detail via configured or discovered `transaction_id`
+   - owned-mod read: `GET /games/{game-id}/mods/{owned_mod_id}/monetization/team`
+   - guarded buyer writes: `POST /me/entitlements`, `POST /games/{game-id}/mods/{paid_mod_id}/checkout`
+   - S2S/history reads: `GET /s2s/monetization-teams/{monetization-team-id}/transactions`, then detail via configured or discovered `transaction_id`
 5. exits non-zero on any failed network check or if the selected environment is missing the required public tuple (`game_id`, `api_key`)
 
 Safety notes:
 
 - `test` remains the default target unless you explicitly select `live`
 - `--public-only` forces the harness to skip the optional authenticated user-read sweep even when a token is present
-- `--paid-mods` opt-ins the monetization validation slice; guarded entitlements/checkout writes still stay skipped unless `--allow-paid-writes` is also passed
+- `--paid-mods` opt-ins the monetization validation slice and now reports the exact route groups, what the run covers, and which prerequisites are missing for each group
+- guarded entitlements/checkout writes still stay skipped unless `--allow-paid-writes` is also passed, and they still inherently need payload JSON plus `paid_mod_id`
 - monetization-team writes plus S2S intent/commit/clawback remain harness placeholders today: `--allow-paid-team-write` and `--allow-paid-s2s-writes` currently reserve those opt-in lanes for future wiring, but do not execute the writes yet
+- the current harness still models S2S/history reads behind `service_token`; treat that as the present implementation and an explicit open question to verify, not as proven mod.io doctrine
 - the harness currently stops at `GET /authenticate/terms` for agreement coverage because the test-sandbox terms payload does not expose agreement type/version ids to chain into the agreement-detail routes automatically
 - real secrets stay in ignored `.testbed/configs/*.local.cfg` files only
 

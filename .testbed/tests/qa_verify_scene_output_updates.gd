@@ -186,6 +186,9 @@ func _verify_smoke_scenes(failures: PackedStringArray) -> void:
 
 		var initial_text := output_edit.text
 		var expected_initial := "Press Run Checks to exercise the %s slice." % expected_group
+		if expected_group == "paid_mods":
+			var scene_summary: Dictionary = instance.describe_scene_surface()
+			expected_initial = str(scene_summary.get("initial_output", expected_initial))
 		if initial_text != expected_initial:
 			failures.append("Unexpected initial text for %s: %s" % [scene_path, initial_text])
 
@@ -203,6 +206,13 @@ func _verify_smoke_scenes(failures: PackedStringArray) -> void:
 			failures.append("Final report missing base_url line for %s" % scene_path)
 		if not final_text.contains("ok: "):
 			failures.append("Final report missing ok line for %s" % scene_path)
+		if expected_group == "paid_mods":
+			if not final_text.contains("run_checks_scope: "):
+				failures.append("Paid-mods report missing run_checks_scope line")
+			if not final_text.contains("open_question: "):
+				failures.append("Paid-mods report missing open_question line")
+			if not final_text.contains("[GUARDED] Guarded buyer writes"):
+				failures.append("Paid-mods report missing guarded buyer writes grouping")
 		if final_text.contains("Press Run Checks"):
 			failures.append("Initial prompt still present after run for %s" % scene_path)
 

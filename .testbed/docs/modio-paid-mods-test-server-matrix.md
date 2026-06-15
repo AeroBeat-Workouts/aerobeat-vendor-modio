@@ -1,5 +1,7 @@
 # mod.io paid-mods test-server QA matrix
 
+> Current testbed truth: the paid-mods scene and `--paid-mods` CLI harness now surface this matrix in four explicit groups — bearer reads, owned-mod read, guarded buyer writes, and S2S/history reads — including prerequisite gaps and the open question around the current `service_token` assumption for S2S/history.
+
 _Date:_ 2026-05-17  
 _Repo:_ `aerobeat-vendor-modio`  
 _Target:_ `test` environment via `.testbed/scripts/modio_live_harness.gd` on commit `a02ad49` baseline, with one QA harness parse fix applied locally before execution.
