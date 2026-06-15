@@ -1,6 +1,6 @@
 # mod.io paid-mods test-server QA matrix
 
-> Current truth from the 2026-06-15 revalidation pass: the approved `u-71104.test.mod.io` bearer `/me*` lane works with a real OAuth token, and the later `g-1325.test.mod.io` rerun finally proved the game-host token-pack lane too. The remaining unproven monetization lanes are still the owned-mod read, guarded buyer writes, and S2S/history reads because this repo slice still lacks truthful mod/team/payload inputs and the official Godot harness path still fails parse on current HEAD.
+> Current truth from the 2026-06-15 revalidation pass: the approved `u-71104.test.mod.io` bearer `/me*` lane works with a real OAuth token, the later `g-1325.test.mod.io` rerun proved the game-host token-pack lane, and the restored Godot harness path now reproduces those already-proven read results from the in-repo `--paid-mods` flow too. The remaining unproven monetization lanes are still the owned-mod read, guarded buyer writes, and S2S/history reads because this repo slice still lacks truthful mod/team/payload inputs. One implementation nuance remains: the harness currently groups token-packs inside an access-token-gated paid-mods read lane even though the earlier direct game-host comparison proved `GET /games/1325/monetization/token-packs` also succeeds without bearer on `g-1325` once the host/key tuple is correct.
 
 _Date:_ 2026-06-15  
 _Repo:_ `aerobeat-vendor-modio`  
@@ -125,7 +125,42 @@ curl -sS -D - -A 'curl/8.5.0' \
   - user-host `/me*` monetization reads still require bearer auth;
   - game-host token-pack read is now proven on the game host and did **not** require bearer in the observed successful call.
 - No other monetization-adjacent game-host reads became testable without inventing missing inputs. Owned-mod monetization-team read still needs a truthful `owned_mod_id` / `paid_mod_id`, guarded buyer writes still need payloads, and S2S/history still needs team/transaction inputs.
-- The official Godot harness route is still blocked by the same repo parse bug on current HEAD, so this rerun also relied on direct `curl` evidence rather than a successful `godot --headless ... --paid-mods` pass.
+- At that point in the day, the official Godot harness route was still blocked by the repo parse bug fixed later in Task 7, so Task 6 itself still relied on direct `curl` evidence rather than a successful `godot --headless ... --paid-mods` pass.
+
+## Harness rerun (Task 8, 2026-06-15)
+
+After Task 7 restored the `.testbed` bridge/class-loading path, I reran the monetization matrix through the real in-repo harness using the existing ignored local config exactly as requested:
+
+```bash
+godot --headless --path .testbed --script res://scripts/modio_live_harness.gd -- --paid-mods --json
+```
+
+### Harness rerun results
+
+| Harness check | Result | Exact evidence |
+| --- | --- | --- |
+| `paid_token_packs` | **PASS** | `200`, `result_total=6`, `selected_token_pack_id=1`. The harness reproduced the already-proven live token-pack read from `https://g-1325.test.mod.io/v1`. Its current summary only exposes count + selected id + `skus`, and the returned `skus` were blank strings, so the richer pack names/prices still come from the earlier direct `curl` proof above. |
+| `paid_wallet` | **PASS** | `200` with wallet payload `type="standard_mio"`, `currency="mio"`, `balance=0`, `pending_balance=0`, `deficit=0`, `monetization_status=49`, `game_id="1325.0"`. This reproduces the already-proven `/me/wallets?game_id=1325` lane through the harness itself. |
+| `paid_purchased` | **PASS (empty)** | `200`, `result_total=0`, empty `sample_mod_names`. This reproduces the earlier valid-empty purchased result through the harness itself. |
+| `paid_monetization_team` | **SKIP** | Harness skip reason: `owned_mod_id or paid_mod_id is not configured in stable config; this route still needs a concrete paid mod id`. This matches the documented blocker. |
+| `paid_entitlements` | **SKIP** | Harness skip reason: `Skipped unless --allow-paid-writes is explicitly enabled; payload JSON and paid_mod_id remain required even after opting in`. This matches the documented blocker. |
+| `paid_checkout` | **SKIP** | Same guarded-write skip reason as entitlements. |
+| `paid_s2s_transactions` | **SKIP** | Harness skip reason: no `service_token` and no `monetization_team_id`; the harness still models this lane behind `service_token`. This matches the documented open question/blocker. |
+| `paid_s2s_transaction` | **SKIP** | Same S2S prerequisite gap as the list read. |
+
+### Harness rerun interpretation
+
+- The restored in-repo harness path is now genuinely working again: the exact `godot --headless ... --paid-mods --json` command completed successfully and exited `0`.
+- The harness now reproduces the previously proven monetization read results that have truthful inputs in local ignored config:
+  - token packs on `g-1325`
+  - wallet on `game_id=1325`
+  - purchased paid mods as a valid empty result
+- The still-blocked lanes are unchanged and truthful:
+  - owned-mod monetization team still lacks `owned_mod_id` / `paid_mod_id`
+  - guarded buyer writes still lack opt-in plus payload JSON / paid mod id
+  - S2S/history still lacks `service_token`, `monetization_team_id`, and any truthful transaction input
+- The harness output materially matches the documented matrix on pass/skip state, prerequisite boundaries, and the S2S open question.
+- Important nuance: the harness still *models* token-packs inside its access-token-gated `paid_bearer_reads` group. That matches current implementation and current harness output, but it is slightly stricter than the earlier direct game-host proof, which showed token-packs also succeed on `g-1325` without bearer once the host/key tuple is correct.
 
 ## Exact commands run
 

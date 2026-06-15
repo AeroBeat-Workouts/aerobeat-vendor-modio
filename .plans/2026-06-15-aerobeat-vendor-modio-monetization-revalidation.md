@@ -1,8 +1,8 @@
 # AeroBeat Vendor Mod.io Monetization Revalidation
 
 **Date:** 2026-06-15  
-**Status:** Complete  
-**Last Updated:** 2026-06-15 15:27 EDT  
+**Status:** In Progress  
+**Last Updated:** 2026-06-15 15:41 EDT  
 **Blocked Reason:** None  
 **Agent:** `Cookie`
 
@@ -363,13 +363,67 @@ This fixes the real repo-side harness break described in `REF-09` without wideni
 
 ---
 
+### Task 8: Rerun monetization matrix through restored Godot harness
+
+**Bead ID:** `aerobeat-vendor-modio-vni`  
+**SubAgent:** `primary`  
+**Role:** `qa`  
+**References:** `REF-04`, `REF-05`, `REF-09`  
+**Prompt:** In `aerobeat-vendor-modio`, claim the assigned bead on start with `bd update <bead-id> --status in_progress --json`. Using the now-restored Godot harness path and the existing local ignored config, rerun the monetization matrix through `godot --headless --path .testbed --script res://scripts/modio_live_harness.gd -- --paid-mods --json` and any closely related truthful harness commands needed to verify the restored in-repo path. Record which previously proven monetization results now reproduce through the harness itself, what still remains blocked by missing real inputs, and whether the harness output matches the documented matrix. Update the plan and matrix doc with exact results, commit/push only if tracked docs/plan change, and close the bead with `bd close <bead-id> --reason "Godot harness monetization rerun completed" --json`.
+
+**Folders Created/Deleted/Modified:**
+- `.plans/`
+- `.testbed/docs/`
+
+**Files Created/Deleted/Modified:**
+- `.plans/2026-06-15-aerobeat-vendor-modio-monetization-revalidation.md`
+- `.testbed/docs/modio-paid-mods-test-server-matrix.md`
+
+**Status:** ✅ Complete
+
+**Results:** Reran the restored in-repo harness exactly as requested with the existing ignored local config: `godot --headless --path .testbed --script res://scripts/modio_live_harness.gd -- --paid-mods --json`. The command now completed successfully and exited `0`, which proves the restored Godot harness path itself is working again on current HEAD.
+
+The harness reproduced the monetization read results that already had truthful local inputs:
+- `paid_token_packs` → `200`, `result_total=6`, `selected_token_pack_id=1` on `base_url=https://g-1325.test.mod.io/v1`
+- `paid_wallet` → `200` with `type=standard_mio`, `currency=mio`, `balance=0`, `pending_balance=0`, `deficit=0`, `monetization_status=49`, `game_id="1325.0"`
+- `paid_purchased` → `200` with a valid empty result set (`result_total=0`)
+
+The harness also truthfully kept the still-blocked lanes separate from those proven reads:
+- `paid_monetization_team` skipped because `owned_mod_id` / `paid_mod_id` is still missing in stable config
+- `paid_entitlements` and `paid_checkout` skipped because buyer writes remain behind `--allow-paid-writes` and still lack truthful payload JSON / paid mod id
+- `paid_s2s_transactions` and `paid_s2s_transaction` skipped because `service_token` and `monetization_team_id` are still missing, and the harness still models this lane behind `service_token`
+
+The matrix doc was updated with the exact harness rerun evidence. The main comparison result is: the harness output now matches the documented matrix on which routes pass, which ones skip, and why; the only meaningful implementation nuance is that the harness still groups token-packs inside an access-token-gated paid-mods read lane even though the earlier direct game-host comparison already proved token-packs also succeed on `g-1325` without bearer once the host/key tuple is correct. No local-only config values were changed for this task.
+
+---
+
+### Task 9: Plan deeper monetization lanes after harness rerun
+
+**Bead ID:** `aerobeat-vendor-modio-coi`  
+**SubAgent:** `primary`  
+**Role:** `research`  
+**References:** `REF-03`, `REF-04`, `REF-05`, `REF-09`  
+**Prompt:** In `aerobeat-vendor-modio`, claim the assigned bead on start with `bd update <bead-id> --status in_progress --json`. After the harness rerun results are available, convert the remaining unproven deeper monetization lanes into a narrow next-step execution plan. Focus only on the real remaining scope: owned-mod monetization-team read, guarded buyer writes, and S2S/history reads. Identify the exact missing prerequisites for each lane and recommend the safest execution order. Update the active plan with the deeper-lane proposal, then close the bead with `bd close <bead-id> --reason "Deeper monetization lane plan completed" --json`.
+
+**Folders Created/Deleted/Modified:**
+- `.plans/`
+
+**Files Created/Deleted/Modified:**
+- `.plans/2026-06-15-aerobeat-vendor-modio-monetization-revalidation.md`
+
+**Status:** ⏳ Pending
+
+**Results:** Pending.
+
+---
+
 ## Final Results
 
 **Status:** ✅ Complete
 
-**What We Built:** A truthful 2026-06-15 monetization revalidation record that now covers both halves of the approved test-server story — the user-host bearer lane on `https://u-71104.test.mod.io/v1` and the game-host token-pack lane on `https://g-1325.test.mod.io/v1` — and a narrow repo-side harness repair so the real Godot paid-mods entrypoint runs again on current HEAD. The repo docs now record exactly which monetization reads are proven, which ones remain blocked by missing truthful inputs, and the testbed now uses a single consistent root-bridge path family instead of the broken mixed addon/bridge class-loading setup.
+**What We Built:** A truthful 2026-06-15 monetization revalidation record that now covers all three relevant proof layers for this slice: the user-host bearer lane on `https://u-71104.test.mod.io/v1`, the game-host token-pack lane on `https://g-1325.test.mod.io/v1`, and the restored in-repo Godot harness path reproducing those already-proven monetization reads from the real `--paid-mods` flow. The repo docs now record exactly which monetization reads are proven, which ones remain blocked by missing truthful inputs, and the testbed now uses a single consistent root-bridge path family instead of the broken mixed addon/bridge class-loading setup.
 
-**Reference Check:** `REF-03`, `REF-04`, `REF-05`, `REF-07`, `REF-08`, and `REF-09` were cross-checked across the audit, OAuth rerun, game-host rerun, and final harness repair. The repo/testbed truth is now: `/me`, `/me/purchased`, and `/me/wallets?game_id=1325` work on the approved user host with a real bearer token; `GET /games/1325/monetization/token-packs` works on the approved game host with the supplied `g-1325` API key and also succeeded in the comparison call without bearer; and `godot --headless --path .testbed --script res://scripts/modio_live_harness.gd -- --paid-mods --json` now parses/loads and exits successfully on the current local config. Owned-mod monetization-team, guarded buyer writes, and S2S/history still remain unproven only because truthful mod/team/payload inputs were not supplied.
+**Reference Check:** `REF-03`, `REF-04`, `REF-05`, `REF-07`, `REF-08`, and `REF-09` were cross-checked across the audit, OAuth rerun, game-host rerun, harness repair, and final harness rerun. The repo/testbed truth is now: `/me`, `/me/purchased`, and `/me/wallets?game_id=1325` work on the approved user host with a real bearer token; `GET /games/1325/monetization/token-packs` works on the approved game host with the supplied `g-1325` API key and also succeeded in the comparison call without bearer; and `godot --headless --path .testbed --script res://scripts/modio_live_harness.gd -- --paid-mods --json` now reproduces token packs, wallet, and purchased results successfully on the current local config. Owned-mod monetization-team, guarded buyer writes, and S2S/history still remain unproven only because truthful mod/team/payload inputs were not supplied.
 
 **Commits:**
 - `7d97f39` - docs: record monetization staircase revalidation
