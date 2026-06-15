@@ -2,7 +2,7 @@
 
 **Date:** 2026-06-15  
 **Status:** In Progress  
-**Last Updated:** 2026-06-15 17:33 EDT  
+**Last Updated:** 2026-06-15 18:45 EDT  
 **Blocked Reason:** None  
 **Agent:** `Cookie`
 
@@ -510,10 +510,18 @@ Tracked repo changes for this task are documentation-only: this plan plus the mo
 
 **Commits:**
 - `7d97f39` - docs: record monetization staircase revalidation
-- `HEAD` - docs: record truthful paid workout fixture creation
+- `65a621e` - docs: record OAuth bearer monetization rerun
+- `10ab2e6` - docs: record game-host monetization rerun
+- `aa0e39e` - fix: restore testbed harness class path bridges
+- `a25a8b7` - docs: record paid-mods harness rerun
+- `b93ac5c` - docs: record truthful paid workout fixture
 
 **Lessons Learned:** The main hidden bugbears were context drift, path-family drift, and one live request-shape mismatch on the monetization-team create route. For truthful future reruns we should keep the lanes sharply separated: user-host `/me*` monetization reads require a real bearer token; game-host token packs require the correct `g-1325` host/key tuple and are now proven; and paid-mod creation on this server currently needs a creator monetization-team row before `price` + `monetization_options` updates stop failing with `900022`. Separately, the `.testbed` workbench depends on its root bridge paths staying intact and used consistently; mixing `res://src/...` globals with direct addon/sibling script paths is what turned a missing bridge into the misleading `ModioVendorAdapter` parse/load failure.
 
+**Stopping Point:** We now have a truthful paid workout fixture on the test server: mod `16364`, modfile `23257`, price `500`, `monetization_options=2`, and a self-owned monetization team row for user `71104`. The restored Godot harness also reproduces the proven read-side monetization checks again.
+
+**Next Slice:** Start with `GET /games/1325/mods/16364/monetization/team`, then continue into the deeper paid lanes in this order: S2S/history list, S2S/history detail if list succeeds, entitlements write preflight/attempt, and checkout write last.
+
 ---
 
-*Drafted on 2026-06-15*
+*Updated through 2026-06-15 18:45 EDT*
