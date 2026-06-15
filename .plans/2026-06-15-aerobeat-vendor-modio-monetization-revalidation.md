@@ -2,7 +2,7 @@
 
 **Date:** 2026-06-15  
 **Status:** In Progress  
-**Last Updated:** 2026-06-15 12:24 EDT  
+**Last Updated:** 2026-06-15 12:33 EDT  
 **Blocked Reason:** None  
 **Agent:** `Cookie`
 
@@ -202,14 +202,25 @@ Also updated the harness help text, README, and the paid-mods matrix doc so the 
 **Folders Created/Deleted/Modified:**
 - `.testbed/docs/`
 - `.plans/`
+- `.testbed/configs/` (local ignored cfg only)
 
 **Files Created/Deleted/Modified:**
 - `.testbed/docs/modio-paid-mods-test-server-matrix.md`
 - `.plans/2026-06-15-aerobeat-vendor-modio-monetization-revalidation.md`
+- `.testbed/configs/modio.local.cfg` (local ignored)
+- `.testbed/configs/modio.session.local.cfg` (local ignored)
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** Executed the monetization staircase as far as today’s truthful inputs allowed and updated the matrix doc with exact endpoint evidence. Created the minimum ignored local cfg needed for QA using Derrick’s supplied facts: `base_url=https://u-71104.test.mod.io/v1`, `user_id=71104`, the provided `api_key`, and the carried-forward prior repo `game_id=12962` only so the existing game-scoped routes could be tested honestly if still valid. Left `access_token`, `service_token`, `monetization_team_id`, `owned_mod_id`, `paid_mod_id`, `entitlements_payload_json`, `checkout_payload_json`, `s2s_filters_json`, and `s2s_transaction_id` blank because no truthful values were supplied.
+
+Two distinct truths came out of the run. First, the approved user-host tuple is real: `GET /ping` on `https://u-71104.test.mod.io/v1` returned `200 Everything is okay!`. Second, the supplied facts are **not sufficient by themselves** to execute the whole paid staircase. Direct provider calls proved that `/me/*` monetization routes still need a real bearer access token beyond `api_key + api_path`: `GET /me`, `GET /me/wallets`, and `GET /me/purchased` all returned `401 / error_ref 11005` (`The supplied access token has either been revoked, has expired or is malformed`). That directly answers the “bearer reads without extra setup” hypothesis for the `/me/*` lane: no new monetization-specific license key was shown to be required, but a normal bearer access token still absolutely is.
+
+For the game-scoped bearer lane, the run exposed a different blocker. The carried-forward prior tuple `game_id=12962` no longer resolved under the supplied approval facts: `GET /games/12962` and `GET /games/12962/monetization/token-packs` returned `404 / error_ref 14000` (`The requested game id could not be found`) on the approved `u-71104.test.mod.io` host, and the same game id also failed on adjacent test host shapes checked during isolation. So token-packs did not fail for lack of a bearer token in this run; they failed because the supplied facts did not expose a working game-scoped target. That same missing game/mod context prevented a truthful owned-mod monetization-team read.
+
+Guarded buyer writes and S2S/history reads were left unexecuted for truthful reasons only: no `access_token`, no write payload JSON, no `paid_mod_id`, no `monetization_team_id`, and no `transaction_id`. The instructions explicitly forbade inventing these values. The separate open question around whether S2S history still needs `service_token` therefore remains unresolved by live evidence from this pass.
+
+A repo/runtime issue also surfaced while attempting to use the official harness path: on current HEAD (`dbec118` during this run), `godot --headless --path .testbed --script res://scripts/modio_live_harness.gd -- --paid-mods --json` failed because Godot could not parse global class `ModioVendorAdapter` from `res://src/modio_vendor_adapter.gd`. That is a repo bug distinct from provider responses, so the endpoint evidence for this QA pass was gathered directly with `curl` and recorded in `REF-09`. No tracked code changes were made beyond the documentation/plan updates for this task.
 
 ---
 
@@ -238,16 +249,16 @@ Also updated the harness help text, README, and the paid-mods matrix doc so the 
 
 ## Final Results
 
-**Status:** ⚪ Not started
+**Status:** ⚠️ Partial
 
-**What We Built:** Pending.
+**What We Built:** A truthful 2026-06-15 monetization revalidation record for the approved test-user host, including exact provider responses for the reachable bearer lane, explicit separation of provider auth failures vs. missing local business inputs, and documentation of the current Godot harness parse blocker on HEAD.
 
-**Reference Check:** Pending.
+**Reference Check:** `REF-04`, `REF-05`, `REF-07`, `REF-08`, and `REF-09` were checked for the current monetization entrypoint/test-matrix contract. The matrix doc now matches what this QA pass actually proved: `/me/*` monetization reads still need a bearer access token, the supplied facts did not expose a valid game-scoped target for token-packs/owned-mod reads, and S2S history remains unproven because truthful team/transaction inputs were unavailable.
 
 **Commits:**
-- Pending.
+- Pending auditor review / any follow-up commit.
 
-**Lessons Learned:** Pending.
+**Lessons Learned:** The approved `u-71104.test.mod.io` tuple is real, but it is not by itself a complete rerun package for the whole paid staircase. We still need a valid bearer token for `/me/*`, a correct current game/mod context for game-scoped monetization routes, and better repo truth around the current `ModioVendorAdapter` parse failure before the Godot harness can be trusted as the first execution path again.
 
 ---
 

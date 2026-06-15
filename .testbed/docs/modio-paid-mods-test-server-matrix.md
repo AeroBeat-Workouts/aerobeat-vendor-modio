@@ -1,99 +1,160 @@
 # mod.io paid-mods test-server QA matrix
 
-> Current testbed truth: the paid-mods scene and `--paid-mods` CLI harness now surface this matrix in four explicit groups — bearer reads, owned-mod read, guarded buyer writes, and S2S/history reads — including prerequisite gaps and the open question around the current `service_token` assumption for S2S/history.
+> Current truth from the 2026-06-15 revalidation pass: Derrick’s approved `u-71104.test.mod.io` user-host tuple is real and reachable, bearer-only `/me/*` monetization reads still require an access token beyond `api_key` + `api_path`, and the supplied facts were not enough to truthfully execute the game-scoped or S2S-scoped monetization lanes without inventing missing inputs.
 
-_Date:_ 2026-05-17  
+_Date:_ 2026-06-15  
 _Repo:_ `aerobeat-vendor-modio`  
-_Target:_ `test` environment via `.testbed/scripts/modio_live_harness.gd` on commit `a02ad49` baseline, with one QA harness parse fix applied locally before execution.
+_Target:_ approved test user host `https://u-71104.test.mod.io/v1` with supplied facts:
+
+- `username`: `DerrickBarra`
+- `user_id`: `71104`
+- `api_key`: provided and used locally in ignored cfg only
+- `api_path`: `https://u-71104.test.mod.io/v1`
 
 ## Exact commands run
 
 ```bash
 git rev-parse --short HEAD
 
-godot --headless --path .testbed --script res://scripts/modio_live_harness.gd -- --paid-mods --json
-# failed before execution because res://scripts/modio_live_harness.gd had GDScript parse errors
+# local-only ignored config creation for this QA pass
+cat > .testbed/configs/modio.local.cfg <<'EOF'
+[modio]
+default_environment="test"
+accept_language="en-US"
+host_kind="api"
 
-godot --headless --path .testbed --script res://scripts/modio_live_harness.gd -- --paid-mods --json
-# rerun after the minimal parse fix
+[modio.test]
+game_id="12962"
+api_key="<provided test-server api_key>"
+base_url="https://u-71104.test.mod.io/v1"
+service_token=""
+portal=""
+platform=""
+monetization_team_id=""
+owned_mod_id=""
+paid_mod_id=""
+EOF
 
-godot --headless --path .testbed --script addons/aerobeat-vendor-godot-unit-test/gut_cmdln.gd -gdir=res://tests -ginclude_subdirs -gexit
+cat > .testbed/configs/modio.session.local.cfg <<'EOF'
+[modio]
+environment="test"
+
+[modio.test]
+access_token=""
+user_id="71104"
+entitlements_payload_json=""
+checkout_payload_json=""
+s2s_filters_json=""
+s2s_transaction_id=""
+EOF
+
+# direct preflight + staircase evidence
+curl -sS 'https://u-71104.test.mod.io/v1/ping?api_key=<api_key>'
+curl -sS 'https://u-71104.test.mod.io/v1/games?api_key=<api_key>&_limit=5'
+curl -sS 'https://u-71104.test.mod.io/v1/games/12962/monetization/token-packs?api_key=<api_key>'
+curl -sS 'https://u-71104.test.mod.io/v1/me/wallets?api_key=<api_key>&game_id=12962'
+curl -sS 'https://u-71104.test.mod.io/v1/me/purchased?api_key=<api_key>&game_id=12962'
+curl -sS 'https://u-71104.test.mod.io/v1/me?api_key=<api_key>'
+
+# adjacent host-shape sanity checks while isolating the game-id/host issue
+curl -sS 'https://api.test.mod.io/v1/games/12962?api_key=<api_key>'
+curl -sS 'https://g-12962.test.mod.io/v1/games/12962?api_key=<api_key>'
+curl -sS 'https://g-12962.modapi.io/v1/games/12962?api_key=<api_key>'
+
+# current harness execution attempt on HEAD
+ godot --headless --path .testbed --script res://scripts/modio_live_harness.gd -- --paid-mods --json
 ```
 
-## Local config state observed during QA
+## Local config state used for this QA run
 
-- `.testbed/configs/modio.local.cfg` exists.
-- `.testbed/configs/modio.session.local.cfg` does **not** exist.
-- Stable `test` tuple has the public baseline fields populated (`game_id`, `api_key`, default test base URL resolution succeeded).
-- Stable paid/S2S fields needed for deeper paid validation were blank in the local cfg used for this run:
-  - `service_token`
-  - `monetization_team_id`
-  - `owned_mod_id`
-  - `paid_mod_id`
-- No session-local paid payload inputs were available for this run:
-  - `entitlements_payload_json`
-  - `checkout_payload_json`
-  - `s2s_filters_json`
-  - `s2s_transaction_id`
+Created local-only ignored files:
 
-## Repo-side QA blocker found and fixed
+- `.testbed/configs/modio.local.cfg`
+- `.testbed/configs/modio.session.local.cfg`
 
-The first paid-mods harness run failed before any network request because Godot 4.6 rejected three local-variable declarations in `.testbed/scripts/modio_live_harness.gd` that relied on type inference from Variant-typed values:
+Configured locally for this run:
 
+- `base_url = https://u-71104.test.mod.io/v1`
+- `user_id = 71104`
+- `game_id = 12962` (carried forward from the repo’s prior known AeroBeat testbed tuple so the existing game-scoped routes could be exercised honestly if still valid)
+- `api_key = <provided test-server api_key>`
+
+Left intentionally blank because no truthful value was provided for this run:
+
+- `access_token`
+- `service_token`
+- `monetization_team_id`
 - `owned_mod_id`
-- `transaction_id`
-- `mod_id`
+- `paid_mod_id`
+- `entitlements_payload_json`
+- `checkout_payload_json`
+- `s2s_filters_json`
+- `s2s_transaction_id`
 
-Minimum fix applied: add explicit `: String` annotations to those three locals. After the fix:
+## Repo-side blocker encountered
 
-- the harness parsed and executed successfully
-- the full GUT suite passed: `98/98`
+The current HEAD (`dbec118`) did **not** allow the paid-mods Godot harness to run successfully during this QA pass.
 
-## Endpoint matrix
+Observed failure:
 
-| Order | Endpoint / harness check | Result | Evidence / reason |
+- `godot --headless --path .testbed --script res://scripts/modio_live_harness.gd -- --paid-mods --json`
+- Godot reported repeated parse failures while loading `ModioVendorAdapter` from `res://src/modio_vendor_adapter.gd`, which then caused `modio_live_harness.gd` itself to fail parse/load.
+- This is a **repo/runtime bug**, not a provider-side monetization response.
+
+Because the harness could not execute on the current checkout, the endpoint staircase evidence below was gathered directly with `curl` against the approved test-server tuple.
+
+## Preflight evidence
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| `GET /ping` on `https://u-71104.test.mod.io/v1` | **PASS** | `200`, body `{"code":200,"success":true,"message":"Everything is okay!"}` |
+| `GET /games` on `https://u-71104.test.mod.io/v1` | **PASS but empty** | `200`, body `{"data":[],"result_count":0,...,"result_total":0}` |
+| `GET /games/12962` on `https://u-71104.test.mod.io/v1` | **FAIL — provider/business response** | `404`, `error_ref 14000`, `The requested game id could not be found.` |
+| `GET /games/12962` on `https://api.test.mod.io/v1` | **FAIL — provider/business response** | `404`, `error_ref 14000`, `The requested game id could not be found.` |
+| `GET /games/12962` on `https://g-12962.test.mod.io/v1` | **FAIL — provider/business response** | `404`, `error_ref 14000`, `The requested game id could not be found.` |
+| `GET /games/12962` on old prior host `https://g-12962.modapi.io/v1` | **FAIL — stale tuple** | `401`, `error_ref 11002`, `Invalid credentials.` |
+
+Interpretation:
+
+- The supplied approved tuple is definitely a real reachable **user-host**.
+- The prior repo-era `game_id=12962` tuple does **not** currently resolve as a valid game-scoped target with the newly supplied approval facts.
+- So game-scoped monetization routes were blocked by **missing/invalid target-game context**, not just by the harness.
+
+## Staircase result matrix
+
+| Phase | Endpoint | Result | Exact evidence / reason |
 | --- | --- | --- | --- |
-| 0 | `GET /ping` | **PASS** | HTTP `200`; message `Everything is okay!` |
-| 0 | `GET /games/{game-id}` | **PASS** | HTTP `200`; game `12962`, `AeroBeat`, status `0` |
-| 0 | `GET /games/{game-id}/mods` | **PASS** | HTTP `200`; request executed successfully, but returned `result_total = 0`, so no public mod child drill-down was possible |
-| 1 | `GET /games/{game-id}/monetization/token-packs` | **SKIP — missing setup/input** | Harness skip reason: `Skipped because no access token is configured in session config` |
-| 1 | `GET /me/wallets` | **SKIP — missing setup/input** | Harness skip reason: `Skipped because no access token is configured in session config` |
-| 1 | `GET /me/purchased` | **SKIP — missing setup/input** | Harness skip reason: `Skipped because no access token is configured in session config` |
-| 2 | `GET /games/{game-id}/mods/{owned_mod_id}/monetization/team` | **SKIP — missing setup/input** | The bearer-token lane was unavailable because `.testbed/configs/modio.session.local.cfg` was absent. Stable `owned_mod_id` / `paid_mod_id` were also blank, so this route lacked both a user token and a concrete paid mod id. Harness-reported reason during this run: `Skipped because no access token is configured in session config`. |
-| 3 | `GET /s2s/monetization-teams/{monetization-team-id}/transactions` | **SKIP — missing setup/input** | Harness skip reason: `Skipped because no service_token is configured in stable config` |
-| 3 | `GET /s2s/monetization-teams/{monetization-team-id}/transactions/{transaction-id}` | **SKIP — missing setup/input** | Harness skip reason: `Skipped because no service_token is configured in stable config` |
-| 4 | `POST /me/entitlements` | **SKIP — missing setup/input** | Not attempted because explicit ephemeral session payloads were not present and `--allow-paid-writes` was correctly left off for the default QA pass. Harness reason in this run: `Skipped unless --allow-paid-writes is explicitly enabled`. Under the observed config state, even with the flag this route would still have been blocked by missing access token and missing `entitlements_payload_json`. |
-| 4 | `POST /games/{game-id}/mods/{paid_mod_id}/checkout` | **SKIP — missing setup/input** | Not attempted because explicit ephemeral session payloads were not present and `--allow-paid-writes` was correctly left off for the default QA pass. Harness reason in this run: `Skipped unless --allow-paid-writes is explicitly enabled`. Under the observed config state, even with the flag this route would still have been blocked by missing access token, missing `checkout_payload_json`, and blank `paid_mod_id`. |
-| 5 | `POST /games/{game-id}/mods/{mod-id}/monetization/team` | **SKIP — out of default matrix** | Intentionally excluded from the default QA pass per plan. Audit truth note: the harness currently keeps this lane as a placeholder even when `--allow-paid-team-write` is passed; it does **not** execute the write yet. |
-| 5 | `POST /s2s/transactions/intent`, `POST /s2s/transactions/commit`, `POST /s2s/transactions/clawback` | **SKIP — out of default matrix** | Intentionally excluded from the default QA pass per plan. Audit truth note: the harness currently keeps this lane as a placeholder even when `--allow-paid-s2s-writes` is passed; it does **not** execute these writes yet. |
-| 5 | `DELETE /s2s/connections/{portal-id}` | **NOT RUN — deliberately excluded** | Remains outside the default QA pass because it is destructive and was not added to the default matrix. |
+| A | `GET /games/{game-id}/monetization/token-packs` | **BLOCKED — supplied game-scoped target did not resolve** | Direct call to `https://u-71104.test.mod.io/v1/games/12962/monetization/token-packs?api_key=<api_key>` returned `404`, `error_ref 14000`, `The requested game id could not be found.` This did **not** prove a bearer-token rejection; it proved the provided run facts did not expose a valid game-scoped target for this route. |
+| A | `GET /me/wallets` | **FAIL — provider auth rejection** | Direct call to `https://u-71104.test.mod.io/v1/me/wallets?api_key=<api_key>&game_id=12962` returned `401`, `error_ref 11005`, `The supplied access token has either been revoked, has expired or is malformed. Please generate a new one.` |
+| A | `GET /me/purchased` | **FAIL — provider auth rejection** | Direct call to `https://u-71104.test.mod.io/v1/me/purchased?api_key=<api_key>&game_id=12962` returned `401`, `error_ref 11005`, `The supplied access token has either been revoked, has expired or is malformed. Please generate a new one.` |
+| A (supporting auth check) | `GET /me` | **FAIL — provider auth rejection** | Direct call to `https://u-71104.test.mod.io/v1/me?api_key=<api_key>` returned the same `401`, `error_ref 11005` bearer-token error. This confirms the current approval facts do **not** replace bearer access-token auth for `/me/*` monetization reads. |
+| B | `GET /games/{game-id}/mods/{owned_mod_id}/monetization/team` | **SKIP — missing local config input** | No truthful `owned_mod_id` / `paid_mod_id` was available, and the run also lacked an `access_token`. Because `/games/12962` itself did not resolve on the supplied tuple, this route had no valid game+mod target to test. |
+| C | `POST /me/entitlements` | **SKIP — missing local config input** | Not attempted. No `access_token` and no `entitlements_payload_json` were available. Per instruction, no write payload was invented. |
+| C | `POST /games/{game-id}/mods/{paid_mod_id}/checkout` | **SKIP — missing local config input** | Not attempted. No `access_token`, no `paid_mod_id`, and no `checkout_payload_json` were available. Per instruction, no write payload was invented. |
+| D | `GET /s2s/monetization-teams/{monetization-team-id}/transactions` | **SKIP — missing local config input** | Not attempted. No truthful `monetization_team_id` was available. The current repo/harness also still models this lane behind `service_token`, and today’s facts did not include one. |
+| D | `GET /s2s/monetization-teams/{monetization-team-id}/transactions/{transaction-id}` | **SKIP — missing local config input** | Not attempted. No truthful `monetization_team_id` or `transaction_id` was available, and the current implementation also expects `service_token`. |
 
-## Raw harness result highlights
+## Main conclusion
 
-Successful public baseline from the executed `--paid-mods --json` run:
+Danny’s statement is **not yet fully validated by this run** because the supplied facts were insufficient to execute the full staircase end-to-end.
 
-- `environment`: `test`
-- `host_kind`: `api`
-- `base_url`: `https://g-12962.modapi.io/v1`
-- `ok`: `true`
-- `paid_mods`: `true`
-- `ping`: `200`
-- `game`: `200`
-- `mods`: `200` with `response_result_total = 0`
-- `terms`: `200`
+What this run **did** prove:
 
-Paid-mods-specific outcome summary from the same run:
+1. The approved `u-71104.test.mod.io` user-host tuple is real and reachable.
+2. `api_key + api_path` alone are **not enough** for bearer `/me/*` monetization reads today; mod.io still returns `401 / error_ref 11005` until a real bearer `access_token` is supplied.
+3. The supplied facts did **not** expose a valid game-scoped target for `GET /games/{game-id}/monetization/token-packs` or downstream owned-mod routes. The carried-forward `game_id=12962` now returned `14000 game id could not be found` across the reachable test hosts checked during this run.
+4. The repo also currently has a real harness/runtime blocker on HEAD: `modio_live_harness.gd` could not run because `res://src/modio_vendor_adapter.gd` failed parse as a global class.
 
-- **passed:** none of the paid endpoints themselves, because the local paid/test-user/service-token prerequisites were absent
-- **skipped for missing setup/input:** token packs, wallets, purchased, owned monetization-team read, S2S transactions list, S2S transaction detail
-- **skipped because explicit ephemeral write inputs were not available / not enabled:** entitlements, checkout
-- **skipped by design/out of default pass:** monetization-team write, S2S write trio, destructive disconnect
+What remains **unproven** after this run:
 
-## QA conclusion
+- whether a valid bearer `access_token` plus the correct game/mod ids would make the bearer and owned-mod monetization reads succeed immediately under the new approval
+- whether S2S history still truly needs `service_token`, because this run never had a truthful `monetization_team_id` / `transaction_id` pair to test that hypothesis directly
 
-This QA pass verified two important truths:
+## QA verdict for this slice
 
-1. The repo needed a small real harness fix before any paid-mods execution could happen under Godot 4.6.
-2. After that fix, the harness truthfully reports the current machine/setup gap instead of pretending paid coverage exists.
+This was a **truthful partial staircase execution**:
 
-The repo is now in a good state for an **audit of truthfulness**, but it is **not yet a credential-complete paid-mods validation** on this machine because the required session and service-token inputs were absent for the executed run.
+- Phase A produced real provider evidence for the `/me/*` bearer lane.
+- The game-scoped Phase A token-pack route was blocked by missing/invalid target-game context under the supplied facts.
+- Phases B, C, and D remained blocked by missing local inputs that the instructions correctly forbade inventing.
+- The checkout itself also currently contains a separate repo bug in the Godot harness path.
