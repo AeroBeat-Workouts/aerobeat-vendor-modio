@@ -1,8 +1,8 @@
 extends GutTest
 
-const AeroModIOManager = preload("res://addons/aerobeat-vendor-modio/src/AeroModIOManager.gd")
-const ModioClientConfig = preload("res://addons/aerobeat-vendor-modio/src/models/modio_client_config.gd")
-const ModioHttpTransport = preload("res://addons/aerobeat-vendor-modio/src/network/modio_http_transport.gd")
+const AeroModIOManager = preload("res://src/AeroModIOManager.gd")
+const ModioClientConfig = preload("res://src/models/modio_client_config.gd")
+const ModioHttpTransport = preload("res://src/network/modio_http_transport.gd")
 
 func test_manager_exposes_repo_owned_facade_over_provider_adapter() -> void:
 	var executed_requests: Array[Dictionary] = []

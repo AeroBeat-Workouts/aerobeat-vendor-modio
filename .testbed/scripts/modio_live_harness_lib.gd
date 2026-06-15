@@ -1,7 +1,7 @@
 extends RefCounted
 
-const ModioClientConfig = preload("res://addons/aerobeat-vendor-modio/src/models/modio_client_config.gd")
-const ModioEnvLoader = preload("res://scripts/modio_env_loader.gd")
+const ModioClientConfig = preload("res://src/models/modio_client_config.gd")
+const ModioEnvLoader = preload("res://modio_env_loader.gd")
 
 const DEFAULT_MODS_LIMIT := 3
 const DEFAULT_CHILD_LIMIT := 5

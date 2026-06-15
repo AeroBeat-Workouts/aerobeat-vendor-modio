@@ -1,7 +1,7 @@
 extends GutTest
 
-const ModioClientConfig = preload("res://addons/aerobeat-vendor-modio/src/models/modio_client_config.gd")
-const ModioEnvLoader = preload("res://scripts/modio_env_loader.gd")
+const ModioClientConfig = preload("res://src/models/modio_client_config.gd")
+const ModioEnvLoader = preload("res://modio_env_loader.gd")
 
 const STABLE_PATH := "user://modio_env_loader_stable.cfg"
 const SESSION_PATH := "user://modio_env_loader_session.cfg"

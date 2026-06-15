@@ -2,7 +2,7 @@
 
 **Date:** 2026-06-15  
 **Status:** Complete  
-**Last Updated:** 2026-06-15 14:31 EDT  
+**Last Updated:** 2026-06-15 15:27 EDT  
 **Blocked Reason:** None  
 **Agent:** `Cookie`
 
@@ -316,19 +316,66 @@ The official harness path remains separately blocked by the same repo/runtime bu
 
 ---
 
+### Task 7: Fix `ModioVendorAdapter` harness parse/load break
+
+**Bead ID:** `aerobeat-vendor-modio-8a9`  
+**SubAgent:** `primary`  
+**Role:** `coder`  
+**References:** `REF-03`, `REF-04`, `REF-05`, `REF-09`  
+**Prompt:** In `aerobeat-vendor-modio`, claim the assigned bead on start with `bd update <bead-id> --status in_progress --json`. Diagnose and fix the current repo-side harness failure where `godot --headless --path .testbed --script res://scripts/modio_live_harness.gd -- --paid-mods --json` fails because Godot cannot parse/load global class `ModioVendorAdapter` from `res://src/modio_vendor_adapter.gd`. Keep the fix narrow and truthful: repair the harness/runtime path or class-loading issue without widening monetization scope. Run the relevant validation to prove the harness path works again, update the plan with exact results, commit/push by default, and close the bead with `bd close <bead-id> --reason "ModioVendorAdapter harness break fixed" --json`.
+
+**Folders Created/Deleted/Modified:**
+- `.testbed/`
+- `.testbed/scripts/`
+- `.testbed/tests/`
+- `.plans/`
+
+**Files Created/Deleted/Modified:**
+- `.testbed/src` (restored symlink bridge)
+- `.testbed/modio_env_loader.gd` (new root bridge symlink)
+- `.testbed/modio_live_harness_lib.gd` (new root bridge symlink)
+- `.testbed/scripts/modio_live_harness.gd`
+- `.testbed/scripts/modio_live_harness_lib.gd`
+- `.testbed/scripts/modio_collection_eligibility_harness.gd`
+- `.testbed/scripts/modio_final_easy_wins_harness.gd`
+- `.testbed/scripts/modio_unlocked_family_harness.gd`
+- `.testbed/scripts/modio_workout_browser_testbed.gd`
+- `.testbed/tests/test_modio_live_harness.gd`
+- `.testbed/tests/test_modio_env_loader.gd`
+- `.testbed/tests/test_modio_http_transport.gd`
+- `.testbed/tests/test_modio_vendor_adapter.gd`
+- `.testbed/tests/test_aero_modio_manager.gd`
+- `.testbed/tests/test_modio_workout_upload_flow.gd`
+- `.testbed/tests/validate_scaffold.gd`
+- `.plans/2026-06-15-aerobeat-vendor-modio-monetization-revalidation.md`
+
+**Status:** ✅ Complete
+
+**Results:** Root cause was not a syntax/runtime bug inside `src/modio_vendor_adapter.gd` itself. The `.testbed` project had lost its historical root-path bridge (`.testbed/src`), but Godot’s `.testbed` class cache still resolved `ModioVendorAdapter`, `ModioClientConfig`, `ModioListingQuery`, and `ModioHttpTransport` at `res://src/...`. That made the harness parse fail immediately when the testbed tried to resolve the global classes from missing `res://src/*` paths. After restoring only `.testbed/src`, the next truthful failure exposed the second half of the seam: the testbed scripts were mixing the bridge path family (`res://src/...`) with addon/sibling paths (`res://addons/aerobeat-vendor-modio/src/...`, `res://scripts/modio_env_loader.gd`, `res://scripts/modio_live_harness_lib.gd`), which caused duplicate global-class registration/hide errors (`Class "ModioVendorAdapter" hides a global script class.`, same for `ModioClientConfig`, `ModioListingQuery`, `ModioHttpTransport`, and `ModioEnvLoader`).
+
+The narrow fix was to restore a single canonical testbed path family and leave monetization scope unchanged: restored `.testbed/src` as the repo-root bridge symlink, added root bridge symlinks for `.testbed/modio_env_loader.gd` and `.testbed/modio_live_harness_lib.gd`, and normalized the touched `.testbed/scripts/*` + `.testbed/tests/*` loaders to use `res://src/...`, `res://modio_env_loader.gd`, and `res://modio_live_harness_lib.gd` consistently instead of addon-path preloads.
+
+Validation after the fix:
+- `godot --headless --path .testbed --script res://scripts/modio_live_harness.gd -- --paid-mods --json` ✅ now parses/loads and exits `0` on current local config. Exact live summary included successful public/auth checks (`ping`, `game`, `mods`, `mod_detail`, `mod_files`, `mod_file_detail`, `mod_stats`, `mod_dependants`, `mod_tags`, `mod_metadata_kvp`, `mod_team`, `mod_dependencies`, `terms`, `me`, `me_games`, `me_mods`, `me_files`, `me_subscribed`, `me_ratings`, `me_collections`, `me_following_collections`, `me_followers`, `me_muted_users`, `user_followers`, `user_following`, `user_collections`) plus the paid-mods overview on `base_url=https://g-1325.test.mod.io/v1`.
+- `godot --headless --path .testbed --script res://tests/validate_scaffold.gd` ✅ still passes after the path normalization.
+
+This fixes the real repo-side harness break described in `REF-09` without widening any paid-mod behavior claims. Any remaining broader testbed/runtime issues now need to be evaluated separately from this resolved bridge/path-class-loading bug.
+
+---
+
 ## Final Results
 
 **Status:** ✅ Complete
 
-**What We Built:** A truthful 2026-06-15 monetization revalidation record that now covers both halves of the approved test-server story: the user-host bearer lane on `https://u-71104.test.mod.io/v1` and the remaining game-host token-pack lane on `https://g-1325.test.mod.io/v1`. The repo docs now record exactly which monetization reads are proven, which ones remain blocked by missing truthful inputs, and which harness claims still depend on a known repo parse bug workaround.
+**What We Built:** A truthful 2026-06-15 monetization revalidation record that now covers both halves of the approved test-server story — the user-host bearer lane on `https://u-71104.test.mod.io/v1` and the game-host token-pack lane on `https://g-1325.test.mod.io/v1` — and a narrow repo-side harness repair so the real Godot paid-mods entrypoint runs again on current HEAD. The repo docs now record exactly which monetization reads are proven, which ones remain blocked by missing truthful inputs, and the testbed now uses a single consistent root-bridge path family instead of the broken mixed addon/bridge class-loading setup.
 
-**Reference Check:** `REF-03`, `REF-04`, `REF-05`, `REF-07`, `REF-08`, and `REF-09` were independently cross-checked across the audit, OAuth rerun, and final game-host rerun. The repo/testbed truth is now: `/me`, `/me/purchased`, and `/me/wallets?game_id=1325` work on the approved user host with a real bearer token; `GET /games/1325/monetization/token-packs` works on the approved game host with the supplied `g-1325` API key and also succeeded in the comparison call without bearer; owned-mod monetization-team, guarded buyer writes, and S2S/history still remain unproven only because truthful mod/team/payload inputs were not supplied.
+**Reference Check:** `REF-03`, `REF-04`, `REF-05`, `REF-07`, `REF-08`, and `REF-09` were cross-checked across the audit, OAuth rerun, game-host rerun, and final harness repair. The repo/testbed truth is now: `/me`, `/me/purchased`, and `/me/wallets?game_id=1325` work on the approved user host with a real bearer token; `GET /games/1325/monetization/token-packs` works on the approved game host with the supplied `g-1325` API key and also succeeded in the comparison call without bearer; and `godot --headless --path .testbed --script res://scripts/modio_live_harness.gd -- --paid-mods --json` now parses/loads and exits successfully on the current local config. Owned-mod monetization-team, guarded buyer writes, and S2S/history still remain unproven only because truthful mod/team/payload inputs were not supplied.
 
 **Commits:**
 - `7d97f39` - docs: record monetization staircase revalidation
-- `HEAD` - docs: record monetization audit verdict + OAuth bearer rerun + game-host token-pack rerun
+- `HEAD` - docs: repair testbed class-path bridges for paid-mods harness
 
-**Lessons Learned:** The main hidden bugbear was context drift, not missing wrapper coverage. For truthful future reruns we should keep the lanes sharply separated: user-host `/me*` monetization reads require a real bearer token; game-host token packs require the correct `g-1325` host/key tuple and are now proven; owned-mod, buyer-write, and S2S/history lanes should stay unclaimed until the exact mod ids, payload JSON, and team/transaction identifiers exist. The repo’s Godot harness parse failure also remains a real independent blocker, so direct endpoint evidence is still the trustworthy path until that bug is fixed.
+**Lessons Learned:** The main hidden bugbears were context drift and path-family drift. For truthful future reruns we should keep the lanes sharply separated: user-host `/me*` monetization reads require a real bearer token; game-host token packs require the correct `g-1325` host/key tuple and are now proven; owned-mod, buyer-write, and S2S/history lanes should stay unclaimed until the exact mod ids, payload JSON, and team/transaction identifiers exist. Separately, the `.testbed` workbench depends on its root bridge paths staying intact and used consistently; mixing `res://src/...` globals with direct addon/sibling script paths is what turned a missing bridge into the misleading `ModioVendorAdapter` parse/load failure.
 
 ---
 

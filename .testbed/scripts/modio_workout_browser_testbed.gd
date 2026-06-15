@@ -1,6 +1,6 @@
 extends Control
 
-const ModioWorkoutUploadFlowScript = preload("res://addons/aerobeat-vendor-modio/src/modio_workout_upload_flow.gd")
+const ModioWorkoutUploadFlowScript = preload("res://src/modio_workout_upload_flow.gd")
 const AeroDeviceDetectionModioMetadata = preload("res://addons/aerobeat-tool-device-detection/src/AeroDeviceDetectionModioMetadata.gd")
 
 const GLOBAL_TAB_CONNECTION_INDEX := 0

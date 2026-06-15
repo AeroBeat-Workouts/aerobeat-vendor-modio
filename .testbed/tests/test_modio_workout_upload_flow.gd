@@ -1,9 +1,9 @@
 extends GutTest
 
-const AeroModIOManager = preload("res://addons/aerobeat-vendor-modio/src/AeroModIOManager.gd")
-const ModioClientConfig = preload("res://addons/aerobeat-vendor-modio/src/models/modio_client_config.gd")
-const ModioHttpTransport = preload("res://addons/aerobeat-vendor-modio/src/network/modio_http_transport.gd")
-const ModioWorkoutUploadFlow = preload("res://addons/aerobeat-vendor-modio/src/modio_workout_upload_flow.gd")
+const AeroModIOManager = preload("res://src/AeroModIOManager.gd")
+const ModioClientConfig = preload("res://src/models/modio_client_config.gd")
+const ModioHttpTransport = preload("res://src/network/modio_http_transport.gd")
+const ModioWorkoutUploadFlow = preload("res://src/modio_workout_upload_flow.gd")
 
 const TMP_DIR := "user://workout_upload_flow_tests"
 
