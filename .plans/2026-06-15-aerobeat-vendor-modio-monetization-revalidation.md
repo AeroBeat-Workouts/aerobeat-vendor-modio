@@ -1,9 +1,9 @@
 # AeroBeat Vendor Mod.io Monetization Revalidation
 
 **Date:** 2026-06-15  
-**Status:** Blocked  
-**Last Updated:** 2026-06-16 11:08 EDT  
-**Blocked Reason:** Remaining live paid lanes still need truthful buyer payload JSON plus S2S team/transaction inputs; current S2S `service_token` requirement is still only an implementation assumption under test.  
+**Status:** In Progress  
+**Last Updated:** 2026-06-16 16:37 EDT  
+**Blocked Reason:** None  
 **Agent:** `Cookie`
 
 ---
@@ -650,6 +650,115 @@ Newly surfaced transaction/order ids or blockers:
 **Status:** ✅ Complete
 
 **Results:** Independent audit passed with plan-only truth updates. `REF-09` and the current harness/adapter code already tell the truth about the continuation-slice outcomes: the owned-mod read is genuinely proven on mod `16364` (`200`, one `DerrickBarra` row, `split=100`); the S2S/history reads were not truthfully runnable because the local ignored runtime still lacked `service_token`, `monetization_team_id`, `s2s_filters_json`, and any `s2s_transaction_id`; and the guarded buyer-write lane was exercised only through the restored `--allow-paid-writes` harness path, where both write routes stopped as config-level skips because `entitlements_payload_json` and `checkout_payload_json` were blank. No adapter validation error and no live buyer-write POST were evidenced for this slice. No matrix-doc text changes were needed because it already separates local prerequisite gaps from provider responses and from the adapter’s still-unproven `service_token` assumption.
+
+---
+
+## Continuation Slice — 2026-06-16 Checkout-First Direct mod.io Purchase Path
+
+### Task 16: Research the minimal truthful direct-mod.io checkout payload for AeroBeat desktop/web distribution
+
+**Bead ID:** `aerobeat-vendor-modio-9i3`  
+**SubAgent:** `primary`  
+**Role:** `research`  
+**References:** `REF-02`, `REF-03`, `REF-04`, `REF-05`, `REF-09`  
+**Prompt:** In `aerobeat-vendor-modio`, claim the assigned bead on start with `bd update <bead-id> --status in_progress --json`. Treat entitlements as deferred because AeroBeat does not yet have external store integrations wired. Research the smallest truthful checkout payload for purchasing the paid mod directly through mod.io payment features for a desktop/web-distributed AeroBeat build (not Steam/EGS/etc). Use current repo code, docs, and any repo-local truth surfaces to determine the likely portal, checkout type, required fields, and any values Derrick still needs to source externally. Do not invent credentials or fake values. Update the active plan with the exact proposed payload shape and remaining unknowns, then close the bead with `bd close <bead-id> --reason "Checkout payload research completed" --json`.
+
+**Folders Created/Deleted/Modified:**
+- `.plans/`
+- `.testbed/docs/`
+
+**Files Created/Deleted/Modified:**
+- `.plans/2026-06-15-aerobeat-vendor-modio-monetization-revalidation.md`
+- `.testbed/docs/modio-paid-mods-test-server-matrix.md` (if truth updates are needed)
+
+**Status:** ✅ Complete
+
+**Results:** Checkout-first research completed without issuing a live checkout. The smallest truthful request shape for the current AeroBeat desktop/web-distributed scenario is the adapter’s **checkout `type=0` virtual-token mode** against the already-proven paid fixture `mod_id=16364`, with entitlements still deferred.
+
+Key findings:
+- **Likely direct-mod.io portal for this scenario:** the best current provider-facing fit is the already-proven **web / non-store-controlled** monetization lane, evidenced by live token-pack reads on `g-1325` returning six packs with `portal="web"` (`200/500/1000/2000/5000/10000` tokens priced `199/499/999/1999/4999/9999`).
+- **Important portal/header nuance:** the current adapter/docs truth does **not** document `X-Modio-Portal: web` for checkout. The wrapped checkout portal header allowlist is only `steam`, `xboxlive`, `psn`, and `epicgames`. Therefore the smallest **truthful current payload/config stance is to omit `portal` entirely** for the direct web checkout attempt rather than inventing an unsupported `web` header value.
+- **Likely checkout type:** `type=0` (`virtual token checkout`). This is the narrowest documented checkout mode, has the smallest required body, and matches the current paid fixture economics best: fixture mod `16364` is priced at `500` tokens, and the live token-pack matrix includes a matching **500 Pack** at `display_amount=499`.
+- **Minimal required fields from current adapter truth:** `idempotent_key`, `type=0`, and `display_amount`. The paid mod id is required in the route path (`/games/1325/mods/16364/checkout`) and can be carried either by stable cfg `paid_mod_id=16364` or by top-level `mod_id` in `checkout_payload_json` for the harness.
+- **Not required for this direct desktop/web-first attempt:** store portal tokens (`psn_token`, `xbox_token`, `epicgames_token`, `epicgames_sandbox_id`), `payment_method_id`, `terms_accepted`, `refund_accepted`, `transaction_id`, or entitlement-sync payloads.
+
+Exact proposed minimal `checkout_payload_json` shape for the current harness/config contract:
+```json
+{
+  "mod_id": "16364",
+  "fields": {
+    "idempotent_key": "<fresh-unique-per-attempt>",
+    "type": 0,
+    "display_amount": 499
+  }
+}
+```
+
+Optional equivalent shape if Derrick prefers keeping the path id only in stable config:
+```json
+{
+  "fields": {
+    "idempotent_key": "<fresh-unique-per-attempt>",
+    "type": 0,
+    "display_amount": 499
+  }
+}
+```
+with `.testbed/configs/modio.local.cfg` continuing to supply `paid_mod_id=16364`.
+
+Exact remaining unknowns / externally sourced values before a live checkout attempt:
+- a **fresh unique `idempotent_key`** for the real attempt
+- operator confirmation of whether Derrick wants the harness to source the paid mod id from stable cfg or inline `checkout_payload_json.mod_id`
+- one still-unproven provider behavior assumption: whether the direct web checkout should succeed with **no `X-Modio-Portal` header** (current smallest truthful adapter stance) or whether mod.io expects some separate web-specific signal not yet represented in the repo/docs
+- any live buyer-side payment prerequisites that only the provider can reveal at runtime (for example whether the account must already have a saved/default payment method or whether the checkout flow itself will surface that)
+
+Bottom line:
+- **We can build a truthful minimal `checkout_payload_json` now** for adapter/harness preflight.
+- **We cannot yet claim the live checkout will succeed** until a real unique `idempotent_key` is supplied and the provider-side web-header/payment-method behavior is observed in one guarded live attempt.
+
+---
+
+### Task 17: Execute direct-mod.io checkout preflight/attempt with truthful payload
+
+**Bead ID:** `Pending`  
+**SubAgent:** `primary`  
+**Role:** `qa`  
+**References:** `REF-03`, `REF-04`, `REF-05`, `REF-09`  
+**Prompt:** In `aerobeat-vendor-modio`, claim the assigned bead on start with `bd update <bead-id> --status in_progress --json`. Using the researched direct-mod.io checkout payload and the existing paid fixture `16364`, run the guarded checkout lane truthfully for the desktop/web-distributed AeroBeat scenario. Keep entitlements deferred. Use only real payload fields and surface adapter validation separately from any live provider response. Update the active plan and matrix doc with exact results, commit/push tracked changes by default, and close the bead with `bd close <bead-id> --reason "Direct checkout lane executed" --json`.
+
+**Folders Created/Deleted/Modified:**
+- `.plans/`
+- `.testbed/docs/`
+- `.testbed/configs/` (local ignored cfg only if touched)
+
+**Files Created/Deleted/Modified:**
+- `.plans/2026-06-15-aerobeat-vendor-modio-monetization-revalidation.md`
+- `.testbed/docs/modio-paid-mods-test-server-matrix.md`
+- `.testbed/configs/modio.session.local.cfg` (local ignored, if touched)
+
+**Status:** ⏳ Pending
+
+**Results:** Pending.
+
+---
+
+### Task 18: Audit checkout-first continuation slice
+
+**Bead ID:** `Pending`  
+**SubAgent:** `primary`  
+**Role:** `auditor`  
+**References:** `REF-03`, `REF-04`, `REF-05`, `REF-09`  
+**Prompt:** In `aerobeat-vendor-modio`, claim the assigned bead on start with `bd update <bead-id> --status in_progress --json`. Independently audit the checkout-first continuation results. Verify entitlements are truthfully deferred, checkout payload assumptions are evidence-backed, and any live checkout result cleanly distinguishes local validation from provider response. Make only minimal truth fixes if needed, update the active plan with the audit verdict, and close the bead with `bd close <bead-id> --reason "Checkout-first audit completed" --json`.
+
+**Folders Created/Deleted/Modified:**
+- `.plans/`
+
+**Files Created/Deleted/Modified:**
+- `.plans/2026-06-15-aerobeat-vendor-modio-monetization-revalidation.md`
+
+**Status:** ⏳ Pending
+
+**Results:** Pending.
 
 ---
 
