@@ -2,7 +2,7 @@
 
 **Date:** 2026-06-15  
 **Status:** In Progress  
-**Last Updated:** 2026-06-16 16:37 EDT  
+**Last Updated:** 2026-06-16 17:18 EDT  
 **Blocked Reason:** None  
 **Agent:** `Cookie`
 
@@ -787,13 +787,57 @@ Important truth from this attempt:
 
 ---
 
+## Continuation Slice — 2026-06-16 Checkout Retry Refinement
+
+### Task 19: Research provider-accepted `display_amount` semantics for direct `type=0` checkout
+
+**Bead ID:** `aerobeat-vendor-modio-hch`  
+**SubAgent:** `primary`  
+**Role:** `research`  
+**References:** `REF-02`, `REF-03`, `REF-04`, `REF-05`, `REF-09`  
+**Prompt:** In `aerobeat-vendor-modio`, claim the assigned bead on start with `bd update <bead-id> --status in_progress --json`. Narrowly research the remaining blocker from the first live direct checkout attempt: what `display_amount` semantics/value mod.io expects for direct `type=0` checkout on the paid fixture `16364`. Use current repo code, docs, matrix evidence, and any repo-local references first. If the repo-local evidence is insufficient, use narrow external docs research. Do not retry live checkout in this task. Determine the strongest evidence-backed next candidate value/interpretation and what still remains uncertain before a second guarded retry. Update the active plan with exact findings, update the matrix doc only if needed for truth, commit/push tracked changes by default, and close the bead with `bd close <bead-id> --reason "Checkout display_amount research completed" --json`.
+
+**Folders Created/Deleted/Modified:**
+- `.plans/`
+- `.testbed/docs/`
+
+**Files Created/Deleted/Modified:**
+- `.plans/2026-06-15-aerobeat-vendor-modio-monetization-revalidation.md`
+- `.testbed/docs/modio-paid-mods-test-server-matrix.md` (if truth updates are needed)
+
+**Status:** ✅ Complete
+
+**Results:** Repo-local code and docs still only prove the transport contract, not the semantic meaning of `display_amount`: the adapter accepts it as an integer and requires it only for checkout `type=0`, while the README/testbed docs keep the route docs-first and do not redefine the field. The strongest interpretation came from the combined live matrix evidence plus narrow external mod.io docs research. Our first real checkout attempt on paid fixture `16364` used `type=0` with `display_amount=499` and failed at provider business validation with `422 / error_ref 900035 / The given display price does not match the price of the mod.` The paid fixture itself is already proven at `price=500`, while the `499` value came from the separate token-pack browse lane’s **500 Pack** `display_amount`, which is evidence for storefront pack pricing rather than for the paid mod’s own checkout expected-price check.
+
+The decisive external corroboration is mod.io’s marketplace/plugin guidance for direct purchases: both the Unreal and C++ SDK docs describe the purchase call as requiring the **ExpectedPrice / price displayed to the user from the mod listing**, explicitly so the user is not charged more or less than the mod price shown at browse time if the price changed between listing and purchase. That wording lines up exactly with provider error `900035` and strongly suggests that direct checkout `type=0` expects `display_amount` to be the displayed **mod purchase price** in marketplace virtual-currency units, not the localized/storefront display price of a token pack used to top up the wallet.
+
+**Strongest evidence-backed interpretation:** for direct `type=0` checkout, `display_amount` most likely means the expected mod price shown to the user for the specific paid mod being purchased.
+
+**Best next guarded retry candidate:** keep `type=0`, keep a fresh `idempotent_key`, keep the same paid fixture `mod_id=16364`, and retry with `display_amount=500` because the fixture’s proven mod price is `500` and the prior `499` candidate is now specifically contradicted by the live provider mismatch response.
+
+**Best next candidate payload:**
+```json
+{
+  "mod_id": "16364",
+  "fields": {
+    "idempotent_key": "<fresh-uuid>",
+    "type": 0,
+    "display_amount": 500
+  }
+}
+```
+
+**Remaining uncertainty before the retry:** we still do not have a REST page sentence that explicitly says "type 0 `display_amount` must equal the mod’s listed token price"; that inference is evidence-backed but still partly indirect. We also have not yet falsified whether any hidden pricing nuance exists for this fixture (for example a stale cached browse price, discounting/localization layer, or a portal-specific expectation), though no repo-local/live evidence currently points to such a nuance. No matrix-doc truth change was needed because the existing matrix already records the first failed `499` attempt accurately; this task only refines the interpretation and next candidate retry value.
+
+---
+
 ## Final Results
 
 **Status:** ⚠️ Partial / Blocked
 
 **What We Built:** A truthful 2026-06-15/2026-06-16 monetization revalidation record that now covers all currently runnable paid-mod proof layers for this slice: the user-host bearer lane on `https://u-71104.test.mod.io/v1`, the game-host token-pack lane on `https://g-1325.test.mod.io/v1`, the restored in-repo Godot harness path reproducing those already-proven monetization reads from the real `--paid-mods` flow, the live owned-mod monetization-team read on paid fixture mod **`16364`**, and the first truthful direct checkout attempt on that paid fixture while keeping entitlements deferred. The fixture remains mod **`16364`** with modfile **`23257`**, and its truthful paid state required creating a mod monetization team before the `price` + `monetization_options` update would stick.
 
-**Reference Check:** `REF-03`, `REF-04`, `REF-05`, `REF-07`, `REF-08`, and `REF-09` were cross-checked across the audit, OAuth rerun, game-host rerun, harness repair, final harness rerun, paid-fixture creation, owned-mod continuation, checkout-first execution, and this audit pass. The repo/testbed truth is now: `/me`, `/me/purchased`, and `/me/wallets?game_id=1325` work on the approved user host with a real bearer token; `GET /games/1325/monetization/token-packs` works on the approved game host with the supplied `g-1325` API key and also succeeded in the comparison call without bearer; `godot --headless --path .testbed --script res://scripts/modio_live_harness.gd -- --paid-mods --json` reproduces token packs, wallet, purchased, and the owned-mod monetization-team read successfully when the truthful local fixture inputs are present; `GET /games/1325/mods/16364/monetization/team` is proven with one `DerrickBarra` row at `split=100`; entitlements remain intentionally deferred because `entitlements_payload_json` is still blank; direct checkout on mod `16364` has now been attempted live through the harness with payload `{"mod_id":"16364","fields":{"idempotent_key":"checkout-890ddbfc-8b19-4af3-b8dc-aa859330b81c","type":0,"display_amount":499}}`, no `X-Modio-Portal` header, and exact provider response `422 / error_ref 900035 / The displayed price does not match the price of the given mod.`; and S2S/history remains blocked on missing `monetization_team_id` / transaction inputs plus the still-unproven `service_token` implementation assumption.
+**Reference Check:** `REF-02`, `REF-03`, `REF-04`, `REF-05`, `REF-07`, `REF-08`, and `REF-09` were cross-checked across the audit, OAuth rerun, game-host rerun, harness repair, final harness rerun, paid-fixture creation, owned-mod continuation, checkout-first execution, and the follow-up `display_amount` research pass. The repo/testbed truth is now: `/me`, `/me/purchased`, and `/me/wallets?game_id=1325` work on the approved user host with a real bearer token; `GET /games/1325/monetization/token-packs` works on the approved game host with the supplied `g-1325` API key and also succeeded in the comparison call without bearer; `godot --headless --path .testbed --script res://scripts/modio_live_harness.gd -- --paid-mods --json` reproduces token packs, wallet, purchased, and the owned-mod monetization-team read successfully when the truthful local fixture inputs are present; `GET /games/1325/mods/16364/monetization/team` is proven with one `DerrickBarra` row at `split=100`; entitlements remain intentionally deferred because `entitlements_payload_json` is still blank; direct checkout on mod `16364` has now been attempted live through the harness with payload `{"mod_id":"16364","fields":{"idempotent_key":"checkout-890ddbfc-8b19-4af3-b8dc-aa859330b81c","type":0,"display_amount":499}}`, no `X-Modio-Portal` header, and exact provider response `422 / error_ref 900035 / The displayed price does not match the price of the given mod.`; the strongest current interpretation is that checkout `display_amount` for `type=0` is the expected displayed **mod price** rather than a token-pack storefront price, making `display_amount=500` the best next retry candidate on fixture `16364`; and S2S/history remains blocked on missing `monetization_team_id` / transaction inputs plus the still-unproven `service_token` implementation assumption.
 
 **Commits:**
 - `7d97f39` - docs: record monetization staircase revalidation
@@ -805,10 +849,10 @@ Important truth from this attempt:
 
 **Lessons Learned:** The main hidden bugbears were context drift, path-family drift, and one live request-shape mismatch on the monetization-team create route. For truthful future reruns we should keep the lanes sharply separated: user-host `/me*` monetization reads require a real bearer token; game-host token packs require the correct `g-1325` host/key tuple and are now proven; and paid-mod creation on this server currently needs a creator monetization-team row before `price` + `monetization_options` updates stop failing with `900022`. Separately, the `.testbed` workbench depends on its root bridge paths staying intact and used consistently; mixing `res://src/...` globals with direct addon/sibling script paths is what turned a missing bridge into the misleading `ModioVendorAdapter` parse/load failure.
 
-**Stopping Point:** The continuation slice is now fully audited. The owned paid-mod read is proven on the live fixture (`GET /games/1325/mods/16364/monetization/team` → `200`, one `DerrickBarra` row, `split=100`), entitlements remain intentionally deferred/out of scope for this checkout-first pass, and direct checkout was truthfully exercised through one live `type=0` attempt that reached provider validation but failed on `422 / 900035` price/display mismatch rather than on local auth, route wiring, or adapter validation. S2S/history remains unrun for explicit missing local/runtime prerequisites rather than provider failure.
+**Stopping Point:** The continuation slice is now fully audited through the checkout-price research follow-up. The owned paid-mod read is proven on the live fixture (`GET /games/1325/mods/16364/monetization/team` → `200`, one `DerrickBarra` row, `split=100`), entitlements remain intentionally deferred/out of scope for this checkout-first pass, and direct checkout was truthfully exercised through one live `type=0` attempt that reached provider validation but failed on `422 / 900035` price/display mismatch rather than on local auth, route wiring, or adapter validation. The best current evidence says that mismatch came from using token-pack `display_amount=499` instead of the mod’s own displayed price `500`. S2S/history remains unrun for explicit missing local/runtime prerequisites rather than provider failure.
 
-**Next Slice:** The current slice is complete, but the remaining checkout blocker is now narrow: refine the provider-accepted `display_amount` semantics/value for direct `type=0` checkout on mod `16364`, then rerun checkout with a fresh idempotent key. In parallel or later, provide truthful `entitlements_payload_json` only if Derrick wants to leave the checkout-first scope and test entitlements; and provide a truthful `monetization_team_id` plus either a falsified/confirmed auth path for the current `service_token` assumption or an actual configured `service_token` before retrying S2S/history, along with a truthful `transaction_id` before the S2S detail read.
+**Next Slice:** The current slice is complete, and the next guarded checkout retry is now materially narrowed: rerun direct `type=0` checkout on mod `16364` with a **fresh** `idempotent_key` and `display_amount=500`, treating that field as the expected displayed mod price unless new provider evidence contradicts it. In parallel or later, provide truthful `entitlements_payload_json` only if Derrick wants to leave the checkout-first scope and test entitlements; and provide a truthful `monetization_team_id` plus either a falsified/confirmed auth path for the current `service_token` assumption or an actual configured `service_token` before retrying S2S/history, along with a truthful `transaction_id` before the S2S detail read.
 
 ---
 
-*Updated through 2026-06-16 16:59 EDT*
+*Updated through 2026-06-16 17:18 EDT*
