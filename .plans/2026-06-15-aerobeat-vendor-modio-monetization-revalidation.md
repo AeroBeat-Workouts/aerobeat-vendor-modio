@@ -1,9 +1,9 @@
 # AeroBeat Vendor Mod.io Monetization Revalidation
 
 **Date:** 2026-06-15  
-**Status:** In Progress  
-**Last Updated:** 2026-06-16 17:35 EDT  
-**Blocked Reason:** None  
+**Status:** Blocked  
+**Last Updated:** 2026-06-16 19:05 EDT  
+**Blocked Reason:** Provider-side wallet funding flow on `test.mod.io` is failing for the approved buyer account (`422 / errorRef 900030 / Payment failed, unable to process your payment`) before wallet balance can be increased.  
 **Agent:** `Cookie`
 
 ---
@@ -943,6 +943,71 @@ Bottom line: the safe funding workflow is now understood, but actual execution r
 
 ---
 
+## Continuation Slice — 2026-06-16 README Truth Update Before Handoff
+
+### Task 23: Update README monetization coverage/truth summary
+
+**Bead ID:** `aerobeat-vendor-modio-c5o`  
+**SubAgent:** `primary`  
+**Role:** `coder`  
+**References:** `REF-02`, `REF-03`, `REF-04`, `REF-05`, `REF-09`  
+**Prompt:** In `aerobeat-vendor-modio`, claim the assigned bead on start with `bd update <bead-id> --status in_progress --json`. Update `README.md` so it truthfully reflects what has and has not been tested/confirmed in the repo’s monetization surface after the latest paid-mod validation work. Keep the change narrow and evidence-backed: summarize the proven user-host reads, game-host token-pack read, owned-mod monetization-team read, paid fixture creation, direct checkout attempts/results, entitlements deferral, S2S/history remaining blockers, and current provider-side wallet-funding blocker. Do not overstate unproven routes. Update the active plan with exact changes, commit/push by default, and close the bead with `bd close <bead-id> --reason "README monetization truth update completed" --json`.
+
+**Folders Created/Deleted/Modified:**
+- `.plans/`
+
+**Files Created/Deleted/Modified:**
+- `README.md`
+- `.plans/2026-06-15-aerobeat-vendor-modio-monetization-revalidation.md`
+
+**Status:** ✅ Complete
+
+**Results:** Updated `README.md` with one narrow evidence-backed truth block under the live-harness section. The new block explicitly separates the proven user-host `/me` / `/me/purchased` / `/me/wallets?game_id=1325` reads, the proven game-host token-pack read on `g-1325`, the proven owned-mod monetization-team read on paid fixture `16364`, the exact paid-fixture creation truth (including the intermediate `900022` monetization-team blocker), the two direct checkout attempts and their exact provider errors (`900035` at `display_amount=499`, then `900049` at `display_amount=500`), the fact that entitlements are still intentionally deferred in practice, the fact that S2S/history remains unproven and still blocked on truthful team/transaction inputs plus the current `service_token` assumption, and the current wallet-funding blocker (documented buyer-side `test.mod.io` top-up path exists, but no authenticated buyer web session / direct token-purchase REST route was available from this repo flow). The README change stays narrow and does **not** claim a successful end-to-end paid purchase.
+
+---
+
+### Task 24: QA verify README truth summary against current evidence
+
+**Bead ID:** `aerobeat-vendor-modio-g56`  
+**SubAgent:** `primary`  
+**Role:** `qa`  
+**References:** `REF-02`, `REF-09`  
+**Prompt:** In `aerobeat-vendor-modio`, claim the assigned bead on start with `bd update <bead-id> --status in_progress --json`. Verify that the README monetization truth summary matches the current evidence in the plan and matrix doc. Check especially for any overstatement about entitlements, S2S/history, wallet funding, or successful checkout. Make only minimal fixes if needed, update the active plan with the QA verdict, commit/push by default if tracked changes were needed, and close the bead with `bd close <bead-id> --reason "README truth QA completed" --json`.
+
+**Folders Created/Deleted/Modified:**
+- `.plans/`
+
+**Files Created/Deleted/Modified:**
+- `README.md` (if minimal QA fix needed)
+- `.plans/2026-06-15-aerobeat-vendor-modio-monetization-revalidation.md`
+
+**Status:** ⏳ Pending
+
+**Results:** Pending.
+
+---
+
+### Task 25: Audit README truth update and provider-blocked wrap state
+
+**Bead ID:** `aerobeat-vendor-modio-hdk`  
+**SubAgent:** `primary`  
+**Role:** `auditor`  
+**References:** `REF-02`, `REF-09`  
+**Prompt:** In `aerobeat-vendor-modio`, claim the assigned bead on start with `bd update <bead-id> --status in_progress --json`. Independently audit the README truth update and the current provider-blocked wrap state. Verify the README matches current monetization evidence and does not imply end-to-end paid purchase success yet. Make only minimal truth fixes if needed, update the active plan with the audit verdict, commit/push by default if needed, and close the bead with `bd close <bead-id> --reason "README truth audit completed" --json`.
+
+**Folders Created/Deleted/Modified:**
+- `.plans/`
+
+**Files Created/Deleted/Modified:**
+- `README.md` (if minimal audit fix needed)
+- `.plans/2026-06-15-aerobeat-vendor-modio-monetization-revalidation.md`
+
+**Status:** ⏳ Pending
+
+**Results:** Pending.
+
+---
+
 ## Final Results
 
 **Status:** ⚠️ Partial / Blocked
@@ -967,4 +1032,4 @@ Bottom line: the safe funding workflow is now understood, but actual execution r
 
 ---
 
-*Updated through 2026-06-16 17:34 EDT*
+*Updated through 2026-06-16 19:05 EDT*

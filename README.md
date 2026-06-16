@@ -320,6 +320,34 @@ Safety notes:
 - the harness currently stops at `GET /authenticate/terms` for agreement coverage because the test-sandbox terms payload does not expose agreement type/version ids to chain into the agreement-detail routes automatically
 - real secrets stay in ignored `.testbed/configs/*.local.cfg` files only
 
+### Current paid-mod validation truth (2026-06-16)
+
+Keep the monetization claims here narrow:
+
+- proven user-host reads on `https://u-71104.test.mod.io/v1` with a real bearer token:
+  - `GET /me` returns the approved `DerrickBarra` test user
+  - `GET /me/purchased` returns a valid empty result set
+  - `GET /me/wallets?game_id=1325` returns a valid wallet payload with `balance=0`
+- proven game-host read on `https://g-1325.test.mod.io/v1`:
+  - `GET /games/1325/monetization/token-packs` returns six live token packs for `portal="web"`
+  - this route also succeeded in a direct comparison call without bearer once the `g-1325` host/key tuple was corrected
+- proven owned-mod read:
+  - `GET /games/1325/mods/16364/monetization/team` returns `200` with one `DerrickBarra` monetization-team row at `split=100`
+- proven paid fixture creation:
+  - the current paid workout fixture is mod `16364` with modfile `23257`
+  - setting `price=500` and `monetization_options=2` did not stick until a mod monetization team was created first; the initial paid-state update failed with `404 / error_ref 900022 / Monetization team could not be found`
+- direct checkout has been attempted, but not completed end-to-end:
+  - first live `type=0` checkout attempt on mod `16364` failed with `422 / error_ref 900035 / The displayed price does not match the price of the given mod` when `display_amount=499`
+  - second live `type=0` checkout attempt with `display_amount=500` moved past that mismatch and failed later with `422 / error_ref 900049 / You do not have enough funds to perform this action`
+  - do **not** read this as a successful paid purchase; the current blocker is buyer-wallet funding, not repo routing
+- entitlements are still intentionally deferred in practice for this checkout-first pass:
+  - `POST /me/entitlements` has not been exercised live because `entitlements_payload_json` is still intentionally blank in local session config
+- S2S/history remains unproven:
+  - `GET /s2s/monetization-teams/{monetization_team_id}/transactions` and detail-by-transaction were not run because truthful `monetization_team_id` / `transaction_id` inputs were not available and the current harness still models this lane behind `service_token`
+- wallet funding remains provider-side / access-context blocked today:
+  - mod.io test docs point to buyer-side top-up through the authenticated `test.mod.io` website using published dummy test cards, or a separate platform-entitlement purchase + sync path
+  - this repo does not currently wrap a direct token-purchase REST route, and we did not have an authenticated buyer website session to complete the top-up step from this repo flow
+
 ### Restore dev/test dependencies
 
 From the repo root:
