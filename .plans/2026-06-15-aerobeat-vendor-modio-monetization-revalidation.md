@@ -2,7 +2,7 @@
 
 **Date:** 2026-06-15  
 **Status:** In Progress  
-**Last Updated:** 2026-06-15 18:45 EDT  
+**Last Updated:** 2026-06-16 10:58 EDT  
 **Blocked Reason:** None  
 **Agent:** `Cookie`
 
@@ -497,6 +497,135 @@ No deeper lane was executed in this task; this was planning only.
 6. Verification read: `GET /games/1325/mods/16364` → `200`, confirming the final paid fixture state.
 
 Tracked repo changes for this task are documentation-only: this plan plus the monetization matrix doc now capture the truthful request path, the intermediate blocker, and the final fixture state. Local-only config was reused/touched in the ignored files `.testbed/configs/modio.local.cfg` and `.testbed/configs/modio.session.local.cfg`; no secrets were added to tracked files.
+
+---
+
+## Continuation Slice — 2026-06-16 Remaining Paid-Lane API Execution
+
+### Task 12: Preflight remaining-lane runtime inputs and launch order
+
+**Bead ID:** `aerobeat-vendor-modio-e50`  
+**SubAgent:** `primary`  
+**Role:** `research`  
+**References:** `REF-03`, `REF-04`, `REF-05`, `REF-09`  
+**Prompt:** In `aerobeat-vendor-modio`, claim the assigned bead on start with `bd update <bead-id> --status in_progress --json`. Do a narrow preflight for the remaining paid-lane API calls only. Verify the current local ignored config/runtime inputs needed for (1) owned-mod monetization-team read on mod `16364`, (2) S2S/history list/detail, (3) entitlements write, and (4) checkout write. Distinguish between route-path facts, payload JSON, and auth-token assumptions. Do not execute the deeper calls yet unless a call is strictly needed to confirm a prerequisite. Update the active plan with the exact readiness state and recommended execution order for today, then close the bead with `bd close <bead-id> --reason "Remaining-lane preflight completed" --json`.
+
+**Folders Created/Deleted/Modified:**
+- `.plans/`
+- `.testbed/docs/`
+
+**Files Created/Deleted/Modified:**
+- `.plans/2026-06-15-aerobeat-vendor-modio-monetization-revalidation.md`
+- `.testbed/docs/modio-paid-mods-test-server-matrix.md` (if truth updates are needed)
+
+**Status:** ✅ Complete
+
+**Results:** Preflight stayed narrow and used only current repo code plus the ignored local cfg files.
+
+Current ignored local config state verified directly:
+- `.testbed/configs/modio.local.cfg`: `game_id=1325`, `api_key=<present>`, `base_url=https://g-1325.test.mod.io/v1`, `service_token=""`, `portal=""`, `platform=""`, `monetization_team_id=""`, `owned_mod_id=""`, `paid_mod_id=""`
+- `.testbed/configs/modio.session.local.cfg`: `access_token=<present>`, `user_id=71104`, `s2s_transaction_id=""`, `entitlements_payload_json=""`, `checkout_payload_json=""`, `s2s_filters_json=""`, delegation/idempotent S2S write fields blank
+
+Exact readiness by remaining lane:
+- **Owned-mod monetization-team read on mod `16364`**
+  - **Route-path facts:** game id `1325` is already present in stable cfg; the truthful paid mod id is known from prior evidence as `16364`.
+  - **Current local runtime state:** bearer access token is already present; current stable cfg does **not** yet carry `owned_mod_id` or `paid_mod_id`, so the harness/scene-config path still reports this lane as blocked.
+  - **Auth-token assumptions:** current adapter route is bearer-authenticated only (`GET /games/{game-id}/mods/{mod-id}/monetization/team`); no `service_token` assumption is involved here.
+  - **Readiness:** **one local route-input tweak away**. This can run either by setting `owned_mod_id=16364` (and optionally `paid_mod_id=16364`) in ignored stable cfg, or by passing `16364` explicitly to the adapter/request builder outside the config-driven harness path.
+- **S2S/history list + detail**
+  - **Route-path facts:** list needs a truthful `monetization_team_id`; detail additionally needs a truthful `transaction_id` (or a successful list response that yields one). The current ignored cfg provides neither: stable `monetization_team_id` is blank, `s2s_filters_json` is blank, and `s2s_transaction_id` is blank.
+  - **Payload JSON facts:** optional list filters would come from `s2s_filters_json`; current session cfg leaves that empty.
+  - **Auth-token assumptions:** the current adapter/harness still require `service_token` for both history routes, and current stable cfg leaves `service_token` blank. That remains an implementation assumption/open question, not a provider fact proven by this preflight.
+  - **Readiness:** **not ready**. Missing both the selected team path input and the current implementation’s service-token assumption; detail is additionally blocked on transaction discovery/id.
+- **Entitlements write**
+  - **Route-path facts:** no mod id is needed; the route is `POST /me/entitlements`.
+  - **Payload JSON facts:** current session cfg leaves `entitlements_payload_json` blank. The harness/loader expect a JSON object with top-level `portal` / optional `platform` and nested raw request `fields`. Adapter validation then requires `X-Modio-Portal`, plus the documented portal-specific body fields (`psn_token`, `xbox_token`, or `epicgames_token` + `epicgames_sandbox_id` when those portals are chosen). `game_id` is still required unless relying on g-host behavior.
+  - **Auth-token assumptions:** bearer access token is already present; no service-token assumption applies.
+  - **Readiness:** **blocked only on truthful payload JSON selection**.
+- **Checkout write**
+  - **Route-path facts:** needs the paid mod id in the request path. Current ignored stable cfg leaves `paid_mod_id` blank, and current session cfg leaves `checkout_payload_json` blank, so there is no current local source for `mod_id`.
+  - **Payload JSON facts:** the harness/loader expect top-level `portal` / optional `platform` / optional `mod_id` plus nested raw request `fields`. Adapter validation always requires `idempotent_key` and `type`, then type-specific fields (`display_amount` for type `0`; `payment_method_id` + `terms_accepted` + `refund_accepted` for types `2`/`3`; `transaction_id` for type `4`) plus any portal-specific token fields.
+  - **Auth-token assumptions:** bearer access token is already present; no service-token assumption applies.
+  - **Readiness:** **blocked on both truthful mod-id wiring and truthful payload JSON**. Setting stable `paid_mod_id=16364` would remove the route-path gap, but the write would still remain blocked until a real checkout payload is supplied.
+
+Recommended execution order for **today’s actual readiness state**:
+1. **Owned-mod monetization-team read first** — lowest-risk and closest to runnable; set `owned_mod_id=16364` (and preferably `paid_mod_id=16364`) locally, then execute `GET /games/1325/mods/16364/monetization/team`.
+2. **Entitlements write preflight/attempt second** — bearer auth is already present, so the only missing piece is a truthful `entitlements_payload_json`.
+3. **Checkout write preflight/attempt third** — after entitlements payload shape is settled, add `paid_mod_id=16364` or `checkout_payload_json.mod_id` plus the checkout payload and run this last among the buyer-write pair.
+4. **S2S/history list fourth** — leave it until after the buyer lanes because it is currently the least ready lane: missing selected team input and still carrying the unresolved `service_token` implementation assumption.
+5. **S2S/history detail fifth** — only after the list call succeeds or a truthful `transaction_id` is otherwise available.
+
+This slightly changes the practical launch order from the earlier generic “read-only before writes” bias: today, the buyer-write lanes are actually closer to executable than S2S because bearer auth is already present while S2S still lacks both path inputs and the current service-token prerequisite. No matrix-doc truth change was needed from this preflight alone; the tracked update for this task is the plan.
+
+---
+
+### Task 13: Execute owned-mod monetization-team read and S2S/history reads
+
+**Bead ID:** `aerobeat-vendor-modio-nzo`  
+**SubAgent:** `primary`  
+**Role:** `qa`  
+**References:** `REF-03`, `REF-04`, `REF-05`, `REF-09`  
+**Prompt:** In `aerobeat-vendor-modio`, claim the assigned bead on start with `bd update <bead-id> --status in_progress --json`. Using the truthful current fixture and config, execute the next read-only deeper monetization lanes in order: (1) `GET /games/1325/mods/16364/monetization/team`, (2) S2S/history list, and (3) S2S/history detail if and only if the list call yields a truthful transaction id or otherwise unblocks the detail route. Record exact request context and endpoint-by-endpoint results, clearly separating provider/business-rule responses from local prerequisite gaps. Update the active plan and matrix doc, commit/push only if tracked docs/plan changes were required, then close the bead with `bd close <bead-id> --reason "Owned-mod and S2S read lanes executed" --json`.
+
+**Folders Created/Deleted/Modified:**
+- `.plans/`
+- `.testbed/docs/`
+- `.testbed/configs/` (local ignored cfg only if touched)
+
+**Files Created/Deleted/Modified:**
+- `.plans/2026-06-15-aerobeat-vendor-modio-monetization-revalidation.md`
+- `.testbed/docs/modio-paid-mods-test-server-matrix.md`
+- `.testbed/configs/modio.local.cfg` (local ignored, if touched)
+- `.testbed/configs/modio.session.local.cfg` (local ignored, if touched)
+
+**Status:** ⏳ Pending
+
+**Results:** Pending.
+
+---
+
+### Task 14: Execute guarded buyer-write preflight and attempts
+
+**Bead ID:** `aerobeat-vendor-modio-juh`  
+**SubAgent:** `primary`  
+**Role:** `qa`  
+**References:** `REF-03`, `REF-04`, `REF-05`, `REF-09`  
+**Prompt:** In `aerobeat-vendor-modio`, claim the assigned bead on start with `bd update <bead-id> --status in_progress --json`. After the read-only deeper lanes are complete, run the guarded buyer-write lane in the safest order: entitlements preflight/attempt first, checkout last. Use only truthful payload JSON and the explicit opt-in write path; do not invent portal/type fields or silently widen scope. Surface adapter validation failures separately from live provider responses. Update the active plan and matrix doc with exact results, commit/push only if tracked docs/plan changes were required, then close the bead with `bd close <bead-id> --reason "Guarded buyer-write lane executed" --json`.
+
+**Folders Created/Deleted/Modified:**
+- `.plans/`
+- `.testbed/docs/`
+- `.testbed/configs/` (local ignored cfg only if touched)
+
+**Files Created/Deleted/Modified:**
+- `.plans/2026-06-15-aerobeat-vendor-modio-monetization-revalidation.md`
+- `.testbed/docs/modio-paid-mods-test-server-matrix.md`
+- `.testbed/configs/modio.local.cfg` (local ignored, if touched)
+- `.testbed/configs/modio.session.local.cfg` (local ignored, if touched)
+
+**Status:** ⏳ Pending
+
+**Results:** Pending.
+
+---
+
+### Task 15: Independently audit the remaining paid-lane truth surface
+
+**Bead ID:** `aerobeat-vendor-modio-rya`  
+**SubAgent:** `primary`  
+**Role:** `auditor`  
+**References:** `REF-03`, `REF-04`, `REF-05`, `REF-09`  
+**Prompt:** In `aerobeat-vendor-modio`, claim the assigned bead on start with `bd update <bead-id> --status in_progress --json`. Independently audit the continuation-slice results for the remaining paid lanes. Verify that the owned-mod read, any S2S/history evidence, and any entitlements/checkout results are documented truthfully; make sure local prerequisite gaps, adapter validation failures, and live provider responses are not conflated. Make only minimal truth fixes if needed, update the active plan with the audit verdict, and close the bead with `bd close <bead-id> --reason "Remaining paid-lane audit completed" --json`.
+
+**Folders Created/Deleted/Modified:**
+- `.plans/`
+
+**Files Created/Deleted/Modified:**
+- `.plans/2026-06-15-aerobeat-vendor-modio-monetization-revalidation.md`
+
+**Status:** ⏳ Pending
+
+**Results:** Pending.
 
 ---
 
