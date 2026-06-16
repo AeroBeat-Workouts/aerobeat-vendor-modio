@@ -1,6 +1,6 @@
 # mod.io paid-mods test-server QA matrix
 
-> Current truth from the 2026-06-16 continuation pass: the approved `u-71104.test.mod.io` bearer `/me*` lane works with a real OAuth token, the `g-1325.test.mod.io` rerun proved the game-host token-pack lane, the direct owned-mod read `GET /games/1325/mods/16364/monetization/team` is now also proven on the live paid fixture, and the restored Godot harness path reproduces those already-proven read results from the in-repo `--paid-mods` flow. The guarded buyer-write lane has now been split truthfully by input state: `POST /me/entitlements` remains intentionally deferred and locally blocked because `entitlements_payload_json` is still blank, while `POST /games/1325/mods/16364/checkout` has now progressed through **two** real `type=0` live attempts after the earlier local cfg JSON-escaping mistake was corrected. The first live checkout used no `X-Modio-Portal` header, reached provider business validation, and failed with `422 / error_ref 900035 / The displayed price does not match the price of the given mod.` The second live retry kept the same no-portal request shape but used `display_amount=500`; that moved past the displayed-price mismatch and failed instead with `422 / error_ref 900049 / You do not have enough funds to perform this action.` S2S/history reads remain unproven. One implementation nuance remains: the harness currently groups token-packs inside an access-token-gated paid-mods read lane even though the earlier direct game-host comparison proved `GET /games/1325/monetization/token-packs` also succeeds without bearer on `g-1325` once the host/key tuple is correct, and it still models S2S/history behind `service_token` as an implementation assumption rather than a proven provider fact.
+> Current truth from the 2026-06-16 continuation pass: the approved `u-71104.test.mod.io` bearer `/me*` lane works with a real OAuth token, the `g-1325.test.mod.io` rerun proved the game-host token-pack lane, the direct owned-mod read `GET /games/1325/mods/16364/monetization/team` is now also proven on the live paid fixture, and the restored Godot harness path reproduces those already-proven read results from the in-repo `--paid-mods` flow. The guarded buyer-write lane has now been split truthfully by input state: `POST /me/entitlements` remains intentionally deferred and locally blocked because `entitlements_payload_json` is still blank, while `POST /games/1325/mods/16364/checkout` has now progressed through **two** real `type=0` live attempts after the earlier local cfg JSON-escaping mistake was corrected. The first live checkout used no `X-Modio-Portal` header, reached provider business validation, and failed with `422 / error_ref 900035 / The displayed price does not match the price of the given mod.` The second live retry kept the same no-portal request shape but used `display_amount=500`; that moved past the displayed-price mismatch and failed instead with `422 / error_ref 900049 / You do not have enough funds to perform this action.` The follow-up wallet-funding research now narrows the remaining blocker further: on `test.mod.io`, wallet funding is documented to happen either through direct mod.io web virtual-currency purchase (using published dummy test card numbers; real cards do not work there) or through separate platform-entitlement purchase + sync, but no safe live top-up step was executable from the current access context because the repo/docs expose no documented REST token-purchase endpoint and we do not currently have an authenticated buyer web session on `test.mod.io`. S2S/history reads remain unproven. One implementation nuance remains: the harness currently groups token-packs inside an access-token-gated paid-mods read lane even though the earlier direct game-host comparison proved `GET /games/1325/monetization/token-packs` also succeeds without bearer on `g-1325` once the host/key tuple is correct, and it still models S2S/history behind `service_token` as an implementation assumption rather than a proven provider fact.
 
 _Date:_ 2026-06-15  
 _Repo:_ `aerobeat-vendor-modio`  
@@ -560,3 +560,51 @@ This follow-up retry kept **entitlements deferred** and reused the restored Godo
 - **Was `display_amount=500` accepted?** Yes, in the specific sense that the retry no longer failed on displayed-price mismatch and instead advanced to provider funds validation.
 - **Exact live result:** `422 / error_ref 900049 / You do not have enough funds to perform this action.`
 - **Remaining blocker before full checkout validation:** the wallet currently has `balance=0`, so the next blocker is funding the buyer account with sufficient MIO / purchase balance before another direct checkout retry can prove end-to-end success.
+
+## 2026-06-16 wallet-funding research for the approved buyer test user
+
+After the second direct checkout retry narrowed the failure to wallet balance, I researched how buyer-wallet funding is supposed to work on mod.io test server and whether that funding step could be executed safely from the current access context.
+
+### Repo / harness findings first
+
+| Question | Result | Exact evidence |
+| --- | --- | --- |
+| Does this repo expose a documented direct token-pack purchase / wallet top-up REST call? | **No** | The current vendor seam and README cover token-pack discovery (`GET /games/{game-id}/monetization/token-packs`), wallet reads (`GET /me/wallets`), entitlement sync (`POST /me/entitlements`), checkout (`POST /games/{game-id}/mods/{mod-id}/checkout`), and S2S routes, but no direct documented token-pack purchase endpoint is wrapped or referenced. |
+| What buyer-funding lanes are already represented in the repo? | **Two separate lanes** | The repo structure already mirrors the docs split: direct checkout against mod.io wallet balance, and a separate entitlement-sync lane for platform purchases. That means wallet funding itself is expected to happen outside the currently wrapped direct-checkout request. |
+
+### Narrow external docs findings
+
+| Source | What it says | Why it matters here |
+| --- | --- | --- |
+| `https://docs.mod.io/monetization/payment-testing` | The `test.mod.io` environment supports monetization testing with published **dummy card numbers** (`4111111111111111`, `5555555555554444` approved; failed-test values also listed). It explicitly says **real cards will not work** in the test environment. | This makes the documented web funding path clearly non-real-money on the test server. |
+| `https://docs.mod.io/monetization/modio-as-purchase-server` | For the **mod.io Website / Virtual Currency** path, the player purchases tokens directly from the mod.io website and they are then ready to spend; **no entitlement sync is necessary**. The same guide separately explains platform-store entitlement purchase + sync for console/store flows. | This is the cleanest documented answer for the current direct-checkout seam: website purchase funds the wallet directly. |
+| `https://docs.mod.io/monetization/how-it-works` | Players can purchase virtual-currency packs directly through the game page on mod.io / web app, or via platform stores depending on integration. | Confirms the website/web-app top-up route is a first-class monetization path, not a guess. |
+| `https://docs.mod.io/unreal/marketplace` and `https://docs.mod.io/cppsdk/marketplace` | For platform/store-integrated flows, the SDK/plugin supports showing token-purchase UI, then refreshing/consuming entitlements to update wallet balance. | Confirms the alternate funding route is store-entitlement purchase + sync, which is distinct from the direct website top-up route. |
+
+### Browser/UI access check
+
+I performed a careful unauthenticated browser pass only to verify whether the current access context already exposed a usable top-up UI:
+
+| URL | Result | Exact evidence |
+| --- | --- | --- |
+| `https://test.mod.io` | **PASS — public test shell only** | Exposed the test-site home page and a visible **Log in** button. |
+| `https://test.mod.io/g/aerobeat` | **No usable public purchase surface from current context** | The page showed the test-environment banner plus `"'aerobeat' is not set up"` and no authenticated wallet/purchase UI. |
+| `https://test.mod.io/g/aerobeat/m/oc-paid-workout-fixture-20260615` | **Same blocker** | The unauthenticated page state was the same not-set-up/public-shell surface, not a buyer wallet / top-up page. |
+
+### Funding-workflow conclusion for this exact seam
+
+- The funding workflow is now **clear**:
+  1. For the **direct mod.io checkout** path, the buyer wallet is supposed to be funded by purchasing virtual currency on `test.mod.io` / the mod.io web app.
+  2. In the test environment, that purchase should use the published **dummy card numbers**, so it is not a real-money action.
+  3. For a **platform-store** path, the alternate workflow is to buy a mapped consumable entitlement on the platform and then sync it into the mod.io wallet via the entitlement-consumption route.
+- I did **not** execute funding because the current access context does **not** include an authenticated `test.mod.io` browser session for the buyer account, and I could not truthfully substitute an undocumented REST call for that missing UI/session.
+- Therefore the exact remaining blocker is: **buyer-side authenticated website/UI access on `test.mod.io` (or equivalent explicit funding access) is still missing.**
+
+### Practical next step
+
+The most direct next step for this checkout-first validation is:
+
+1. log into `test.mod.io` as the approved buyer test user (`DerrickBarra`),
+2. purchase the minimum needed virtual-currency pack on the mod.io website using one of the published approved dummy card numbers,
+3. verify `GET /me/wallets?game_id=1325` now returns a positive balance,
+4. rerun `POST /games/1325/mods/16364/checkout` with a fresh idempotent key.
