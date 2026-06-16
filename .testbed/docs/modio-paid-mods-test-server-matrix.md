@@ -1,6 +1,6 @@
 # mod.io paid-mods test-server QA matrix
 
-> Current truth from the 2026-06-16 continuation pass: the approved `u-71104.test.mod.io` bearer `/me*` lane works with a real OAuth token, the `g-1325.test.mod.io` rerun proved the game-host token-pack lane, the direct owned-mod read `GET /games/1325/mods/16364/monetization/team` is now also proven on the live paid fixture, and the restored Godot harness path reproduces those already-proven read results from the in-repo `--paid-mods` flow. The remaining unproven monetization lanes are now the guarded buyer writes and S2S/history reads. One implementation nuance remains: the harness currently groups token-packs inside an access-token-gated paid-mods read lane even though the earlier direct game-host comparison proved `GET /games/1325/monetization/token-packs` also succeeds without bearer on `g-1325` once the host/key tuple is correct, and it still models S2S/history behind `service_token` as an implementation assumption rather than a proven provider fact.
+> Current truth from the 2026-06-16 continuation pass: the approved `u-71104.test.mod.io` bearer `/me*` lane works with a real OAuth token, the `g-1325.test.mod.io` rerun proved the game-host token-pack lane, the direct owned-mod read `GET /games/1325/mods/16364/monetization/team` is now also proven on the live paid fixture, and the restored Godot harness path reproduces those already-proven read results from the in-repo `--paid-mods` flow. The guarded buyer-write lane has now also been preflighted truthfully with `--allow-paid-writes`: both `POST /me/entitlements` and `POST /games/1325/mods/16364/checkout` remain blocked **before** adapter validation or live HTTP because the ignored session config still leaves `entitlements_payload_json` and `checkout_payload_json` blank. S2S/history reads remain unproven. One implementation nuance remains: the harness currently groups token-packs inside an access-token-gated paid-mods read lane even though the earlier direct game-host comparison proved `GET /games/1325/monetization/token-packs` also succeeds without bearer on `g-1325` once the host/key tuple is correct, and it still models S2S/history behind `service_token` as an implementation assumption rather than a proven provider fact.
 
 _Date:_ 2026-06-15  
 _Repo:_ `aerobeat-vendor-modio`  
@@ -262,6 +262,42 @@ Relevant harness evidence from that run:
   - missing path facts: `monetization_team_id`, `transaction_id`
   - current harness/adapter assumption still under test: `service_token`
 - Because the instruction explicitly forbade inventing S2S path facts or payloads, stopping after the owned-mod read was the truthful outcome for this slice.
+
+## Guarded buyer-write preflight (Task 14, 2026-06-16)
+
+For this slice I kept the now-proven paid fixture context in place and used the restored harness path with explicit opt-in so the repo’s own write-preflight surface would speak first:
+
+```bash
+godot --headless --path .testbed --script res://scripts/modio_live_harness.gd -- --paid-mods --allow-paid-writes --json
+```
+
+Relevant local runtime state at execution time:
+
+- `base_url=https://g-1325.test.mod.io/v1`
+- `game_id=1325`
+- `owned_mod_id=16364`
+- `paid_mod_id=16364`
+- `api_key` present
+- bearer `access_token` present
+- `entitlements_payload_json=""`
+- `checkout_payload_json=""`
+- `service_token` blank
+- `monetization_team_id` blank
+
+### Task 14 result matrix
+
+| Step | Result | Exact evidence |
+| --- | --- | --- |
+| `POST /me/entitlements` preflight/attempt | **NOT RUNNABLE — missing payload JSON** | Harness result `paid_entitlements` → `status="skipped"`, reason `Skipped because entitlements_payload_json is empty in the session config`. No adapter validation error surfaced and no live provider request was issued because execution stopped before request building/network submission. |
+| `POST /games/1325/mods/16364/checkout` preflight/attempt | **NOT RUNNABLE — missing payload JSON** | Harness result `paid_checkout` → `status="skipped"`, reason `Skipped because checkout_payload_json is empty in the session config`. No adapter validation error surfaced and no live provider request was issued because execution stopped before request building/network submission. |
+| buyer-write route-group overview | **BLOCKED** | Harness `paid_buyer_writes` group remained `status="blocked"` with missing prerequisites `entitlements_payload_json in .testbed/configs/modio.session.local.cfg; checkout_payload_json in .testbed/configs/modio.session.local.cfg`. |
+
+### Task 14 interpretation
+
+- The guarded buyer-write lane is still blocked by **missing session payload JSON**, not by bearer auth, not by missing paid mod id, not by adapter field validation, and not by a live provider/business response.
+- Because both payload inputs were blank, the truthful result was to stop before fake execution. No POST to `/me/entitlements` or `/games/1325/mods/16364/checkout` was attempted.
+- No new transaction id, order id, checkout object id, or entitlement object id surfaced from this task.
+- The next real step for this lane is not “retry harder”; it is to supply truthful `entitlements_payload_json` and `checkout_payload_json` in ignored local session config and then rerun the same guarded path.
 
 ## Exact commands run
 

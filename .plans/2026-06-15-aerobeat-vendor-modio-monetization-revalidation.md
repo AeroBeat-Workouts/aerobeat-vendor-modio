@@ -2,7 +2,7 @@
 
 **Date:** 2026-06-15  
 **Status:** In Progress  
-**Last Updated:** 2026-06-16 11:11 EDT  
+**Last Updated:** 2026-06-16 10:56 EDT  
 **Blocked Reason:** None  
 **Agent:** `Cookie`
 
@@ -607,9 +607,29 @@ As a harness cross-check after setting the owned/paid mod ids, `godot --headless
 - `.testbed/configs/modio.local.cfg` (local ignored, if touched)
 - `.testbed/configs/modio.session.local.cfg` (local ignored, if touched)
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** Executed the guarded buyer-write lane only as far as the current truthful ignored local config allows, using the restored Godot harness path with explicit opt-in: `godot --headless --path .testbed --script res://scripts/modio_live_harness.gd -- --paid-mods --allow-paid-writes --json`.
+
+Exact entitlements preflight/attempt result:
+- Harness/runtime input state at execution time: bearer `access_token` present, `owned_mod_id=16364`, `paid_mod_id=16364`, but `entitlements_payload_json=""` in `.testbed/configs/modio.session.local.cfg`.
+- Exact harness result: `paid_entitlements` → `status="skipped"`, reason `Skipped because entitlements_payload_json is empty in the session config`.
+- Lane classification: **blocked by missing payload JSON**, not by adapter validation and not by a live provider response.
+- Live HTTP attempt: **none issued truthfully**. Because the payload JSON was blank, execution stopped before adapter request-building or network submission.
+
+Exact checkout preflight/attempt result:
+- Harness/runtime input state at execution time: bearer `access_token` present and paid mod path input available (`paid_mod_id=16364`), but `checkout_payload_json=""` in `.testbed/configs/modio.session.local.cfg`.
+- Exact harness result: `paid_checkout` → `status="skipped"`, reason `Skipped because checkout_payload_json is empty in the session config`.
+- Lane classification: **blocked by missing payload JSON**, not by adapter validation and not by a live provider response.
+- Live HTTP attempt: **none issued truthfully**. Because the payload JSON was blank, execution stopped before adapter request-building or network submission.
+
+Additional exact harness overview evidence from the same `--allow-paid-writes` run:
+- `paid_buyer_writes` route group stayed `status="blocked"` with missing prerequisites `entitlements_payload_json in .testbed/configs/modio.session.local.cfg; checkout_payload_json in .testbed/configs/modio.session.local.cfg`.
+- The owned-mod read remained proven in the same run: `paid_monetization_team` → `200`, `response_result_total=1`, `usernames=["DerrickBarra"]`, `splits=[100]`.
+
+Newly surfaced transaction/order ids or blockers:
+- **No new transaction id, order id, or checkout/entitlement object id surfaced** because neither buyer-write lane reached a live provider request.
+- The only truthful blockers for this task were the still-blank `entitlements_payload_json` and `checkout_payload_json` session inputs.
 
 ---
 
