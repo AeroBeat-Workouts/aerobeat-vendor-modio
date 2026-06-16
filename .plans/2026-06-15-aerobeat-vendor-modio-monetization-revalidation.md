@@ -1,9 +1,9 @@
 # AeroBeat Vendor Mod.io Monetization Revalidation
 
 **Date:** 2026-06-15  
-**Status:** In Progress  
-**Last Updated:** 2026-06-16 10:56 EDT  
-**Blocked Reason:** None  
+**Status:** Blocked  
+**Last Updated:** 2026-06-16 11:08 EDT  
+**Blocked Reason:** Remaining live paid lanes still need truthful buyer payload JSON plus S2S team/transaction inputs; current S2S `service_token` requirement is still only an implementation assumption under test.  
 **Agent:** `Cookie`
 
 ---
@@ -647,19 +647,19 @@ Newly surfaced transaction/order ids or blockers:
 **Files Created/Deleted/Modified:**
 - `.plans/2026-06-15-aerobeat-vendor-modio-monetization-revalidation.md`
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** Independent audit passed with plan-only truth updates. `REF-09` and the current harness/adapter code already tell the truth about the continuation-slice outcomes: the owned-mod read is genuinely proven on mod `16364` (`200`, one `DerrickBarra` row, `split=100`); the S2S/history reads were not truthfully runnable because the local ignored runtime still lacked `service_token`, `monetization_team_id`, `s2s_filters_json`, and any `s2s_transaction_id`; and the guarded buyer-write lane was exercised only through the restored `--allow-paid-writes` harness path, where both write routes stopped as config-level skips because `entitlements_payload_json` and `checkout_payload_json` were blank. No adapter validation error and no live buyer-write POST were evidenced for this slice. No matrix-doc text changes were needed because it already separates local prerequisite gaps from provider responses and from the adapter’s still-unproven `service_token` assumption.
 
 ---
 
 ## Final Results
 
-**Status:** ✅ Complete
+**Status:** ⚠️ Partial / Blocked
 
-**What We Built:** A truthful 2026-06-15 monetization revalidation record that now covers all four relevant proof layers for this slice: the user-host bearer lane on `https://u-71104.test.mod.io/v1`, the game-host token-pack lane on `https://g-1325.test.mod.io/v1`, the restored in-repo Godot harness path reproducing those already-proven monetization reads from the real `--paid-mods` flow, and a newly created paid workout fixture on the test server via the REST-backed authoring path. That fixture is mod **`16364`** with modfile **`23257`**, and its truthful paid state required creating a mod monetization team before the `price` + `monetization_options` update would stick.
+**What We Built:** A truthful 2026-06-15/2026-06-16 monetization revalidation record that now covers all currently runnable paid-mod proof layers for this slice: the user-host bearer lane on `https://u-71104.test.mod.io/v1`, the game-host token-pack lane on `https://g-1325.test.mod.io/v1`, the restored in-repo Godot harness path reproducing those already-proven monetization reads from the real `--paid-mods` flow, the live owned-mod monetization-team read on paid fixture mod **`16364`**, and the guarded buyer-write preflight showing why no live buyer-write POST could truthfully run yet. The fixture remains mod **`16364`** with modfile **`23257`**, and its truthful paid state required creating a mod monetization team before the `price` + `monetization_options` update would stick.
 
-**Reference Check:** `REF-03`, `REF-04`, `REF-05`, `REF-07`, `REF-08`, and `REF-09` were cross-checked across the audit, OAuth rerun, game-host rerun, harness repair, final harness rerun, and the paid-fixture creation slice. The repo/testbed truth is now: `/me`, `/me/purchased`, and `/me/wallets?game_id=1325` work on the approved user host with a real bearer token; `GET /games/1325/monetization/token-packs` works on the approved game host with the supplied `g-1325` API key and also succeeded in the comparison call without bearer; `godot --headless --path .testbed --script res://scripts/modio_live_harness.gd -- --paid-mods --json` reproduces token packs, wallet, and purchased results successfully on the current local config; and creating a truthful paid workout fixture required `POST /games/1325/mods/{mod-id}/monetization/team` before the authoring update carrying `price` and `monetization_options` could succeed.
+**Reference Check:** `REF-03`, `REF-04`, `REF-05`, `REF-07`, `REF-08`, and `REF-09` were cross-checked across the audit, OAuth rerun, game-host rerun, harness repair, final harness rerun, paid-fixture creation, and the remaining-paid-lane continuation audit. The repo/testbed truth is now: `/me`, `/me/purchased`, and `/me/wallets?game_id=1325` work on the approved user host with a real bearer token; `GET /games/1325/monetization/token-packs` works on the approved game host with the supplied `g-1325` API key and also succeeded in the comparison call without bearer; `godot --headless --path .testbed --script res://scripts/modio_live_harness.gd -- --paid-mods --json` reproduces token packs, wallet, purchased, and the owned-mod monetization-team read successfully when the truthful local fixture inputs are present; `GET /games/1325/mods/16364/monetization/team` is proven with one `DerrickBarra` row at `split=100`; the guarded buyer-write lane with `--allow-paid-writes` still stops before adapter validation or live HTTP when `entitlements_payload_json` and `checkout_payload_json` are blank; and S2S/history remains blocked on missing `monetization_team_id` / transaction inputs plus the still-unproven `service_token` implementation assumption.
 
 **Commits:**
 - `7d97f39` - docs: record monetization staircase revalidation
@@ -671,10 +671,10 @@ Newly surfaced transaction/order ids or blockers:
 
 **Lessons Learned:** The main hidden bugbears were context drift, path-family drift, and one live request-shape mismatch on the monetization-team create route. For truthful future reruns we should keep the lanes sharply separated: user-host `/me*` monetization reads require a real bearer token; game-host token packs require the correct `g-1325` host/key tuple and are now proven; and paid-mod creation on this server currently needs a creator monetization-team row before `price` + `monetization_options` updates stop failing with `900022`. Separately, the `.testbed` workbench depends on its root bridge paths staying intact and used consistently; mixing `res://src/...` globals with direct addon/sibling script paths is what turned a missing bridge into the misleading `ModioVendorAdapter` parse/load failure.
 
-**Stopping Point:** The owned paid-mod read is now also proven on the live fixture: `GET /games/1325/mods/16364/monetization/team` returned `200` with one row for `DerrickBarra` (`id=71104`, `split=100`). The restored Godot harness reproduces that owned-mod result and still truthfully skips S2S/history because `service_token`, `monetization_team_id`, and any transaction id remain absent from current local cfg.
+**Stopping Point:** The continuation slice is now fully audited. The owned paid-mod read is proven on the live fixture (`GET /games/1325/mods/16364/monetization/team` → `200`, one `DerrickBarra` row, `split=100`), the guarded buyer-write lane was exercised only to truthful config-level skips under `--allow-paid-writes`, and S2S/history remains unrun for explicit missing local/runtime prerequisites rather than provider failure.
 
-**Next Slice:** Move to Task 14 only when truthful buyer-write payload JSON is available. S2S/history should remain blocked until a real `monetization_team_id` and either a falsified/confirmed auth path for the current `service_token` assumption or an actual configured `service_token` are available; the detail route still additionally needs a truthful transaction id.
+**Next Slice:** The current slice is complete, but the remaining live paid lanes are blocked on external inputs. Provide truthful `entitlements_payload_json` and `checkout_payload_json` to attempt the buyer-write POSTs; provide a truthful `monetization_team_id` plus either a falsified/confirmed auth path for the current `service_token` assumption or an actual configured `service_token` before retrying S2S/history; and provide a truthful `transaction_id` (directly or via a successful history-list response) before the S2S detail read.
 
 ---
 
-*Updated through 2026-06-15 18:45 EDT*
+*Updated through 2026-06-16 11:08 EDT*
