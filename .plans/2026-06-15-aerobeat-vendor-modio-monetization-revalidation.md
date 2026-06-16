@@ -981,9 +981,9 @@ Bottom line: the safe funding workflow is now understood, but actual execution r
 - `README.md` (if minimal QA fix needed)
 - `.plans/2026-06-15-aerobeat-vendor-modio-monetization-revalidation.md`
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** QA truth-check passed with no README edits needed. Re-read the active plan evidence and `.testbed/docs/modio-paid-mods-test-server-matrix.md` against the new `README.md` monetization truth block and found the wording stays appropriately narrow on every requested risk point: it does **not** claim a successful end-to-end paid purchase, it keeps `POST /me/entitlements` explicitly deferred/unrun because `entitlements_payload_json` is still blank, it keeps S2S/history explicitly unproven and still blocked on truthful `monetization_team_id` / `transaction_id` inputs plus the current harness `service_token` assumption, and it describes wallet funding only as a documented buyer-side `test.mod.io` top-up or separate platform-entitlement path that remained inaccessible from the current repo flow because no authenticated buyer web session or direct token-purchase REST route was available. The checkout bullets also stay exact to the evidence: `display_amount=499` failed with `900035`, `display_amount=500` moved past that mismatch and failed with `900049` insufficient funds while the wallet still showed `balance=0`. No tracked file changes were required beyond recording this QA verdict in the plan.
 
 ---
 
