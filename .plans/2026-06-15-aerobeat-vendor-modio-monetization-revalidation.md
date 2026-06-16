@@ -2,8 +2,8 @@
 
 **Date:** 2026-06-15  
 **Status:** Blocked  
-**Last Updated:** 2026-06-16 19:05 EDT  
-**Blocked Reason:** Provider-side wallet funding flow on `test.mod.io` is failing for the approved buyer account (`422 / errorRef 900030 / Payment failed, unable to process your payment`) before wallet balance can be increased.  
+**Last Updated:** 2026-06-16 19:09 EDT  
+**Blocked Reason:** Provider-side wallet funding remains blocked because the current repo/access context does not include a buyer-authenticated `test.mod.io` top-up completion path; checkout reached the provider and now stops at insufficient funds until that external top-up succeeds.  
 **Agent:** `Cookie`
 
 ---
@@ -1002,9 +1002,11 @@ Bottom line: the safe funding workflow is now understood, but actual execution r
 - `README.md` (if minimal audit fix needed)
 - `.plans/2026-06-15-aerobeat-vendor-modio-monetization-revalidation.md`
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** Independent audit passed with one minimal tracked truth fix in the active plan. `README.md` already matches the current monetization evidence and the paid-mod matrix in all material ways: it keeps the user-host `/me` / `/me/purchased` / `/me/wallets?game_id=1325` reads proven, the game-host token-pack read proven, the owned-mod monetization-team read on fixture `16364` proven, the paid fixture creation truth exact, direct checkout explicitly **not** end-to-end successful, entitlements intentionally deferred/unrun, and S2S/history explicitly unproven/blocked. The README also already names the current blocker truthfully as buyer-wallet funding / lack of buyer-side authenticated top-up completion on `test.mod.io`, not as a repo-routing success claim.
+
+The only plan-level drift was the stale top-level blocked-reason text, which still referenced an older provider payment failure. This audit corrected that to the current narrower blocker: checkout now reaches the provider and fails only because wallet funding/top-up cannot currently be completed from the available access context. With that plan fix in place, the repo is truthful and in a clean provider-blocked wrap state.
 
 ---
 
