@@ -2,7 +2,7 @@
 
 **Date:** 2026-06-15  
 **Status:** In Progress  
-**Last Updated:** 2026-06-16 10:58 EDT  
+**Last Updated:** 2026-06-16 11:11 EDT  
 **Blocked Reason:** None  
 **Agent:** `Cookie`
 
@@ -575,12 +575,16 @@ This slightly changes the practical launch order from the earlier generic “rea
 **Files Created/Deleted/Modified:**
 - `.plans/2026-06-15-aerobeat-vendor-modio-monetization-revalidation.md`
 - `.testbed/docs/modio-paid-mods-test-server-matrix.md`
-- `.testbed/configs/modio.local.cfg` (local ignored, if touched)
-- `.testbed/configs/modio.session.local.cfg` (local ignored, if touched)
+- `.testbed/configs/modio.local.cfg` (local ignored, touched to set `owned_mod_id=16364` and `paid_mod_id=16364`)
+- `.testbed/configs/modio.session.local.cfg` (local ignored, unchanged)
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** Executed the next read-only deeper lanes with the truthful current paid fixture and updated the ignored stable config only enough to let the harness/runtime path resolve the owned paid mod: `.testbed/configs/modio.local.cfg` now sets `owned_mod_id=16364` and `paid_mod_id=16364` while leaving `service_token` and `monetization_team_id` blank. The direct owned-mod request used the already-proven `g-1325` game-host tuple plus bearer auth: `GET https://g-1325.test.mod.io/v1/games/1325/mods/16364/monetization/team?api_key=<g-1325 api key>` with `Authorization: Bearer <present access token>`. It returned **`200`** with one monetization-team row: `id=71104`, `name_id="derrickbarra"`, `username="DerrickBarra"`, `monetization_status=49`, `monetization_options=1`, `split=100` (`result_total=1`). No new `monetization_team_id` or transaction id surfaced from that read.
+
+S2S/history list was **not truthfully runnable after the owned-mod read**. Current local runtime state still leaves `service_token=""`, `monetization_team_id=""`, `s2s_filters_json=""`, and `s2s_transaction_id=""`. Under the current adapter/harness implementation (`REF-03` through `REF-05`), that means the list route remains blocked by both a missing path input and the current service-token assumption, and the detail route remains additionally blocked by the absence of any truthful transaction id. I therefore did **not** invent a team id from broader game payloads and did **not** issue either S2S HTTP call directly.
+
+As a harness cross-check after setting the owned/paid mod ids, `godot --headless --path .testbed --script res://scripts/modio_live_harness.gd -- --paid-mods --json` now also reproduces this same split cleanly on current HEAD: `paid_monetization_team` passes with `200` / one `DerrickBarra` row / `split=100`, while both `paid_s2s_transactions` and `paid_s2s_transaction` stay skipped with the exact reason that no `service_token` and no `monetization_team_id` are configured and that the harness still models this lane behind `service_token` as an open question rather than proven provider fact.
 
 ---
 
@@ -647,9 +651,9 @@ This slightly changes the practical launch order from the earlier generic “rea
 
 **Lessons Learned:** The main hidden bugbears were context drift, path-family drift, and one live request-shape mismatch on the monetization-team create route. For truthful future reruns we should keep the lanes sharply separated: user-host `/me*` monetization reads require a real bearer token; game-host token packs require the correct `g-1325` host/key tuple and are now proven; and paid-mod creation on this server currently needs a creator monetization-team row before `price` + `monetization_options` updates stop failing with `900022`. Separately, the `.testbed` workbench depends on its root bridge paths staying intact and used consistently; mixing `res://src/...` globals with direct addon/sibling script paths is what turned a missing bridge into the misleading `ModioVendorAdapter` parse/load failure.
 
-**Stopping Point:** We now have a truthful paid workout fixture on the test server: mod `16364`, modfile `23257`, price `500`, `monetization_options=2`, and a self-owned monetization team row for user `71104`. The restored Godot harness also reproduces the proven read-side monetization checks again.
+**Stopping Point:** The owned paid-mod read is now also proven on the live fixture: `GET /games/1325/mods/16364/monetization/team` returned `200` with one row for `DerrickBarra` (`id=71104`, `split=100`). The restored Godot harness reproduces that owned-mod result and still truthfully skips S2S/history because `service_token`, `monetization_team_id`, and any transaction id remain absent from current local cfg.
 
-**Next Slice:** Start with `GET /games/1325/mods/16364/monetization/team`, then continue into the deeper paid lanes in this order: S2S/history list, S2S/history detail if list succeeds, entitlements write preflight/attempt, and checkout write last.
+**Next Slice:** Move to Task 14 only when truthful buyer-write payload JSON is available. S2S/history should remain blocked until a real `monetization_team_id` and either a falsified/confirmed auth path for the current `service_token` assumption or an actual configured `service_token` are available; the detail route still additionally needs a truthful transaction id.
 
 ---
 
