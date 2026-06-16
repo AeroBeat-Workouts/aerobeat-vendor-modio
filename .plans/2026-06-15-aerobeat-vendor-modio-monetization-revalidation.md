@@ -720,7 +720,7 @@ Bottom line:
 
 ### Task 17: Execute direct-mod.io checkout preflight/attempt with truthful payload
 
-**Bead ID:** `Pending`  
+**Bead ID:** `aerobeat-vendor-modio-9k8`  
 **SubAgent:** `primary`  
 **Role:** `qa`  
 **References:** `REF-03`, `REF-04`, `REF-05`, `REF-09`  
@@ -736,15 +736,40 @@ Bottom line:
 - `.testbed/docs/modio-paid-mods-test-server-matrix.md`
 - `.testbed/configs/modio.session.local.cfg` (local ignored, if touched)
 
-**Status:** ⏳ Pending
+**Status:** ✅ Complete
 
-**Results:** Pending.
+**Results:** Executed the first truthful direct-mod.io checkout attempt through the restored Godot harness path, with entitlements intentionally still deferred. Two distinct outcomes mattered:
+1. **Local validation failure first:** the first config injection attempt over-escaped `checkout_payload_json` in the ignored session cfg, so `ModioEnvLoader` failed to parse the JSON (`Unexpected character`, `Expected modio.test.checkout_payload_json to contain a JSON object`). The harness therefore truthfully treated checkout as config-empty and skipped the lane. No request was built or sent in that first pass.
+2. **Live checkout attempt after fixing local cfg encoding:** reran `godot --headless --path .testbed --script res://scripts/modio_live_harness.gd -- --paid-mods --allow-paid-writes --json` with a corrected ignored session payload and the existing stable paid fixture wiring (`paid_mod_id=16364`).
+
+Exact payload attempted via the harness session cfg:
+```json
+{"mod_id":"16364","fields":{"idempotent_key":"checkout-890ddbfc-8b19-4af3-b8dc-aa859330b81c","type":0,"display_amount":499}}
+```
+
+Exact request shape the adapter/harness built and attempted after local parsing succeeded:
+- `POST https://g-1325.test.mod.io/v1/games/1325/mods/16364/checkout`
+- headers: `Authorization: Bearer <present access_token>`, `Accept-Language: en-US`, `Content-Type: application/x-www-form-urlencoded`
+- **no `X-Modio-Portal` header**
+- body: `display_amount=499&idempotent_key=checkout-890ddbfc-8b19-4af3-b8dc-aa859330b81c&type=0`
+
+Exact live provider response:
+- harness result `paid_checkout` → `status="failed"`, `status_code=422`
+- provider error: `error_ref 900035`
+- provider message: `The displayed price does not match the price of the given mod.`
+- no checkout object id, transaction id, payment URL, redirect URL, or order id surfaced in the response
+
+Important truth from this attempt:
+- the restored Godot harness path is now able to execute the checkout lane truthfully
+- omitting the portal header is at least **request-viable** for direct web/desktop checkout because the request reached live provider validation instead of failing on missing/invalid `X-Modio-Portal`
+- full checkout completion is still blocked by a provider-level price/display mismatch for this attempted `type=0` + `display_amount=499` payload, not by missing local auth, missing route inputs, or adapter-side validation
+- entitlements remain deferred and were not attempted in this task
 
 ---
 
 ### Task 18: Audit checkout-first continuation slice
 
-**Bead ID:** `Pending`  
+**Bead ID:** `aerobeat-vendor-modio-qoe`  
 **SubAgent:** `primary`  
 **Role:** `auditor`  
 **References:** `REF-03`, `REF-04`, `REF-05`, `REF-09`  

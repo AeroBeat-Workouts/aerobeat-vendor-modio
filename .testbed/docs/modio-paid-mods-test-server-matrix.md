@@ -446,3 +446,70 @@ This was a **truthful partial staircase execution**:
 - The game-scoped Phase A token-pack route was blocked by missing/invalid target-game context under the supplied facts.
 - Phases B, C, and D remained blocked by missing local inputs that the instructions correctly forbade inventing.
 - The checkout itself also currently contains a separate repo bug in the Godot harness path.
+
+## 2026-06-16 checkout-first direct mod.io attempt on paid fixture `16364`
+
+This continuation slice kept **entitlements deferred** and exercised only the first truthful direct checkout lane for the desktop/web-distributed AeroBeat scenario.
+
+### Outcome split by layer
+
+1. **Local validation failure (first pass only)**
+   - The first ignored-session-config injection for `checkout_payload_json` was over-escaped.
+   - `ModioEnvLoader` reported:
+     - `Parse JSON failed. Error at line 0: Unexpected character`
+     - `Expected modio.test.checkout_payload_json to contain a JSON object`
+   - Because of that local cfg encoding bug, the first harness pass truthfully treated checkout as config-empty and reported:
+     - `paid_checkout` → `status="skipped"`
+     - reason: `Skipped because checkout_payload_json is empty in the session config`
+   - **No checkout request was built or sent in that first pass.**
+
+2. **Adapter / harness behavior (second pass, after fixing local cfg encoding)**
+   - Restored harness path used successfully:
+     ```bash
+     godot --headless --path .testbed --script res://scripts/modio_live_harness.gd -- --paid-mods --allow-paid-writes --json
+     ```
+   - Exact session payload injected for the live checkout attempt:
+     ```json
+     {"mod_id":"16364","fields":{"idempotent_key":"checkout-890ddbfc-8b19-4af3-b8dc-aa859330b81c","type":0,"display_amount":499}}
+     ```
+   - Exact request shape built by the adapter and prepared by the transport:
+     - method: `POST`
+     - url: `https://g-1325.test.mod.io/v1/games/1325/mods/16364/checkout`
+     - headers:
+       - `Authorization: Bearer <present access_token>`
+       - `Accept-Language: en-US`
+       - `Content-Type: application/x-www-form-urlencoded`
+       - **no `X-Modio-Portal` header**
+     - body: `display_amount=499&idempotent_key=checkout-890ddbfc-8b19-4af3-b8dc-aa859330b81c&type=0`
+   - Harness-side companion truth in the same run:
+     - `paid_entitlements` remained `skipped` because `entitlements_payload_json` is still blank by design for this slice.
+     - `paid_wallet` still showed `balance=0`, consistent with the checkout not completing.
+
+3. **Live provider response (second pass)**
+   - `paid_checkout` → `status="failed"`, `status_code=422`
+   - provider `error_ref=900035`
+   - provider message: `The displayed price does not match the price of the given mod.`
+   - **No checkout object id, transaction id, order id, payment URL, or redirect URL was returned.**
+
+### What this proves
+
+- The restored Godot harness path can now execute the guarded checkout lane truthfully.
+- Direct checkout **without** an `X-Modio-Portal` header is at least **request-viable** for the current desktop/web scenario, because the live request reached provider business validation instead of failing on missing/invalid portal wiring.
+- The current blocker is **not** missing local auth, missing mod-id wiring, or adapter validation.
+- The current blocker **is** the provider-side `display_amount` / checkout-price contract for this `type=0` attempt.
+
+### Current best reading of the remaining blocker
+
+The research-driven first guess was:
+- paid mod price: `500` tokens
+- token-pack display amount candidate: `499`
+- checkout mode: `type=0`
+
+This live result shows that `display_amount=499` is **not** accepted by the provider for the attempted checkout, even though the token-pack browse lane made that value look like the best first candidate. So that assumption is now **partially falsified** for actual checkout submission and should be refined before the next guarded attempt.
+
+### Practical QA verdict for this slice
+
+- **Exact payload attempted:** `{"mod_id":"16364","fields":{"idempotent_key":"checkout-890ddbfc-8b19-4af3-b8dc-aa859330b81c","type":0,"display_amount":499}}`
+- **Exact live result:** `422 / error_ref 900035 / The displayed price does not match the price of the given mod.`
+- **Direct web checkout without portal header viable?** Yes at the **request-routing / provider-validation** level; still **not yet proven successful end-to-end**.
+- **What still blocks full checkout validation?** Determining the provider-accepted `display_amount` semantics/value for this direct type-`0` lane, then rerunning with a fresh idempotent key.
