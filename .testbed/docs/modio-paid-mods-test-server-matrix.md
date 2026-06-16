@@ -1,6 +1,6 @@
 # mod.io paid-mods test-server QA matrix
 
-> Current truth from the 2026-06-16 continuation pass: the approved `u-71104.test.mod.io` bearer `/me*` lane works with a real OAuth token, the `g-1325.test.mod.io` rerun proved the game-host token-pack lane, the direct owned-mod read `GET /games/1325/mods/16364/monetization/team` is now also proven on the live paid fixture, and the restored Godot harness path reproduces those already-proven read results from the in-repo `--paid-mods` flow. The guarded buyer-write lane has now been split truthfully by input state: `POST /me/entitlements` remains intentionally deferred and locally blocked because `entitlements_payload_json` is still blank, while `POST /games/1325/mods/16364/checkout` progressed through one real `type=0` live attempt after a first local cfg JSON-escaping mistake. That live checkout used no `X-Modio-Portal` header, reached provider business validation, and failed with `422 / error_ref 900035 / The displayed price does not match the price of the given mod.` S2S/history reads remain unproven. One implementation nuance remains: the harness currently groups token-packs inside an access-token-gated paid-mods read lane even though the earlier direct game-host comparison proved `GET /games/1325/monetization/token-packs` also succeeds without bearer on `g-1325` once the host/key tuple is correct, and it still models S2S/history behind `service_token` as an implementation assumption rather than a proven provider fact.
+> Current truth from the 2026-06-16 continuation pass: the approved `u-71104.test.mod.io` bearer `/me*` lane works with a real OAuth token, the `g-1325.test.mod.io` rerun proved the game-host token-pack lane, the direct owned-mod read `GET /games/1325/mods/16364/monetization/team` is now also proven on the live paid fixture, and the restored Godot harness path reproduces those already-proven read results from the in-repo `--paid-mods` flow. The guarded buyer-write lane has now been split truthfully by input state: `POST /me/entitlements` remains intentionally deferred and locally blocked because `entitlements_payload_json` is still blank, while `POST /games/1325/mods/16364/checkout` has now progressed through **two** real `type=0` live attempts after the earlier local cfg JSON-escaping mistake was corrected. The first live checkout used no `X-Modio-Portal` header, reached provider business validation, and failed with `422 / error_ref 900035 / The displayed price does not match the price of the given mod.` The second live retry kept the same no-portal request shape but used `display_amount=500`; that moved past the displayed-price mismatch and failed instead with `422 / error_ref 900049 / You do not have enough funds to perform this action.` S2S/history reads remain unproven. One implementation nuance remains: the harness currently groups token-packs inside an access-token-gated paid-mods read lane even though the earlier direct game-host comparison proved `GET /games/1325/monetization/token-packs` also succeeds without bearer on `g-1325` once the host/key tuple is correct, and it still models S2S/history behind `service_token` as an implementation assumption rather than a proven provider fact.
 
 _Date:_ 2026-06-15  
 _Repo:_ `aerobeat-vendor-modio`  
@@ -513,3 +513,50 @@ This live result shows that `display_amount=499` is **not** accepted by the prov
 - **Exact live result:** `422 / error_ref 900035 / The displayed price does not match the price of the given mod.`
 - **Direct web checkout without portal header viable?** Yes at the **request-routing / provider-validation** level; still **not yet proven successful end-to-end**.
 - **What still blocks full checkout validation?** Determining the provider-accepted `display_amount` semantics/value for this direct type-`0` lane, then rerunning with a fresh idempotent key.
+
+## 2026-06-16 second direct checkout retry on paid fixture `16364`
+
+This follow-up retry kept **entitlements deferred** and reused the restored Godot harness path, but applied the refined `display_amount` research result directly.
+
+### Exact guarded retry inputs
+
+- Harness command:
+  ```bash
+  godot --headless --path .testbed --script res://scripts/modio_live_harness.gd -- --paid-mods --allow-paid-writes --json
+  ```
+- Exact session payload injected for the retry:
+  ```json
+  {"mod_id":"16364","fields":{"idempotent_key":"checkout-a0c0b316-f298-44c7-913b-bc874267f543","type":0,"display_amount":500}}
+  ```
+- Exact request shape built by the adapter and prepared by the transport:
+  - method: `POST`
+  - url: `https://g-1325.test.mod.io/v1/games/1325/mods/16364/checkout`
+  - headers:
+    - `Authorization: Bearer <present access_token>`
+    - `Accept-Language: en-US`
+    - `Content-Type: application/x-www-form-urlencoded`
+    - **no `X-Modio-Portal` header**
+  - body: `display_amount=500&idempotent_key=checkout-a0c0b316-f298-44c7-913b-bc874267f543&type=0`
+
+### Exact live result
+
+- `paid_checkout` → `status="failed"`, `status_code=422`
+- provider `error_ref=900049`
+- provider message: `You do not have enough funds to perform this action.`
+- companion harness truth from the same run:
+  - `paid_wallet` still showed `balance=0`
+  - `payment_method_id` was present on the wallet payload (`2800d1c6-a5bf-485d-b793-e6e101585217`)
+  - `paid_entitlements` remained `skipped` because `entitlements_payload_json` is still blank by design
+- **No checkout object id, transaction id, order id, payment URL, or redirect URL was returned.**
+
+### What changed versus the first live checkout attempt
+
+- `display_amount=500` **was accepted past the previous displayed-price mismatch gate**. The earlier `900035` mismatch error did not recur.
+- The remaining live blocker is now narrower and later in the provider flow: **the buyer account has insufficient funds** for the purchase attempt.
+- This means the refined `display_amount` research was directionally correct for this fixture: the retry moved beyond price-validation and hit wallet-funding enforcement instead.
+
+### Practical QA verdict for the retry
+
+- **Was `display_amount=500` accepted?** Yes, in the specific sense that the retry no longer failed on displayed-price mismatch and instead advanced to provider funds validation.
+- **Exact live result:** `422 / error_ref 900049 / You do not have enough funds to perform this action.`
+- **Remaining blocker before full checkout validation:** the wallet currently has `balance=0`, so the next blocker is funding the buyer account with sufficient MIO / purchase balance before another direct checkout retry can prove end-to-end success.
